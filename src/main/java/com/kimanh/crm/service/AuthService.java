@@ -1,0 +1,70 @@
+package com.kimanh.crm.service;
+
+import com.kimanh.crm.entity.User;
+import com.kimanh.crm.repository.UserRepository;
+import com.kimanh.crm.security.JwtUtil;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Service
+@RequiredArgsConstructor
+public class AuthService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
+
+    public Map<String, Object> login(String username, String password) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại"));
+
+        if (!user.getActive()) {
+            throw new RuntimeException("Tài khoản đã bị khóa");
+        }
+
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            throw new RuntimeException("Mật khẩu không chính xác");
+        }
+
+        String token = jwtUtil.generateToken(user.getUsername(), user.getRole());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("token", token);
+        result.put("username", user.getUsername());
+        result.put("fullName", user.getFullName());
+        result.put("role", user.getRole());
+        return result;
+    }
+
+    public User register(String username, String password, String fullName, String role) {
+        if (userRepository.existsByUsername(username)) {
+            throw new RuntimeException("Tên đăng nhập đã tồn tại");
+        }
+
+        User user = User.builder()
+                .username(username)
+                .password(passwordEncoder.encode(password))
+                .fullName(fullName)
+                .role(role != null ? role : "SALER")
+                .active(true)
+                .build();
+
+        return userRepository.save(user);
+    }
+
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
+
+    public User toggleActive(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+        user.setActive(!user.getActive());
+        return userRepository.save(user);
+    }
+}
