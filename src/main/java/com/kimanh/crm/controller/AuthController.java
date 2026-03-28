@@ -25,6 +25,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> register(@RequestBody Map<String, String> body) {
         String username = body.get("username");
         String password = body.get("password");
@@ -55,5 +56,10 @@ public class AuthController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<User> toggleUser(@PathVariable Long id) {
         return ResponseEntity.ok(authService.toggleActive(id));
+    }
+
+    @GetMapping("/users/sales")
+    public ResponseEntity<List<String>> getSaleUsers() {
+        return ResponseEntity.ok(authService.getSaleUserNames());
     }
 }

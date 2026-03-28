@@ -16,82 +16,98 @@ import java.util.List;
 public interface DonHangRepository extends JpaRepository<DonHang, Long> {
 
     @Query(value = "SELECT d.* FROM public.don_hang d WHERE " +
-           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
-           "OR LOWER(d.ten_khach) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
            "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
-           "OR LOWER(d.san_pham) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
-           "AND (CAST(:trangThai AS text) IS NULL OR d.trang_thai = CAST(:trangThai AS text)) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND (CAST(:tinhTrang AS text) IS NULL OR d.tinh_trang = CAST(:tinhTrang AS text)) " +
            "AND (CAST(:sale AS text) IS NULL OR d.sale = CAST(:sale AS text)) " +
-           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay_dat >= CAST(:fromDate AS date)) " +
-           "AND (CAST(:toDate AS date) IS NULL OR d.ngay_dat <= CAST(:toDate AS date)) " +
-           "ORDER BY d.created_at DESC",
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "ORDER BY d.ngay DESC, d.id DESC",
            countQuery = "SELECT COUNT(*) FROM public.don_hang d WHERE " +
-           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
-           "OR LOWER(d.ten_khach) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
            "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
-           "OR LOWER(d.san_pham) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
-           "AND (CAST(:trangThai AS text) IS NULL OR d.trang_thai = CAST(:trangThai AS text)) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND (CAST(:tinhTrang AS text) IS NULL OR d.tinh_trang = CAST(:tinhTrang AS text)) " +
            "AND (CAST(:sale AS text) IS NULL OR d.sale = CAST(:sale AS text)) " +
-           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay_dat >= CAST(:fromDate AS date)) " +
-           "AND (CAST(:toDate AS date) IS NULL OR d.ngay_dat <= CAST(:toDate AS date))",
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
            nativeQuery = true)
     Page<DonHang> findWithFilters(
             @Param("keyword") String keyword,
-            @Param("trangThai") String trangThai,
+            @Param("tinhTrang") String tinhTrang,
             @Param("sale") String sale,
+            @Param("page") String page,
+            @Param("maIdQuangCao") String maIdQuangCao,
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate,
             Pageable pageable);
 
-    long count();
-
-    @Query("SELECT COALESCE(SUM(d.thanhToan), 0) FROM DonHang d")
-    BigDecimal sumTotalRevenue();
-
-    @Query("SELECT COUNT(d) FROM DonHang d WHERE d.ngayDat = :today")
-    long countTodayOrders(@Param("today") LocalDate today);
-
-    @Query("SELECT COUNT(d) FROM DonHang d WHERE d.trangThai = 'Hoàn thành'")
-    long countCompleted();
-
-    // Revenue by month (last 12 months)
-    @Query(value = "SELECT TO_CHAR(ngay_dat, 'YYYY-MM') as month, COALESCE(SUM(thanh_toan), 0) as revenue " +
-                   "FROM don_hang WHERE ngay_dat >= :startDate " +
-                   "GROUP BY TO_CHAR(ngay_dat, 'YYYY-MM') ORDER BY month", nativeQuery = true)
-    List<Object[]> revenueByMonth(@Param("startDate") LocalDate startDate);
-
-    // Orders by day (last 30 days)
-    @Query(value = "SELECT TO_CHAR(ngay_dat, 'YYYY-MM-DD') as day, COUNT(*) as total " +
-                   "FROM don_hang WHERE ngay_dat >= :startDate " +
-                   "GROUP BY TO_CHAR(ngay_dat, 'YYYY-MM-DD') ORDER BY day", nativeQuery = true)
-    List<Object[]> ordersByDay(@Param("startDate") LocalDate startDate);
-
-    // Order status distribution
-    @Query("SELECT d.trangThai, COUNT(d) FROM DonHang d GROUP BY d.trangThai")
-    List<Object[]> orderStatusDistribution();
-
-    // Recent orders
-    List<DonHang> findTop10ByOrderByCreatedAtDesc();
-
-    @Query("SELECT DISTINCT d.sale FROM DonHang d WHERE d.sale IS NOT NULL")
-    List<String> findDistinctSales();
-
-    // All orders for export (no paging)
+    // Export (no paging)
     @Query(value = "SELECT d.* FROM public.don_hang d WHERE " +
-           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
-           "OR LOWER(d.ten_khach) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
            "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
-           "OR LOWER(d.san_pham) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
-           "AND (CAST(:trangThai AS text) IS NULL OR d.trang_thai = CAST(:trangThai AS text)) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND (CAST(:tinhTrang AS text) IS NULL OR d.tinh_trang = CAST(:tinhTrang AS text)) " +
            "AND (CAST(:sale AS text) IS NULL OR d.sale = CAST(:sale AS text)) " +
-           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay_dat >= CAST(:fromDate AS date)) " +
-           "AND (CAST(:toDate AS date) IS NULL OR d.ngay_dat <= CAST(:toDate AS date)) " +
-           "ORDER BY d.created_at DESC",
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "ORDER BY d.ngay DESC, d.id DESC",
            nativeQuery = true)
     List<DonHang> findAllWithFilters(
             @Param("keyword") String keyword,
-            @Param("trangThai") String trangThai,
+            @Param("tinhTrang") String tinhTrang,
             @Param("sale") String sale,
+            @Param("page") String page,
+            @Param("maIdQuangCao") String maIdQuangCao,
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
+
+    long count();
+
+    @Query("SELECT COALESCE(SUM(d.giaThuThucTe), 0) FROM DonHang d")
+    BigDecimal sumTotalRevenue();
+
+    @Query("SELECT COUNT(d) FROM DonHang d WHERE d.ngay = :today")
+    long countTodayOrders(@Param("today") LocalDate today);
+
+    @Query("SELECT COUNT(d) FROM DonHang d WHERE d.tinhTrang = 'Đã Giao Thành Công'")
+    long countCompleted();
+
+    @Query(value = "SELECT TO_CHAR(ngay, 'YYYY-MM') as month, COALESCE(SUM(gia_thu_thuc_te), 0) as revenue " +
+                   "FROM don_hang WHERE ngay >= :startDate " +
+                   "GROUP BY TO_CHAR(ngay, 'YYYY-MM') ORDER BY month", nativeQuery = true)
+    List<Object[]> revenueByMonth(@Param("startDate") LocalDate startDate);
+
+    @Query(value = "SELECT TO_CHAR(ngay, 'YYYY-MM-DD') as day, COUNT(*) as total " +
+                   "FROM don_hang WHERE ngay >= :startDate " +
+                   "GROUP BY TO_CHAR(ngay, 'YYYY-MM-DD') ORDER BY day", nativeQuery = true)
+    List<Object[]> ordersByDay(@Param("startDate") LocalDate startDate);
+
+    @Query("SELECT d.tinhTrang, COUNT(d) FROM DonHang d GROUP BY d.tinhTrang")
+    List<Object[]> orderStatusDistribution();
+
+    List<DonHang> findTop10ByOrderByCreatedAtDesc();
+
+    @Query("SELECT DISTINCT d.sale FROM DonHang d WHERE d.sale IS NOT NULL ORDER BY d.sale")
+    List<String> findDistinctSales();
+
+    @Query("SELECT DISTINCT d.page FROM DonHang d WHERE d.page IS NOT NULL ORDER BY d.page")
+    List<String> findDistinctPages();
+
+    @Query(value = "SELECT COALESCE(MAX(CAST(SUBSTRING(ma_hoa_don FROM '[0-9]+$') AS INTEGER)), 0) " +
+                   "FROM don_hang WHERE ma_hoa_don LIKE :prefix || '%'", nativeQuery = true)
+    int findMaxInvoiceSeq(@Param("prefix") String prefix);
 }

@@ -67,4 +67,10 @@ public class AuthService {
         user.setActive(!user.getActive());
         return userRepository.save(user);
     }
+
+    public List<String> getSaleUserNames() {
+        return userRepository.findByRoleAndActiveTrue("SALER").stream()
+                .map(User::getFullName)
+                .toList();
+    }
 }
