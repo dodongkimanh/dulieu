@@ -15,10 +15,11 @@ import {
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 
-const sidebarItems = [
+const allSidebarItems = [
   { key: '/dashboard', icon: <AppstoreOutlined />, label: 'Tổng quan' },
   { key: '/don-hang', icon: <ShoppingCartOutlined />, label: 'Đơn hàng' },
   { key: '/khach-hang', icon: <TeamOutlined />, label: 'Khách hàng' },
+  { key: '/users', icon: <UserOutlined />, label: 'Quản lý tài khoản', roles: ['ADMIN'] },
   { key: '/gioi-thieu', icon: <InfoCircleOutlined />, label: 'Giới thiệu' },
 ];
 
@@ -26,6 +27,7 @@ const pageTitles = {
   '/dashboard': 'Tổng quan',
   '/don-hang': 'Quản lý Đơn hàng',
   '/khach-hang': 'Quản lý Khách hàng',
+  '/users': 'Quản lý Tài khoản',
   '/gioi-thieu': 'Giới thiệu hệ thống',
 };
 
@@ -34,8 +36,10 @@ export default function MainLayout() {
   const location = useLocation();
   const { user, logout } = useAuth();
 
+  const roleLabel = user?.role === 'ADMIN' ? 'Quản trị viên' : user?.role === 'KE_TOAN' ? 'Kế toán' : 'Nhân viên Sale';
+
   const userMenuItems = [
-    { key: 'role', label: `Vai trò: ${user?.role === 'ADMIN' ? 'Quản trị viên' : 'Nhân viên'}`, disabled: true },
+    { key: 'role', label: `Vai trò: ${roleLabel}`, disabled: true },
     { type: 'divider' },
     { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true },
   ];
@@ -46,6 +50,11 @@ export default function MainLayout() {
       navigate('/login');
     }
   };
+
+  const sidebarItems = allSidebarItems.filter(item => {
+    if (!item.roles) return true;
+    return item.roles.includes(user?.role);
+  });
 
   return (
     <div className="sg-layout">

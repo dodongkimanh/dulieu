@@ -35,6 +35,7 @@ export const authApi = {
   register: (data) => api.post('/auth/register', data),
   getUsers: () => api.get('/auth/users'),
   toggleUser: (id) => api.patch(`/auth/users/${id}/toggle`),
+  getSaleUsers: () => api.get('/auth/users/sales'),
 };
 
 // Dashboard APIs
@@ -52,9 +53,10 @@ export const donHangApi = {
   getById: (id) => api.get(`/don-hang/${id}`),
   create: (data) => api.post('/don-hang', data),
   update: (id, data) => api.put(`/don-hang/${id}`, data),
-  updateStatus: (id, trangThai) => api.patch(`/don-hang/${id}/status`, { trangThai }),
+  updateStatus: (id, tinhTrang) => api.patch(`/don-hang/${id}/status`, { tinhTrang }),
   delete: (id) => api.delete(`/don-hang/${id}`),
   getSales: () => api.get('/don-hang/sales'),
+  getPages: () => api.get('/don-hang/pages'),
   export: (params) => api.get('/don-hang/export', { params, responseType: 'blob' }),
 };
 

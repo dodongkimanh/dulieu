@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import DonHang from './pages/DonHang';
 import KhachHang from './pages/KhachHang';
 import GioiThieu from './pages/GioiThieu';
+import UserManagement from './pages/UserManagement';
 import Login from './pages/Login';
 import './App.css';
 
@@ -20,6 +21,14 @@ function PublicRoute({ children }) {
   return user ? <Navigate to="/dashboard" replace /> : children;
 }
 
+function RoleRoute({ children, roles }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!roles.includes(user.role)) return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -32,6 +41,7 @@ function App() {
             <Route path="don-hang" element={<DonHang />} />
             <Route path="khach-hang" element={<KhachHang />} />
             <Route path="gioi-thieu" element={<GioiThieu />} />
+            <Route path="users" element={<RoleRoute roles={['ADMIN']}><UserManagement /></RoleRoute>} />
           </Route>
         </Routes>
       </AuthProvider>
