@@ -91,9 +91,19 @@ export default function UserManagement() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-      <div className="sg-toolbar">
-        <div className="sg-toolbar-title"><UserOutlined style={{ color: '#4F46E5' }} /> Quản lý tài khoản</div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>Tạo tài khoản</Button>
+      <div className="page-header-premium">
+        <div className="page-header-left">
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} size="large" className="create-btn-premium">Tạo tài khoản</Button>
+          <div className="page-header-info">
+            <UserOutlined style={{ fontSize: 20, color: '#4F46E5' }} />
+            <span className="page-header-title-text">Quản lý tài khoản</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="user-mgmt-desc">
+        <UserOutlined />
+        <span>Tạo tài khoản cho <b>Nhân viên Sale</b>, <b>Kế toán</b> hoặc <b>Quản trị viên</b>. Chọn vai trò phù hợp khi tạo tài khoản mới.</span>
       </div>
 
       <motion.div className="sg-card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.4 }}>
@@ -116,6 +126,7 @@ export default function UserManagement() {
         cancelText="Hủy"
         width={500}
         destroyOnClose
+        className="premium-modal"
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="username" label="Tên đăng nhập" rules={[{ required: true, message: 'Nhập tên đăng nhập' }]}>

@@ -41,7 +41,7 @@ export default function KhachHang() {
     setLoading(true);
     try {
       const params = {
-        page: page - 1, size,
+        pageNum: page - 1, size,
         keyword: (extra.keyword ?? filters.keyword) || undefined,
         status: (extra.status ?? filters.status) || undefined,
         sale: (extra.sale ?? filters.sale) || undefined,
@@ -121,26 +121,33 @@ export default function KhachHang() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-      <div className="sg-toolbar">
-        <div className="sg-toolbar-title"><TeamOutlined style={{ color: '#4F46E5' }} /> Khách hàng</div>
-        <Input
-          placeholder="Tìm kiếm..."
-          prefix={<SearchOutlined style={{ color: '#94A3B8' }} />}
-          value={filters.keyword}
-          onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
-          onPressEnter={handleSearch}
-          style={{ width: 220 }}
-          allowClear
-        />
-        <Select placeholder="Trạng thái" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} allowClear style={{ width: 140 }}>
-          {Object.entries(statusColors).map(([k, v]) => <Option key={k} value={k}>{v.label}</Option>)}
-        </Select>
-        <Select placeholder="Sale" value={filters.sale} onChange={(v) => setFilters({ ...filters, sale: v })} allowClear style={{ width: 130 }}>
-          {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
-        </Select>
-        <Button icon={<SearchOutlined />} onClick={handleSearch}>Lọc</Button>
-        <Button icon={<ReloadOutlined />} onClick={handleReset}>Reset</Button>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>Thêm KH</Button>
+      <div className="page-header-premium">
+        <div className="page-header-left">
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} size="large" className="create-btn-premium">Thêm khách hàng</Button>
+          <div className="page-header-info">
+            <TeamOutlined style={{ fontSize: 20, color: '#4F46E5' }} />
+            <span className="page-header-title-text">Khách hàng</span>
+          </div>
+        </div>
+        <div className="page-header-right">
+          <Input
+            placeholder="Tìm kiếm..."
+            prefix={<SearchOutlined style={{ color: '#94A3B8' }} />}
+            value={filters.keyword}
+            onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
+            onPressEnter={handleSearch}
+            style={{ width: 220 }}
+            allowClear
+          />
+          <Select placeholder="Trạng thái" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} allowClear style={{ width: 140 }}>
+            {Object.entries(statusColors).map(([k, v]) => <Option key={k} value={k}>{v.label}</Option>)}
+          </Select>
+          <Select placeholder="Sale" value={filters.sale} onChange={(v) => setFilters({ ...filters, sale: v })} allowClear style={{ width: 130 }}>
+            {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
+          </Select>
+          <Button icon={<SearchOutlined />} onClick={handleSearch}>Lọc</Button>
+          <Button icon={<ReloadOutlined />} onClick={handleReset}>Reset</Button>
+        </div>
       </div>
 
       <motion.div
@@ -170,6 +177,7 @@ export default function KhachHang() {
         cancelText="Hủy"
         width={680}
         destroyOnClose
+        className="premium-modal"
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={16}>
