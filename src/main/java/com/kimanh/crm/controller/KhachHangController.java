@@ -11,11 +11,15 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/khach-hang")
 @RequiredArgsConstructor
 public class KhachHangController {
+
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
+            "createdAt", "khachHang", "sdt", "sale", "page", "status", "ngayThang");
 
     private final KhachHangService service;
 
@@ -30,7 +34,8 @@ public class KhachHangController {
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir) {
 
-        Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+        String safeSortBy = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : "createdAt";
+        Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(safeSortBy).ascending() : Sort.by(safeSortBy).descending();
         PageRequest pageable = PageRequest.of(pageNum, size, sort);
         return ResponseEntity.ok(service.findAll(keyword, status, page, sale, pageable));
     }
