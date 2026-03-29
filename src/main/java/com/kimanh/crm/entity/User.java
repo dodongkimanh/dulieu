@@ -5,7 +5,7 @@ import lombok.*;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "users", schema = "public")
+@Table(name = "crm_users", schema = "public")
 @Getter
 @Setter
 @NoArgsConstructor

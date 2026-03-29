@@ -45,11 +45,13 @@ public class DonHangService {
     }
 
     public DonHang create(DonHang entity) {
-        // Auto-generate Mã Hóa Đơn: HD-YYYYMMDD-SEQ
-        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String prefix = "HD-" + datePart + "-";
-        int maxSeq = repository.findMaxInvoiceSeq(prefix);
-        entity.setMaHoaDon(String.format("%s%03d", prefix, maxSeq + 1));
+        // Allow manual Mã Hóa Đơn; auto-generate if blank
+        if (entity.getMaHoaDon() == null || entity.getMaHoaDon().isBlank()) {
+            String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String prefix = "HD-" + datePart + "-";
+            int maxSeq = repository.findMaxInvoiceSeq(prefix);
+            entity.setMaHoaDon(String.format("%s%03d", prefix, maxSeq + 1));
+        }
         return repository.save(entity);
     }
 

@@ -1,6 +1,8 @@
 package com.kimanh.crm.controller;
 
 import com.kimanh.crm.entity.DonHang;
+import com.kimanh.crm.entity.User;
+import com.kimanh.crm.repository.UserRepository;
 import com.kimanh.crm.service.DonHangService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -11,6 +13,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -24,6 +28,19 @@ import java.util.Map;
 public class DonHangController {
 
     private final DonHangService service;
+    private final UserRepository userRepository;
+
+    private boolean isSaler(Authentication auth) {
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
+    }
+
+    private String getSalerFullName(Authentication auth) {
+        if (auth == null) return null;
+        return userRepository.findByUsername(auth.getName())
+                .map(User::getFullName)
+                .orElse(null);
+    }
 
     @GetMapping
     public ResponseEntity<Page<DonHang>> getAll(
@@ -36,6 +53,12 @@ public class DonHangController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "0") int pageNum,
             @RequestParam(defaultValue = "20") int size) {
+
+        // SALER can only see their own orders
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (isSaler(auth)) {
+            sale = getSalerFullName(auth);
+        }
 
         PageRequest pageable = PageRequest.of(pageNum, size);
         return ResponseEntity.ok(service.findAll(keyword, tinhTrang, sale, page, maIdQuangCao, fromDate, toDate, pageable));
@@ -82,6 +105,7 @@ public class DonHangController {
     }
 
     @GetMapping("/export")
+    @PreAuthorize("hasAnyRole('ADMIN', 'KE_TOAN')")
     public ResponseEntity<byte[]> export(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String tinhTrang,

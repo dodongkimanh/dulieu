@@ -46,11 +46,16 @@ public class AuthService {
             throw new RuntimeException("Tên đăng nhập đã tồn tại");
         }
 
+        // Only allow SALER and KE_TOAN roles; ADMIN cannot be created
+        if (role == null || (!role.equals("SALER") && !role.equals("KE_TOAN"))) {
+            role = "SALER";
+        }
+
         User user = User.builder()
                 .username(username)
                 .password(passwordEncoder.encode(password))
                 .fullName(fullName)
-                .role(role != null ? role : "SALER")
+                .role(role)
                 .active(true)
                 .build();
 

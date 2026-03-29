@@ -2,6 +2,7 @@ package com.kimanh.crm.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -12,7 +13,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class KhachHang {
+public class KhachHang implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
