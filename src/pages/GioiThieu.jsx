@@ -76,7 +76,7 @@ export default function GioiThieu() {
           <Title level={2} style={{ color: '#fff', marginBottom: 8, letterSpacing: -0.5 }}>
             Đồ Đồng Kim Ánh — CRM System
           </Title>
-          <Paragraph style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, maxWidth: 600, margin: '0 auto' }}>
+          <Paragraph style={{ color: 'rgba(255,255,255,0.85)', fontSize: 16, maxWidth: 600, margin: '0 auto' }}>
             Hệ thống quản lý bán hàng chuyên nghiệp, hiện đại, tối ưu cho doanh nghiệp.
           </Paragraph>
 
@@ -94,8 +94,8 @@ export default function GioiThieu() {
                   transition={{ delay: 0.4 + i * 0.1 }}
                   style={{ textAlign: 'center', padding: '0 16px' }}
                 >
-                  <div style={{ fontSize: 28, fontWeight: 800, color: '#818CF8' }}>{s.value}</div>
-                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>{s.label}</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: '#fff', textShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>{s.value}</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>{s.label}</div>
                 </motion.div>
               </Col>
             ))}

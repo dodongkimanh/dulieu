@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Input, Select, DatePicker, Tag, Drawer, Form, InputNumber, Space, Popconfirm, message, Row, Col, Tooltip, Typography, Badge } from 'antd';
+import { Table, Button, Input, Select, DatePicker, Tag, Modal, Form, InputNumber, Space, Popconfirm, message, Row, Col, Tooltip, Typography, Badge } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -13,6 +13,7 @@ import {
   DollarOutlined,
   CarOutlined,
   CloseOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { donHangApi, authApi } from '../api';
@@ -62,14 +63,14 @@ const numFmt = (v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const numParse = (v) => v.replace(/,/g, '');
 
 export default function DonHang() {
-  const { isAdmin, isKeToan } = useAuth();
+  const { isAdmin, isKeToan, isSaler } = useAuth();
   const canEdit = isAdmin || isKeToan;
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [filters, setFilters] = useState({ keyword: '', tinhTrang: null, sale: null, page: null, maIdQuangCao: '' });
   const [dateRange, setDateRange] = useState([null, null]);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [salesList, setSalesList] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
@@ -119,14 +120,14 @@ export default function DonHang() {
     form.resetFields();
     form.setFieldsValue({ ngay: dayjs(), tinhTrang: 'Đang Chờ', cuocPhuTroi: 0 });
     setCalculated({ giaThuThucTe: 0, tyLeCk: 0, loiNhuanUocTinh: 0, tongThuKhach: 0, loiNhuanSauTru: 0 });
-    setDrawerOpen(true);
+    setModalOpen(true);
   };
 
   const handleEdit = (record) => {
     setEditingRecord(record);
     form.setFieldsValue({ ...record, ngay: record.ngay ? dayjs(record.ngay) : dayjs() });
     recalculate(record);
-    setDrawerOpen(true);
+    setModalOpen(true);
   };
 
   const recalculate = (vals) => {
@@ -160,7 +161,7 @@ export default function DonHang() {
         await donHangApi.create(values);
         message.success('Tạo đơn hàng thành công');
       }
-      setDrawerOpen(false);
+      setModalOpen(false);
       fetchData(pagination.current, pagination.pageSize);
     } catch (e) {
       if (e.errorFields) return;
@@ -196,7 +197,8 @@ export default function DonHang() {
     } catch { message.error('Lỗi khi xuất Excel'); }
   };
 
-  const columns = [
+  // Columns for ADMIN / KE_TOAN
+  const adminColumns = [
     { title: 'Ngày', dataIndex: 'ngay', width: 100, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
     { title: 'Mã HĐ', dataIndex: 'maHoaDon', width: 130, render: (v) => <span style={{ color: '#4F46E5', fontWeight: 600 }}>{v}</span> },
     { title: 'Khách hàng', dataIndex: 'khachHang', width: 160, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
@@ -209,15 +211,36 @@ export default function DonHang() {
       const sc = statusColors[v] || { color: '#64748B', bg: '#F1F5F9' };
       return <Tag style={{ background: sc.bg, color: sc.color, border: 'none', fontWeight: 600, padding: '2px 10px', borderRadius: 6 }}>{v}</Tag>;
     }},
-    ...(canEdit ? [{ title: '', width: 80, fixed: 'right', render: (_, record) => (
+    { title: '', width: 80, fixed: 'right', render: (_, record) => (
       <Space size={4}>
         <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); handleEdit(record); }} style={{ color: '#4F46E5' }} /></Tooltip>
         <Popconfirm title="Xác nhận xóa?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
           <Tooltip title="Xóa"><Button type="text" size="small" icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} danger /></Tooltip>
         </Popconfirm>
       </Space>
-    )}] : []),
+    )},
   ];
+
+  // Columns for SALER (view-only, limited fields)
+  const salerColumns = [
+    { title: 'Ngày', dataIndex: 'ngay', width: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
+    { title: 'Mã HĐ', dataIndex: 'maHoaDon', width: 130, render: (v) => <span style={{ color: '#4F46E5', fontWeight: 600 }}>{v}</span> },
+    { title: 'Mã ĐH', dataIndex: 'maDatHang', width: 110 },
+    { title: 'Khách hàng', dataIndex: 'khachHang', width: 150, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
+    { title: 'SĐT', dataIndex: 'sdt', width: 115 },
+    { title: 'Sale', dataIndex: 'sale', width: 110 },
+    { title: 'Niêm Yết', dataIndex: 'tongTienNiemYet', width: 120, align: 'right', render: (v) => <span style={{ fontWeight: 500 }}>{vnd(v)}</span> },
+    { title: 'Giá Bán', dataIndex: 'giaBanLenDon', width: 120, align: 'right', render: (v) => <span style={{ fontWeight: 500 }}>{vnd(v)}</span> },
+    { title: 'Phụ Trội', dataIndex: 'cuocPhuTroi', width: 100, align: 'right', render: (v) => vnd(v) },
+    { title: 'CK %', dataIndex: 'tyLeCk', width: 80, align: 'center', render: (v) => `${Number(v || 0).toFixed(1)}%` },
+    { title: 'Tình Trạng', dataIndex: 'tinhTrang', width: 140, render: (v) => {
+      const sc = statusColors[v] || { color: '#64748B', bg: '#F1F5F9' };
+      return <Tag style={{ background: sc.bg, color: sc.color, border: 'none', fontWeight: 600, padding: '2px 10px', borderRadius: 6 }}>{v}</Tag>;
+    }},
+    { title: 'Mã Vận Đơn', dataIndex: 'maVanDon', width: 120 },
+  ];
+
+  const columns = isSaler ? salerColumns : adminColumns;
 
   const expandedRowRender = (record) => (
     <motion.div
@@ -234,30 +257,34 @@ export default function DonHang() {
           <div className="expand-item"><span className="expand-label">Mã ID QC</span><span className="expand-value">{record.maIdQuangCao || '—'}</span></div>
         </div>
       </div>
-      <div className="expand-section">
-        <div className="expand-section-title"><DollarOutlined /> Giá & Chiết khấu</div>
-        <div className="expand-items">
-          <div className="expand-item"><span className="expand-label">Giá Vốn</span><span className="expand-value">{vnd(record.giaVon)} đ</span></div>
-          <div className="expand-item"><span className="expand-label">Tổng Niêm Yết</span><span className="expand-value">{vnd(record.tongTienNiemYet)} đ</span></div>
-          <div className="expand-item"><span className="expand-label">Cước Phụ Trội</span><span className="expand-value">{vnd(record.cuocPhuTroi)} đ</span></div>
-          <div className="expand-item"><span className="expand-label">CK %</span><span className="expand-value">{Number(record.tyLeCk || 0).toFixed(1)}%</span></div>
+      {!isSaler && (
+        <div className="expand-section">
+          <div className="expand-section-title"><DollarOutlined /> Giá & Chiết khấu</div>
+          <div className="expand-items">
+            <div className="expand-item"><span className="expand-label">Giá Vốn</span><span className="expand-value">{vnd(record.giaVon)} đ</span></div>
+            <div className="expand-item"><span className="expand-label">Tổng Niêm Yết</span><span className="expand-value">{vnd(record.tongTienNiemYet)} đ</span></div>
+            <div className="expand-item"><span className="expand-label">Cước Phụ Trội</span><span className="expand-value">{vnd(record.cuocPhuTroi)} đ</span></div>
+            <div className="expand-item"><span className="expand-label">CK %</span><span className="expand-value">{Number(record.tyLeCk || 0).toFixed(1)}%</span></div>
+          </div>
         </div>
-      </div>
-      <div className="expand-section">
-        <div className="expand-section-title"><CarOutlined /> Vận chuyển & Thanh toán</div>
-        <div className="expand-items">
-          <div className="expand-item"><span className="expand-label">Mã Vận Đơn</span><span className="expand-value">{record.maVanDon || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">CP Vận Chuyển</span><span className="expand-value">{vnd(record.chiPhiVanChuyen)} đ</span></div>
-          <div className="expand-item"><span className="expand-label">ĐS Vận Chuyển</span><span className="expand-value">{vnd(record.dsVanChuyen)} đ</span></div>
-          <div className="expand-item"><span className="expand-label">Đặt Cọc</span><span className="expand-value">{vnd(record.datCoc)} đ</span></div>
-          <div className="expand-item"><span className="expand-label">Thu Trực Tiếp</span><span className="expand-value">{vnd(record.thuBanTrucTiep)} đ</span></div>
-          <div className="expand-item highlight"><span className="expand-label">Tổng Thu Khách</span><span className="expand-value">{vnd(record.tongThuKhach)} đ</span></div>
-          <div className="expand-item highlight"><span className="expand-label">LN Sau Trừ</span><span className="expand-value" style={{ color: record.loiNhuanSauTru >= 0 ? '#059669' : '#DC2626' }}>{vnd(record.loiNhuanSauTru)} đ</span></div>
+      )}
+      {!isSaler && (
+        <div className="expand-section">
+          <div className="expand-section-title"><CarOutlined /> Vận chuyển & Thanh toán</div>
+          <div className="expand-items">
+            <div className="expand-item"><span className="expand-label">Mã Vận Đơn</span><span className="expand-value">{record.maVanDon || '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">CP Vận Chuyển</span><span className="expand-value">{vnd(record.chiPhiVanChuyen)} đ</span></div>
+            <div className="expand-item"><span className="expand-label">ĐS Vận Chuyển</span><span className="expand-value">{vnd(record.dsVanChuyen)} đ</span></div>
+            <div className="expand-item"><span className="expand-label">Đặt Cọc</span><span className="expand-value">{vnd(record.datCoc)} đ</span></div>
+            <div className="expand-item"><span className="expand-label">Thu Trực Tiếp</span><span className="expand-value">{vnd(record.thuBanTrucTiep)} đ</span></div>
+            <div className="expand-item highlight"><span className="expand-label">Tổng Thu Khách</span><span className="expand-value">{vnd(record.tongThuKhach)} đ</span></div>
+            <div className="expand-item highlight"><span className="expand-label">LN Sau Trừ</span><span className="expand-value" style={{ color: record.loiNhuanSauTru >= 0 ? '#059669' : '#DC2626' }}>{vnd(record.loiNhuanSauTru)} đ</span></div>
+          </div>
         </div>
-      </div>
+      )}
       {record.ghiChu && (
         <div className="expand-section full">
-          <div className="expand-section-title">📝 Ghi chú</div>
+          <div className="expand-section-title"><FileTextOutlined /> Ghi chú</div>
           <p className="expand-note">{record.ghiChu}</p>
         </div>
       )}
@@ -302,9 +329,11 @@ export default function DonHang() {
               Bộ lọc
             </Button>
           </Tooltip>
-          <Tooltip title="Xuất Excel">
-            <Button icon={<FileExcelOutlined />} onClick={handleExport} style={{ color: '#10B981' }}>Excel</Button>
-          </Tooltip>
+          {canEdit && (
+            <Tooltip title="Xuất Excel">
+              <Button icon={<FileExcelOutlined />} onClick={handleExport} style={{ color: '#10B981' }}>Excel</Button>
+            </Tooltip>
+          )}
         </div>
       </div>
 
@@ -325,11 +354,13 @@ export default function DonHang() {
                     {STATUS_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
                   </Select>
                 </Col>
-                <Col xs={24} sm={12} md={4}>
-                  <Select placeholder="Sale" value={filters.sale} onChange={(v) => setFilters(f => ({ ...f, sale: v }))} allowClear style={{ width: '100%' }}>
-                    {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
-                  </Select>
-                </Col>
+                {!isSaler && (
+                  <Col xs={24} sm={12} md={4}>
+                    <Select placeholder="Sale" value={filters.sale} onChange={(v) => setFilters(f => ({ ...f, sale: v }))} allowClear style={{ width: '100%' }}>
+                      {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
+                    </Select>
+                  </Col>
+                )}
                 <Col xs={24} sm={12} md={5}>
                   <Select placeholder="Page" value={filters.page} onChange={(v) => setFilters(f => ({ ...f, page: v }))} allowClear style={{ width: '100%' }} showSearch optionFilterProp="children">
                     {PAGE_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
@@ -366,7 +397,7 @@ export default function DonHang() {
           loading={loading}
           pagination={{ ...pagination, showSizeChanger: true, showTotal: (t) => `Tổng ${t} đơn` }}
           onChange={handleTableChange}
-          scroll={{ x: 1300 }}
+          scroll={{ x: isSaler ? 1500 : 1300 }}
           size="middle"
           expandable={{
             expandedRowRender,
@@ -377,20 +408,22 @@ export default function DonHang() {
         />
       </motion.div>
 
-      {/* Premium Drawer */}
-      <Drawer
+      {/* Premium Centered Modal */}
+      <Modal
         title={null}
-        placement="right"
-        width={680}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        open={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        footer={null}
+        width={800}
+        centered
+        destroyOnClose
         closable={false}
-        className="premium-drawer"
-        styles={{ body: { padding: 0, background: '#F8FAFC' }, header: { display: 'none' } }}
+        className="premium-order-modal"
+        styles={{ body: { padding: 0 } }}
       >
-        <div className="drawer-custom-header">
-          <div className="drawer-header-content">
-            <div className="drawer-header-icon">
+        <div className="modal-custom-header">
+          <div className="modal-header-content">
+            <div className="modal-header-icon">
               <ShoppingCartOutlined />
             </div>
             <div>
@@ -398,10 +431,10 @@ export default function DonHang() {
               <p>Điền đầy đủ thông tin đơn hàng</p>
             </div>
           </div>
-          <Button type="text" icon={<CloseOutlined />} onClick={() => setDrawerOpen(false)} className="drawer-close-btn" />
+          <Button type="text" icon={<CloseOutlined />} onClick={() => setModalOpen(false)} className="modal-close-btn" />
         </div>
 
-        <div className="drawer-body-content">
+        <div className="modal-body-content">
           <Form form={form} layout="vertical" onValuesChange={handleValuesChange}>
             <div className="form-section-card">
               <div className="form-section-header">
@@ -409,38 +442,39 @@ export default function DonHang() {
                 <span>Thông tin chung</span>
               </div>
               <Row gutter={16}>
-                <Col span={12}><Form.Item name="ngay" label="Ngày"><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item></Col>
-                <Col span={12}><Form.Item name="maDatHang" label="Mã Đặt Hàng"><Input /></Form.Item></Col>
+                <Col span={8}><Form.Item name="ngay" label="Ngày"><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item></Col>
+                <Col span={8}><Form.Item name="maHoaDon" label="Mã Hóa Đơn"><Input placeholder="Tự động nếu để trống" /></Form.Item></Col>
+                <Col span={8}><Form.Item name="maDatHang" label="Mã Đặt Hàng"><Input /></Form.Item></Col>
               </Row>
               <Row gutter={16}>
                 <Col span={12}><Form.Item name="khachHang" label="Khách hàng" rules={[{ required: true, message: 'Nhập tên' }]}><Input /></Form.Item></Col>
                 <Col span={12}><Form.Item name="sdt" label="SĐT"><Input /></Form.Item></Col>
               </Row>
               <Row gutter={16}>
-                <Col span={12}>
+                <Col span={8}>
                   <Form.Item name="sale" label="Sale">
                     <Select allowClear showSearch optionFilterProp="children" placeholder="Chọn Sale">
                       {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
                     </Select>
                   </Form.Item>
                 </Col>
-                <Col span={12}>
+                <Col span={8}>
                   <Form.Item name="page" label="Page">
                     <Select allowClear showSearch optionFilterProp="children" placeholder="Chọn Page">
                       {PAGE_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
                     </Select>
                   </Form.Item>
                 </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}><Form.Item name="maIdQuangCao" label="Mã ID Quảng Cáo"><Input /></Form.Item></Col>
-                <Col span={12}>
+                <Col span={8}>
                   <Form.Item name="tinhTrang" label="Tình trạng">
                     <Select>
                       {STATUS_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
                     </Select>
                   </Form.Item>
                 </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}><Form.Item name="maIdQuangCao" label="ID Bài Quảng Cáo"><Input placeholder="Nhập mã ID quảng cáo" /></Form.Item></Col>
               </Row>
             </div>
 
@@ -500,19 +534,22 @@ export default function DonHang() {
             </div>
 
             <div className="form-section-card">
-              <div className="form-section-header">📝 <span>Ghi chú</span></div>
+              <div className="form-section-header">
+                <FileTextOutlined />
+                <span>Ghi chú</span>
+              </div>
               <Form.Item name="ghiChu"><TextArea rows={3} placeholder="Ghi chú thêm..." /></Form.Item>
             </div>
           </Form>
         </div>
 
-        <div className="drawer-custom-footer">
-          <Button onClick={() => setDrawerOpen(false)} size="large">Hủy</Button>
+        <div className="modal-custom-footer">
+          <Button onClick={() => setModalOpen(false)} size="large">Hủy</Button>
           <Button type="primary" onClick={handleSubmit} size="large" className="submit-btn-premium">
             {editingRecord ? 'Cập nhật' : 'Tạo đơn hàng'}
           </Button>
         </div>
-      </Drawer>
+      </Modal>
     </motion.div>
   );
 }

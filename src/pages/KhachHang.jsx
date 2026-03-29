@@ -7,6 +7,7 @@ import {
   DeleteOutlined,
   ReloadOutlined,
   TeamOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { khachHangApi } from '../api';
@@ -119,6 +120,23 @@ export default function KhachHang() {
     )},
   ];
 
+  const expandedRowRender = (record) => (
+    <div className="expand-detail-grid">
+      <div className="expand-detail-item"><span className="expand-detail-label">ID</span><span className="expand-detail-value">{record.id}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">Ngày tháng</span><span className="expand-detail-value">{record.ngayThang ? dayjs(record.ngayThang).format('DD/MM/YYYY') : '—'}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">Khách hàng</span><span className="expand-detail-value">{record.khachHang || '—'}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">SĐT</span><span className="expand-detail-value">{record.sdt || '—'}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">Sale</span><span className="expand-detail-value">{record.sale || '—'}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">Mess</span><span className="expand-detail-value">{record.mess || '—'}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">UID</span><span className="expand-detail-value">{record.uid || '—'}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">Ad ID</span><span className="expand-detail-value">{record.adId || '—'}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">ID Trang</span><span className="expand-detail-value">{record.idTrang || '—'}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">Page</span><span className="expand-detail-value">{record.page || '—'}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">Trạng thái</span><span className="expand-detail-value">{statusColors[record.status]?.label || record.status || '—'}</span></div>
+      <div className="expand-detail-item"><span className="expand-detail-label">Ngày tạo</span><span className="expand-detail-value">{record.createdAt ? dayjs(record.createdAt).format('DD/MM/YYYY HH:mm') : '—'}</span></div>
+    </div>
+  );
+
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
       <div className="page-header-premium">
@@ -165,6 +183,7 @@ export default function KhachHang() {
           onChange={handleTableChange}
           scroll={{ x: 1100 }}
           size="middle"
+          expandable={{ expandedRowRender, expandRowByClick: true }}
         />
       </motion.div>
 

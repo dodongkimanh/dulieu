@@ -25,9 +25,6 @@ const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#06B6D4', '#8B5CF6'
 const formatVND = (v) => {
   if (!v) return '0 đ';
   const num = Number(v);
-  if (num >= 1e9) return (num / 1e9).toFixed(1) + ' tỷ';
-  if (num >= 1e6) return (num / 1e6).toFixed(1) + ' tr';
-  if (num >= 1e3) return (num / 1e3).toFixed(0) + 'k đ';
   return num.toLocaleString('vi-VN') + ' đ';
 };
 
@@ -80,12 +77,11 @@ export default function Dashboard() {
   const statusColorMap = { 'Mới': 'blue', 'Đang xử lý': 'orange', 'Hoàn thành': 'green', 'Đã hủy': 'red', 'Chờ thanh toán': 'gold' };
 
   const recentColumns = [
-    { title: 'Mã đơn', dataIndex: 'maDon', key: 'maDon', render: (v) => <span style={{ color: '#4F46E5', fontWeight: 600, fontSize: 13 }}>{v}</span> },
-    { title: 'Khách hàng', dataIndex: 'tenKhach', key: 'tenKhach', ellipsis: true },
-    { title: 'Sản phẩm', dataIndex: 'sanPham', key: 'sanPham', ellipsis: true },
-    { title: 'Thanh toán', dataIndex: 'thanhToan', key: 'thanhToan', render: (v) => <span style={{ fontWeight: 700 }}>{Number(v || 0).toLocaleString('vi-VN')} đ</span> },
-    { title: 'Trạng thái', dataIndex: 'trangThai', key: 'trangThai', render: (v) => <Tag color={statusColorMap[v] || 'default'}>{v}</Tag> },
-    { title: 'Ngày', dataIndex: 'ngayDat', key: 'ngayDat', render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
+    { title: 'Mã hóa đơn', dataIndex: 'maHoaDon', key: 'maHoaDon', render: (v) => <span style={{ color: '#4F46E5', fontWeight: 600, fontSize: 13 }}>{v}</span> },
+    { title: 'Khách hàng', dataIndex: 'khachHang', key: 'khachHang', ellipsis: true },
+    { title: 'Giá thu thực tế', dataIndex: 'giaThuThucTe', key: 'giaThuThucTe', render: (v) => <span style={{ fontWeight: 700 }}>{Number(v || 0).toLocaleString('vi-VN')} đ</span> },
+    { title: 'Trạng thái', dataIndex: 'tinhTrang', key: 'tinhTrang', render: (v) => <Tag color={statusColorMap[v] || 'default'}>{v}</Tag> },
+    { title: 'Ngày', dataIndex: 'ngay', key: 'ngay', render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
   ];
 
   if (loading) {
@@ -177,7 +173,7 @@ export default function Dashboard() {
               <BarChart data={revenueData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                 <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#94A3B8' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#94A3B8' }} tickFormatter={(v) => formatVND(v)} />
+                <YAxis tick={{ fontSize: 12, fill: '#94A3B8' }} tickFormatter={(v) => Number(v).toLocaleString('vi-VN')} />
                 <Tooltip
                   formatter={(v) => [Number(v).toLocaleString('vi-VN') + ' đ', 'Doanh thu']}
                   contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 13 }}

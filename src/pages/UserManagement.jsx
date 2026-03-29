@@ -103,7 +103,7 @@ export default function UserManagement() {
 
       <div className="user-mgmt-desc">
         <UserOutlined />
-        <span>Tạo tài khoản cho <b>Nhân viên Sale</b>, <b>Kế toán</b> hoặc <b>Quản trị viên</b>. Chọn vai trò phù hợp khi tạo tài khoản mới.</span>
+        <span>Tạo tài khoản cho <b>Nhân viên Sale</b> hoặc <b>Kế toán</b>. Chọn vai trò phù hợp khi tạo tài khoản mới.</span>
       </div>
 
       <motion.div className="sg-card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.4 }}>
@@ -142,7 +142,6 @@ export default function UserManagement() {
             <Select>
               <Option value="SALER">Nhân viên Sale</Option>
               <Option value="KE_TOAN">Kế toán</Option>
-              <Option value="ADMIN">Quản trị viên</Option>
             </Select>
           </Form.Item>
         </Form>
