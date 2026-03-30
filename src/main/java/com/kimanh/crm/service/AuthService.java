@@ -59,18 +59,24 @@ public class AuthService {
                 .active(true)
                 .build();
 
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        saved.setPassword(null);
+        return saved;
     }
 
     public List<User> getAllUsers() {
-        return userRepository.findAll();
+        List<User> users = userRepository.findAll();
+        users.forEach(u -> u.setPassword(null));
+        return users;
     }
 
     public User toggleActive(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
         user.setActive(!user.getActive());
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        saved.setPassword(null);
+        return saved;
     }
 
     public List<String> getSaleUserNames() {

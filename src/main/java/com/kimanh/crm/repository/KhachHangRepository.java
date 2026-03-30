@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -51,4 +52,31 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
 
     @Query("SELECT DISTINCT k.sale FROM KhachHang k WHERE k.sale IS NOT NULL")
     List<String> findDistinctSales();
+
+    // Sale dashboard: total mess (records) for a sale in date range
+    @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE sale = :sale " +
+           "AND (CAST(:fromDate AS date) IS NULL OR ngay_thang >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR ngay_thang <= CAST(:toDate AS date))", nativeQuery = true)
+    long countMessBySale(@Param("sale") String sale,
+                         @Param("fromDate") LocalDate fromDate,
+                         @Param("toDate") LocalDate toDate);
+
+    // Sale dashboard: distinct phone numbers for a sale in date range
+    @Query(value = "SELECT COUNT(DISTINCT sdt) FROM data_dulieukhach WHERE sale = :sale AND sdt IS NOT NULL " +
+           "AND (CAST(:fromDate AS date) IS NULL OR ngay_thang >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR ngay_thang <= CAST(:toDate AS date))", nativeQuery = true)
+    long countDistinctSdtBySale(@Param("sale") String sale,
+                                @Param("fromDate") LocalDate fromDate,
+                                @Param("toDate") LocalDate toDate);
+
+    // Sale dashboard: mess count by day for a sale
+    @Query(value = "SELECT CAST(TO_CHAR(ngay_thang, 'DD') AS integer) as day_num, COUNT(*) as cnt " +
+           "FROM data_dulieukhach WHERE sale = :sale " +
+           "AND (CAST(:fromDate AS date) IS NULL OR ngay_thang >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR ngay_thang <= CAST(:toDate AS date)) " +
+           "GROUP BY CAST(TO_CHAR(ngay_thang, 'DD') AS integer) ORDER BY day_num", nativeQuery = true)
+    List<Object[]> countMessByDayForSale(
+            @Param("sale") String sale,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
 }

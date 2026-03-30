@@ -11,8 +11,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.List;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -74,6 +75,25 @@ public class KhachHangService {
 
     @Caching(evict = {
         @CacheEvict(value = "khachHang", key = "#id"),
+        @CacheEvict(value = "khachHang_sales", allEntries = true)
+    })
+    public KhachHang transferSale(Long id, String newSale) {
+        KhachHang existing = findById(id);
+        existing.setSale(newSale);
+        return repository.save(existing);
+    }
+
+    @Caching(evict = {
+        @CacheEvict(value = "khachHang", key = "#id")
+    })
+    public KhachHang updateNotes(Long id, String notes) {
+        KhachHang existing = findById(id);
+        existing.setMess(notes);
+        return repository.save(existing);
+    }
+
+    @Caching(evict = {
+        @CacheEvict(value = "khachHang", key = "#id"),
         @CacheEvict(value = "khachHang_pages", allEntries = true),
         @CacheEvict(value = "khachHang_sales", allEntries = true),
         @CacheEvict(value = "khachHang_count", allEntries = true)
@@ -104,5 +124,29 @@ public class KhachHangService {
     @Cacheable(value = "khachHang_sales")
     public List<String> getDistinctSales() {
         return repository.findDistinctSales();
+    }
+
+    // Sale dashboard: mess stats for a specific sale
+    public Map<String, Object> getMessStats(String sale, LocalDate fromDate, LocalDate toDate) {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        long totalMess = repository.countMessBySale(sale, fromDate, toDate);
+        long totalPhones = repository.countDistinctSdtBySale(sale, fromDate, toDate);
+
+        result.put("totalMess", totalMess);
+        result.put("totalPhones", totalPhones);
+
+        // Mess by day
+        List<Object[]> messByDay = repository.countMessByDayForSale(sale, fromDate, toDate);
+        List<Map<String, Object>> dayData = new ArrayList<>();
+        for (Object[] row : messByDay) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("day", ((Number) row[0]).intValue());
+            item.put("count", ((Number) row[1]).longValue());
+            dayData.add(item);
+        }
+        result.put("messByDay", dayData);
+
+        return result;
     }
 }

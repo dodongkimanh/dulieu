@@ -9,6 +9,9 @@ import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFColor;
 import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -44,6 +47,13 @@ public class DonHangService {
         return repository.findById(id).orElseThrow(() -> new RuntimeException("Đơn hàng không tồn tại: " + id));
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "donhang_dashboard_stats", allEntries = true),
+        @CacheEvict(value = "donhang_revenue_monthly", allEntries = true),
+        @CacheEvict(value = "donhang_orders_daily", allEntries = true),
+        @CacheEvict(value = "donhang_order_status", allEntries = true),
+        @CacheEvict(value = "donhang_recent_orders", allEntries = true)
+    })
     public DonHang create(DonHang entity) {
         // Allow manual Mã Hóa Đơn; auto-generate if blank
         if (entity.getMaHoaDon() == null || entity.getMaHoaDon().isBlank()) {
@@ -55,6 +65,13 @@ public class DonHangService {
         return repository.save(entity);
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "donhang_dashboard_stats", allEntries = true),
+        @CacheEvict(value = "donhang_revenue_monthly", allEntries = true),
+        @CacheEvict(value = "donhang_orders_daily", allEntries = true),
+        @CacheEvict(value = "donhang_order_status", allEntries = true),
+        @CacheEvict(value = "donhang_recent_orders", allEntries = true)
+    })
     public DonHang update(Long id, DonHang data) {
         DonHang e = findById(id);
         e.setNgay(data.getNgay());
@@ -78,30 +95,46 @@ public class DonHangService {
         return repository.save(e);
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "donhang_dashboard_stats", allEntries = true),
+        @CacheEvict(value = "donhang_revenue_monthly", allEntries = true),
+        @CacheEvict(value = "donhang_orders_daily", allEntries = true),
+        @CacheEvict(value = "donhang_order_status", allEntries = true),
+        @CacheEvict(value = "donhang_recent_orders", allEntries = true)
+    })
     public DonHang updateStatus(Long id, String tinhTrang) {
         DonHang e = findById(id);
         e.setTinhTrang(tinhTrang);
         return repository.save(e);
     }
 
+    @Caching(evict = {
+        @CacheEvict(value = "donhang_dashboard_stats", allEntries = true),
+        @CacheEvict(value = "donhang_revenue_monthly", allEntries = true),
+        @CacheEvict(value = "donhang_orders_daily", allEntries = true),
+        @CacheEvict(value = "donhang_order_status", allEntries = true),
+        @CacheEvict(value = "donhang_recent_orders", allEntries = true)
+    })
     public void delete(Long id) {
         repository.deleteById(id);
     }
 
     // Dashboard stats
+    @Cacheable(value = "donhang_dashboard_stats")
     public Map<String, Object> getDashboardStats() {
         Map<String, Object> stats = new LinkedHashMap<>();
-        stats.put("tongDonHang", repository.count());
-        stats.put("tongDoanhThu", repository.sumTotalRevenue());
-        stats.put("donMoiHomNay", repository.countTodayOrders(LocalDate.now()));
-        stats.put("donHoanThanh", repository.countCompleted());
         long total = repository.count();
         long completed = repository.countCompleted();
+        stats.put("tongDonHang", total);
+        stats.put("tongDoanhThu", repository.sumTotalRevenue());
+        stats.put("donMoiHomNay", repository.countTodayOrders(LocalDate.now()));
+        stats.put("donHoanThanh", completed);
         double conversionRate = total > 0 ? (double) completed / total * 100 : 0;
         stats.put("tyLeChuyenDoi", Math.round(conversionRate * 10.0) / 10.0);
         return stats;
     }
 
+    @Cacheable(value = "donhang_revenue_monthly")
     public List<Map<String, Object>> getRevenueByMonth() {
         LocalDate startDate = LocalDate.now().minusMonths(11).withDayOfMonth(1);
         List<Object[]> results = repository.revenueByMonth(startDate);
@@ -115,6 +148,7 @@ public class DonHangService {
         return data;
     }
 
+    @Cacheable(value = "donhang_orders_daily")
     public List<Map<String, Object>> getOrdersByDay() {
         LocalDate startDate = LocalDate.now().minusDays(30);
         List<Object[]> results = repository.ordersByDay(startDate);
@@ -128,6 +162,7 @@ public class DonHangService {
         return data;
     }
 
+    @Cacheable(value = "donhang_order_status")
     public List<Map<String, Object>> getOrderStatusDistribution() {
         List<Object[]> results = repository.orderStatusDistribution();
         List<Map<String, Object>> data = new ArrayList<>();
@@ -140,6 +175,7 @@ public class DonHangService {
         return data;
     }
 
+    @Cacheable(value = "donhang_recent_orders")
     public List<DonHang> getRecentOrders() {
         return repository.findTop10ByOrderByCreatedAtDesc();
     }
@@ -150,6 +186,119 @@ public class DonHangService {
 
     public List<String> getDistinctPages() {
         return repository.findDistinctPages();
+    }
+
+    // Analytics for TongQuat page
+    public Map<String, Object> getAnalytics(LocalDate fromDate, LocalDate toDate) {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        // Totals
+        List<Object[]> totalsList = repository.aggregateTotals(fromDate, toDate);
+        if (totalsList != null && !totalsList.isEmpty()) {
+            Object[] totals = totalsList.get(0);
+            Map<String, Object> t = new LinkedHashMap<>();
+            t.put("tongDon", ((Number) totals[0]).longValue());
+            t.put("sumGiaBan", totals[1]);
+            t.put("sumGiaThu", totals[2]);
+            t.put("sumLoiNhuan", totals[3]);
+            t.put("sumGiaVon", totals[4]);
+            t.put("sumCPVC", totals[5]);
+            t.put("sumLNSauTru", totals[6]);
+            result.put("totals", t);
+        } else {
+            Map<String, Object> t = new LinkedHashMap<>();
+            t.put("tongDon", 0L);
+            t.put("sumGiaBan", BigDecimal.ZERO);
+            t.put("sumGiaThu", BigDecimal.ZERO);
+            t.put("sumLoiNhuan", BigDecimal.ZERO);
+            t.put("sumGiaVon", BigDecimal.ZERO);
+            t.put("sumCPVC", BigDecimal.ZERO);
+            t.put("sumLNSauTru", BigDecimal.ZERO);
+            result.put("totals", t);
+        }
+
+        // By sale + status
+        List<Object[]> bySaleStatus = repository.aggregateBySaleAndStatus(fromDate, toDate);
+        List<Map<String, Object>> saleStatusData = new ArrayList<>();
+        for (Object[] row : bySaleStatus) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("sale", row[0] != null ? row[0] : "Không xác định");
+            item.put("tinhTrang", row[1] != null ? row[1] : "Không xác định");
+            item.put("count", ((Number) row[2]).longValue());
+            item.put("sumGiaBan", row[3]);
+            item.put("sumGiaThu", row[4]);
+            item.put("sumLoiNhuan", row[5]);
+            item.put("sumGiaVon", row[6]);
+            item.put("sumCPVC", row[7]);
+            saleStatusData.add(item);
+        }
+        result.put("bySaleStatus", saleStatusData);
+
+        // By date
+        List<Object[]> byDate = repository.aggregateByDate(fromDate, toDate);
+        List<Map<String, Object>> dateData = new ArrayList<>();
+        for (Object[] row : byDate) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("date", row[0]);
+            item.put("count", ((Number) row[1]).longValue());
+            item.put("sumGiaBan", row[2]);
+            item.put("sumGiaThu", row[3]);
+            item.put("sumLoiNhuan", row[4]);
+            dateData.add(item);
+        }
+        result.put("byDate", dateData);
+
+        return result;
+    }
+
+    // Sale dashboard: revenue stats for a specific sale
+    public Map<String, Object> getSaleRevenue(String sale, LocalDate fromDate, LocalDate toDate) {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        BigDecimal totalRevenue = repository.sumRevenueBySale(sale, fromDate, toDate);
+        BigDecimal qualifiedRevenue = repository.sumQualifiedRevenueBySale(sale, fromDate, toDate);
+
+        result.put("totalRevenue", totalRevenue != null ? totalRevenue : BigDecimal.ZERO);
+        result.put("qualifiedRevenue", qualifiedRevenue != null ? qualifiedRevenue : BigDecimal.ZERO);
+        result.put("messAllocation", calculateMessAllocation(qualifiedRevenue));
+
+        // Orders by status
+        List<Object[]> byStatus = repository.ordersByStatusForSale(sale, fromDate, toDate);
+        List<Map<String, Object>> statusData = new ArrayList<>();
+        long totalOrders = 0;
+        for (Object[] row : byStatus) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("tinhTrang", row[0] != null ? row[0] : "Không xác định");
+            long cnt = ((Number) row[1]).longValue();
+            item.put("count", cnt);
+            item.put("revenue", row[2]);
+            statusData.add(item);
+            totalOrders += cnt;
+        }
+        result.put("ordersByStatus", statusData);
+        result.put("totalOrders", totalOrders);
+
+        return result;
+    }
+
+    // Mess (message) allocation based on qualified revenue tiers (Ngân Sách QC 12%, 65k/Mess)
+    private int calculateMessAllocation(BigDecimal revenue) {
+        if (revenue == null) return 92;
+        long rev = revenue.longValue();
+        if (rev < 50_000_000L) return 92;
+        if (rev < 75_000_000L) return 138;
+        if (rev < 100_000_000L) return 184;
+        if (rev < 125_000_000L) return 230;
+        if (rev < 150_000_000L) return 276;
+        if (rev < 175_000_000L) return 323;
+        if (rev < 200_000_000L) return 369;
+        if (rev < 250_000_000L) return 461;
+        if (rev < 300_000_000L) return 553;
+        if (rev < 350_000_000L) return 646;
+        if (rev < 400_000_000L) return 738;
+        if (rev < 450_000_000L) return 830;
+        if (rev < 500_000_000L) return 923;
+        return 984;
     }
 
     // Beautiful Excel export

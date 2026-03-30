@@ -110,4 +110,88 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
     @Query(value = "SELECT COALESCE(MAX(CAST(SUBSTRING(ma_hoa_don FROM '[0-9]+$') AS INTEGER)), 0) " +
                    "FROM don_hang WHERE ma_hoa_don LIKE :prefix || '%'", nativeQuery = true)
     int findMaxInvoiceSeq(@Param("prefix") String prefix);
+
+    // Analytics: aggregate by sale + tinhTrang
+    @Query(value = "SELECT d.sale, d.tinh_trang, " +
+           "COUNT(*) as cnt, " +
+           "COALESCE(SUM(d.gia_ban_len_don), 0) as sum_gia_ban, " +
+           "COALESCE(SUM(d.gia_thu_thuc_te), 0) as sum_gia_thu, " +
+           "COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) as sum_loi_nhuan, " +
+           "COALESCE(SUM(d.gia_von), 0) as sum_gia_von, " +
+           "COALESCE(SUM(d.chi_phi_van_chuyen), 0) as sum_cpvc " +
+           "FROM don_hang d WHERE " +
+           "(CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "GROUP BY d.sale, d.tinh_trang " +
+           "ORDER BY d.sale, d.tinh_trang", nativeQuery = true)
+    List<Object[]> aggregateBySaleAndStatus(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    // Analytics: aggregate by date
+    @Query(value = "SELECT TO_CHAR(d.ngay, 'YYYY-MM-DD') as day, " +
+           "COUNT(*) as cnt, " +
+           "COALESCE(SUM(d.gia_ban_len_don), 0) as sum_gia_ban, " +
+           "COALESCE(SUM(d.gia_thu_thuc_te), 0) as sum_gia_thu, " +
+           "COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) as sum_loi_nhuan " +
+           "FROM don_hang d WHERE " +
+           "(CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "GROUP BY TO_CHAR(d.ngay, 'YYYY-MM-DD') " +
+           "ORDER BY day", nativeQuery = true)
+    List<Object[]> aggregateByDate(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    // Analytics: totals
+    @Query(value = "SELECT " +
+           "COUNT(*) as cnt, " +
+           "COALESCE(SUM(d.gia_ban_len_don), 0) as sum_gia_ban, " +
+           "COALESCE(SUM(d.gia_thu_thuc_te), 0) as sum_gia_thu, " +
+           "COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) as sum_loi_nhuan, " +
+           "COALESCE(SUM(d.gia_von), 0) as sum_gia_von, " +
+           "COALESCE(SUM(d.chi_phi_van_chuyen), 0) as sum_cpvc, " +
+           "COALESCE(SUM(d.loi_nhuan_sau_tru), 0) as sum_ln_sau_tru " +
+           "FROM don_hang d WHERE " +
+           "(CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
+           nativeQuery = true)
+    List<Object[]> aggregateTotals(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    // Sale dashboard: total revenue for a sale
+    @Query(value = "SELECT COALESCE(SUM(d.gia_thu_thuc_te), 0) FROM don_hang d " +
+           "WHERE d.sale = :sale " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
+           nativeQuery = true)
+    BigDecimal sumRevenueBySale(
+            @Param("sale") String sale,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    // Sale dashboard: qualified revenue (delivered/shipping statuses) for mess calculation
+    @Query(value = "SELECT COALESCE(SUM(d.gia_thu_thuc_te), 0) FROM don_hang d " +
+           "WHERE d.sale = :sale " +
+           "AND d.tinh_trang IN ('Đã Giao Thành Công', 'Đang giao', 'Đang vận chuyển', 'Khách Đặt Cọc', 'KH Showroom') " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
+           nativeQuery = true)
+    BigDecimal sumQualifiedRevenueBySale(
+            @Param("sale") String sale,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    // Sale dashboard: orders by status for a specific sale
+    @Query(value = "SELECT d.tinh_trang, COUNT(*), COALESCE(SUM(d.gia_thu_thuc_te), 0) " +
+           "FROM don_hang d WHERE d.sale = :sale " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "GROUP BY d.tinh_trang ORDER BY d.tinh_trang",
+           nativeQuery = true)
+    List<Object[]> ordersByStatusForSale(
+            @Param("sale") String sale,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
 }

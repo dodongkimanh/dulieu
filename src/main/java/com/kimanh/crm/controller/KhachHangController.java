@@ -1,12 +1,17 @@
 package com.kimanh.crm.controller;
 
 import com.kimanh.crm.entity.KhachHang;
+import com.kimanh.crm.entity.User;
+import com.kimanh.crm.repository.UserRepository;
 import com.kimanh.crm.service.KhachHangService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +27,7 @@ public class KhachHangController {
             "createdAt", "khachHang", "sdt", "sale", "page", "status", "ngayThang");
 
     private final KhachHangService service;
+    private final UserRepository userRepository;
 
     @GetMapping
     public ResponseEntity<Page<KhachHang>> getAll(
@@ -33,6 +39,16 @@ public class KhachHangController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir) {
+
+        // SALER can only see their own customers
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isSaler = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
+        if (isSaler) {
+            sale = userRepository.findByUsername(auth.getName())
+                    .map(User::getFullName)
+                    .orElse("");
+        }
 
         String safeSortBy = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : "createdAt";
         Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(safeSortBy).ascending() : Sort.by(safeSortBy).descending();
@@ -79,5 +95,16 @@ public class KhachHangController {
     @GetMapping("/sales")
     public ResponseEntity<List<String>> getSales() {
         return ResponseEntity.ok(service.getDistinctSales());
+    }
+
+    @PatchMapping("/{id}/transfer")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<KhachHang> transferSale(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(service.transferSale(id, body.get("sale")));
+    }
+
+    @PatchMapping("/{id}/notes")
+    public ResponseEntity<KhachHang> updateNotes(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(service.updateNotes(id, body.get("notes")));
     }
 }
