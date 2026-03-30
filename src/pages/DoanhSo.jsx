@@ -170,35 +170,28 @@ export default function DoanhSo() {
     fetchData(selectedSale, from, to);
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!data) return;
-    const rows = [
-      ['Chỉ số', 'Giá trị'],
-      ['Sale', saleName],
-      ['Tháng', selectedMonth.format('MM/YYYY')],
-      ['Doanh Số', totalRevenue],
-      ['Doanh Số Tính Mess', qualifiedRevenue],
-      ['Tổng Mess Nhận Được', totalMess],
-      ['Mốc Mess Phân Bổ', messAllocation],
-      ['Tổng SĐT', totalPhones],
-      ['Tổng Đơn', totalOrders],
-      [],
-      ['Tình Trạng Đơn', 'Số Đơn', 'Doanh Thu'],
-      ...ordersByStatus.map(o => [o.tinhTrang, o.count, o.revenue]),
-      [],
-      ['Ngày', 'Số Mess'],
-      ...messByDay.map(d => [`Ngày ${d.day}`, d.count]),
-    ];
-    const csvContent = rows.map(r => r.join(',')).join('\n');
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `DoanhSo_${saleName}_${selectedMonth.format('MM-YYYY')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    message.success('Đã tải xuống dữ liệu doanh số');
+    try {
+      const params = {
+        sale: selectedSale,
+        fromDate: selectedMonth.startOf('month').format('YYYY-MM-DD'),
+        toDate: selectedMonth.endOf('month').format('YYYY-MM-DD'),
+      };
+      const response = await dashboardApi.exportDoanhSo(params);
+      const timestamp = selectedMonth.format('DD-MM-YYYY');
+      const filename = `DoanhSo_${selectedSale}_${timestamp}.xlsx`;
+      const url = URL.createObjectURL(response);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      message.success('✅ Xuất Excel thành công!');
+    } catch (err) {
+      console.error('Export failed:', err);
+      message.error('Không thể xuất dữ liệu.');
+    }
   };
 
   if (loading && !data) {

@@ -47,6 +47,10 @@ export const dashboardApi = {
   getRecentOrders: () => api.get('/dashboard/recent-orders'),
   getAnalytics: (params) => api.get('/dashboard/analytics', { params }),
   getSaleDashboard: (params) => api.get('/dashboard/sale-dashboard', { params }),
+  exportDoanhSo: (params) => api.get('/dashboard/export-doanhso', { 
+    params,
+    responseType: 'blob'
+  }),
 };
 
 // Don Hang (Orders) APIs
