@@ -259,8 +259,8 @@ export default function DoanhSo() {
           </div>
         </div>
         <div className="ds-filter-right">
-          <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={!data}>Tải xuống</Button>
-          <div className="ds-sale-name">{saleName}</div>
+          <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={!data} style={{ background: '#10B981', borderColor: '#10B981', color: '#fff' }}>Tải xuống</Button>
+          <div className="ds-sale-name" style={{ marginLeft: 24, fontSize: 15, fontWeight: 600, color: '#4F46E5' }}>{saleName}</div>
         </div>
       </div>
 

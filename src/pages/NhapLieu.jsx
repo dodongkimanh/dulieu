@@ -43,7 +43,7 @@ const COLUMNS = [
   { key: 'maDatHang', label: 'Mã Đặt Hàng', width: 130, type: 'text' },
   { key: 'khachHang', label: 'Khách Hàng', width: 160, type: 'text' },
   { key: 'sdt', label: 'SĐT', width: 120, type: 'text' },
-  { key: 'sale', label: 'Sale', width: 120, type: 'select-sale' },
+  { key: 'sale', label: 'Sale', width: 140, type: 'select-sale' },
   { key: 'giaVon', label: 'Giá Vốn', width: 120, type: 'number' },
   { key: 'tongTienNiemYet', label: 'Tổng Niêm Yết', width: 130, type: 'number' },
   { key: 'giaBanLenDon', label: 'Giá Bán Lên Đơn', width: 130, type: 'number' },
@@ -51,7 +51,7 @@ const COLUMNS = [
   { key: 'giaThuThucTe', label: 'Giá Thu Thực Tế', width: 130, type: 'computed' },
   { key: 'tyLeCk', label: 'Tỷ Lệ CK %', width: 100, type: 'computed-pct' },
   { key: 'loiNhuanUocTinh', label: 'LN Ước Tính', width: 130, type: 'computed' },
-  { key: 'tinhTrang', label: 'Tình Trạng', width: 150, type: 'select-status' },
+  { key: 'tinhTrang', label: 'Tình Trạng', width: 180, type: 'select-status' },
   { key: 'maVanDon', label: 'Mã Vận Đơn', width: 150, type: 'text' },
   { key: 'chiPhiVanChuyen', label: 'CP Vận Chuyển', width: 120, type: 'number' },
   { key: 'dsVanChuyen', label: 'ĐS Vận Chuyển', width: 120, type: 'number' },
@@ -59,7 +59,7 @@ const COLUMNS = [
   { key: 'thuBanTrucTiep', label: 'Thu Bán Trực Tiếp', width: 130, type: 'number' },
   { key: 'tongThuKhach', label: 'Tổng Thu Khách', width: 130, type: 'computed' },
   { key: 'loiNhuanSauTru', label: 'LN Sau Trừ Vốn & VC', width: 150, type: 'computed' },
-  { key: 'page', label: 'Tùy Chọn', width: 200, type: 'text' },
+  { key: 'page', label: 'Tùy Chọn', width: 220, type: 'text' },
   { key: 'maIdQuangCao', label: 'Mã ID Bài QC', width: 160, type: 'text' },
   { key: 'ghiChu', label: 'Ghi Chú', width: 200, type: 'text' },
 ];
@@ -187,11 +187,13 @@ export default function NhapLieu() {
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `nhap-lieu-${dayjs().format('YYYY-MM-DD')}.xlsx`);
+      const fileName = `Nhap-Lieu_${dayjs().format('DD-MM-YYYY_HHmmss')}.xlsx`;
+      link.setAttribute('download', fileName);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      message.success('Xuất Excel thành công!');
     } catch { message.error('Lỗi khi xuất Excel'); }
   };
 
