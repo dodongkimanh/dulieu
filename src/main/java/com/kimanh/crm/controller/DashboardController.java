@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -188,7 +190,11 @@ public class DashboardController {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
         String timestamp = LocalDate.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
-        headers.setContentDispositionFormData("attachment", "DoanhSo_" + sale + "_" + timestamp + ".xlsx");
+        String filename = "DoanhSo_" + sale + "_" + timestamp + ".xlsx";
+        String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8);
+        headers.setContentDisposition(org.springframework.http.ContentDisposition.attachment()
+                .filename(encodedFilename, StandardCharsets.UTF_8)
+                .build());
 
         return ResponseEntity.ok()
                 .headers(headers)
