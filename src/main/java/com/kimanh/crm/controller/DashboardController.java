@@ -5,16 +5,23 @@ import com.kimanh.crm.repository.UserRepository;
 import com.kimanh.crm.service.DonHangService;
 import com.kimanh.crm.service.KhachHangService;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.*;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.time.LocalDate;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/dashboard")
@@ -149,5 +156,200 @@ public class DashboardController {
         result.putAll(khachHangService.getMessStats(sale, fromDate, toDate));
 
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/export-doanhso")
+    public ResponseEntity<byte[]> exportDoanhSo(
+            @RequestParam(required = false) String sale,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) throws IOException {
+
+        // If SALER, force to their own fullName
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isSaler = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
+        if (isSaler) {
+            sale = userRepository.findByUsername(auth.getName())
+                    .map(User::getFullName)
+                    .orElse(null);
+        }
+
+        if (sale == null || sale.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        // Get data
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.putAll(donHangService.getSaleRevenue(sale, fromDate, toDate));
+        data.putAll(khachHangService.getMessStats(sale, fromDate, toDate));
+
+        byte[] excelFile = createDoanhSoExcel(sale, fromDate, toDate, data);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        String timestamp = LocalDate.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+        headers.setContentDispositionFormData("attachment", "DoanhSo_" + sale + "_" + timestamp + ".xlsx");
+
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(excelFile);
+    }
+
+    private byte[] createDoanhSoExcel(String sale, LocalDate fromDate, LocalDate toDate, Map<String, Object> data) throws IOException {
+        XSSFWorkbook workbook = new XSSFWorkbook();
+        Sheet sheet = workbook.createSheet("Doanh Số");
+        sheet.setDefaultColumnWidth(18);
+
+        int rowIdx = 0;
+
+        // ===== PREMIUM STYLES =====
+        XSSFFont titleFont = (XSSFFont) workbook.createFont();
+        titleFont.setBold(true);
+        titleFont.setFontHeightInPoints((short) 16);
+        titleFont.setColor(IndexedColors.WHITE.getIndex());
+
+        XSSFCellStyle titleStyle = (XSSFCellStyle) workbook.createCellStyle();
+        titleStyle.setFont(titleFont);
+        titleStyle.setAlignment(HorizontalAlignment.CENTER);
+        titleStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        titleStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 79, (byte) 70, (byte) 229}, null));
+        titleStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        setBorders(titleStyle, BorderStyle.THIN);
+
+        // Title
+        Row titleRow = sheet.createRow(rowIdx++);
+        Cell titleCell = titleRow.createCell(0);
+        titleCell.setCellValue("📊 BÁO CÁO DOANH SỐ - ĐỒ ĐỒNG KIM ÁNH 📊");
+        titleCell.setCellStyle(titleStyle);
+        sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 6));
+        titleRow.setHeightInPoints(25);
+
+        // Info row
+        XSSFFont infoFont = (XSSFFont) workbook.createFont();
+        infoFont.setBold(false);
+        infoFont.setFontHeightInPoints((short) 11);
+        XSSFCellStyle infoStyle = (XSSFCellStyle) workbook.createCellStyle();
+        infoStyle.setFont(infoFont);
+        infoStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 240, (byte) 245, (byte) 250}, null));
+        infoStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        setBorders(infoStyle, BorderStyle.THIN);
+
+        Row infoRow = sheet.createRow(rowIdx++);
+        String infoText = "👤 " + sale + " | 📅 " + (fromDate != null && toDate != null ? 
+            fromDate + " đến " + toDate : "Toàn bộ thời gian");
+        Cell infoCell = infoRow.createCell(0);
+        infoCell.setCellValue(infoText);
+        infoCell.setCellStyle(infoStyle);
+        sheet.addMergedRegion(new CellRangeAddress(rowIdx - 1, rowIdx - 1, 0, 6));
+
+        rowIdx++; // Spacing
+
+        // ===== KPIs SECTION =====
+        XSSFFont headerFont = (XSSFFont) workbook.createFont();
+        headerFont.setBold(true);
+        headerFont.setFontHeightInPoints((short) 11);
+        headerFont.setColor(IndexedColors.WHITE.getIndex());
+
+        XSSFCellStyle headerStyle = (XSSFCellStyle) workbook.createCellStyle();
+        headerStyle.setFont(headerFont);
+        headerStyle.setAlignment(HorizontalAlignment.CENTER);
+        headerStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 55, (byte) 86, (byte) 65}, null));
+        headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        setBorders(headerStyle, BorderStyle.THIN);
+
+        XSSFCellStyle dataStyle = (XSSFCellStyle) workbook.createCellStyle();
+        dataStyle.setAlignment(HorizontalAlignment.RIGHT);
+        dataStyle.setDataFormat(workbook.createDataFormat().getFormat("#,##0"));
+        setBorders(dataStyle, BorderStyle.THIN);
+
+        // KPI rows
+        String[][] kpis = {
+            {" Doanh Số", String.valueOf((Number) data.getOrDefault("totalRevenue", 0L))},
+            {" Doanh Số Tính Mess", String.valueOf((Number) data.getOrDefault("qualifiedRevenue", 0L))},
+            {" Tổng Mess Nhận", String.valueOf((Number) data.getOrDefault("totalMess", 0L))},
+            {" Mốc Mess Phân Bổ", String.valueOf((Number) data.getOrDefault("messAllocation", 92L))},
+            {" Tổng SĐT", String.valueOf((Number) data.getOrDefault("totalPhones", 0L))},
+            {" Tổng Đơn", String.valueOf((Number) data.getOrDefault("totalOrders", 0L))},
+        };
+
+        for (String[] kpi : kpis) {
+            Row r = sheet.createRow(rowIdx++);
+            Cell labelCell = r.createCell(0);
+            labelCell.setCellValue(kpi[0]);
+            labelCell.setCellStyle(headerStyle);
+            Cell valueCell = r.createCell(1);
+            try {
+                valueCell.setCellValue(Long.parseLong(kpi[1]));
+            } catch (Exception e) {
+                valueCell.setCellValue(kpi[1]);
+            }
+            valueCell.setCellStyle(dataStyle);
+        }
+
+        rowIdx++; // Spacing
+
+        // ===== BY STATUS TABLE =====
+        Row statusHeaderRow = sheet.createRow(rowIdx++);
+        String[] statusHeaders = {"Tình Trạng", "Số Đơn", "Doanh Thu"};
+        for (int i = 0; i < statusHeaders.length; i++) {
+            Cell c = statusHeaderRow.createCell(i);
+            c.setCellValue(statusHeaders[i]);
+            c.setCellStyle(headerStyle);
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> ordersByStatus = (List<Map<String, Object>>) data.getOrDefault("ordersByStatus", new ArrayList<>());
+        for (Map<String, Object> status : ordersByStatus) {
+            Row r = sheet.createRow(rowIdx++);
+            Cell c0 = r.createCell(0);
+            c0.setCellValue((String) status.getOrDefault("tinhTrang", ""));
+            c0.setCellStyle(dataStyle);
+            Cell c1 = r.createCell(1);
+            c1.setCellValue(((Number) status.getOrDefault("count", 0)).longValue());
+            c1.setCellStyle(dataStyle);
+            Cell c2 = r.createCell(2);
+            c2.setCellValue(((Number) status.getOrDefault("revenue", 0)).longValue());
+            c2.setCellStyle(dataStyle);
+        }
+
+        rowIdx++; // Spacing
+
+        // ===== BY DAY TABLE =====
+        Row dayHeaderRow = sheet.createRow(rowIdx++);
+        dayHeaderRow.createCell(0).setCellValue("Ngày");
+        dayHeaderRow.getCell(0).setCellStyle(headerStyle);
+        dayHeaderRow.createCell(1).setCellValue("Số Mess");
+        dayHeaderRow.getCell(1).setCellStyle(headerStyle);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> messByDay = (List<Map<String, Object>>) data.getOrDefault("messByDay", new ArrayList<>());
+        for (Map<String, Object> day : messByDay) {
+            Row r = sheet.createRow(rowIdx++);
+            Cell c0 = r.createCell(0);
+            c0.setCellValue("Ngày " + (Number) day.getOrDefault("day", ""));
+            c0.setCellStyle(dataStyle);
+            Cell c1 = r.createCell(1);
+            c1.setCellValue(((Number) day.getOrDefault("count", 0)).longValue());
+            c1.setCellStyle(dataStyle);
+        }
+
+        // Auto-filter
+        sheet.setAutoFilter(new CellRangeAddress(rowIdx - messByDay.size() - 1, rowIdx - 1, 0, 1));
+
+        // Freeze panes
+        sheet.createFreezePane(0, 2);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        workbook.write(baos);
+        workbook.close();
+
+        return baos.toByteArray();
+    }
+
+    private void setBorders(XSSFCellStyle style, BorderStyle borderStyle) {
+        style.setBorderTop(borderStyle);
+        style.setBorderBottom(borderStyle);
+        style.setBorderLeft(borderStyle);
+        style.setBorderRight(borderStyle);
     }
 }

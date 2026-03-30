@@ -321,7 +321,7 @@ public class DonHangService {
         return 984;
     }
 
-    // Beautiful Excel export
+    // Professional Excel export with premium styling
     public byte[] exportToExcel(String keyword, String tinhTrang, String sale,
                                  String page, String maIdQuangCao,
                                  LocalDate fromDate, LocalDate toDate) throws IOException {
@@ -334,10 +334,10 @@ public class DonHangService {
             Sheet sheet = workbook.createSheet("Đơn hàng");
             sheet.setDefaultColumnWidth(14);
 
-            // -- Styles (cast to XSSFCellStyle for custom RGB colors) --
+            // ===== PREMIUM STYLES =====
             XSSFFont titleFont = (XSSFFont) workbook.createFont();
             titleFont.setBold(true);
-            titleFont.setFontHeightInPoints((short) 16);
+            titleFont.setFontHeightInPoints((short) 18);
             titleFont.setColor(IndexedColors.WHITE.getIndex());
 
             XSSFCellStyle titleStyle = (XSSFCellStyle) workbook.createCellStyle();
@@ -346,10 +346,11 @@ public class DonHangService {
             titleStyle.setVerticalAlignment(VerticalAlignment.CENTER);
             titleStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 79, (byte) 70, (byte) 229}, null));
             titleStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            setBorders(titleStyle, BorderStyle.MEDIUM);
 
             XSSFFont headerFont = (XSSFFont) workbook.createFont();
             headerFont.setBold(true);
-            headerFont.setFontHeightInPoints((short) 10);
+            headerFont.setFontHeightInPoints((short) 11);
             headerFont.setColor(IndexedColors.WHITE.getIndex());
 
             XSSFCellStyle headerStyle = (XSSFCellStyle) workbook.createCellStyle();
@@ -365,6 +366,7 @@ public class DonHangService {
             numberStyle.setDataFormat(workbook.createDataFormat().getFormat("#,##0"));
             numberStyle.setAlignment(HorizontalAlignment.RIGHT);
             setBorders(numberStyle, BorderStyle.THIN);
+            numberStyle.setVerticalAlignment(VerticalAlignment.CENTER);
 
             CellStyle percentStyle = workbook.createCellStyle();
             percentStyle.setDataFormat(workbook.createDataFormat().getFormat("0.00\"%\""));
@@ -380,37 +382,69 @@ public class DonHangService {
             setBorders(dateStyle, BorderStyle.THIN);
             dateStyle.setAlignment(HorizontalAlignment.CENTER);
 
-            XSSFFont greenFont = (XSSFFont) workbook.createFont();
-            greenFont.setBold(true);
-            greenFont.setColor(new XSSFColor(new byte[]{(byte) 16, (byte) 185, (byte) 129}, null));
+            XSSFFont profitFont = (XSSFFont) workbook.createFont();
+            profitFont.setBold(true);
+            profitFont.setFontHeightInPoints((short) 10);
+            profitFont.setColor(new XSSFColor(new byte[]{(byte) 16, (byte) 185, (byte) 129}, null));
             CellStyle profitStyle = workbook.createCellStyle();
             profitStyle.cloneStyleFrom(numberStyle);
-            profitStyle.setFont(greenFont);
+            profitStyle.setFont(profitFont);
+
+            // Alternating row styles with subtle colors
+            XSSFCellStyle oddTextStyle = (XSSFCellStyle) workbook.createCellStyle();
+            oddTextStyle.cloneStyleFrom(textStyle);
+            oddTextStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 255, (byte) 255, (byte) 255}, null));
+            oddTextStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            XSSFCellStyle evenTextStyle = (XSSFCellStyle) workbook.createCellStyle();
+            evenTextStyle.cloneStyleFrom(textStyle);
+            evenTextStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 248, (byte) 250, (byte) 255}, null));
+            evenTextStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            XSSFCellStyle evenNumberStyle = (XSSFCellStyle) workbook.createCellStyle();
+            evenNumberStyle.cloneStyleFrom(numberStyle);
+            evenNumberStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 248, (byte) 250, (byte) 255}, null));
+            evenNumberStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            XSSFCellStyle evenDateStyle = (XSSFCellStyle) workbook.createCellStyle();
+            evenDateStyle.cloneStyleFrom(dateStyle);
+            evenDateStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 248, (byte) 250, (byte) 255}, null));
+            evenDateStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
             // Row 0: Title
             Row titleRow = sheet.createRow(0);
-            titleRow.setHeightInPoints(36);
+            titleRow.setHeightInPoints(40);
             Cell titleCell = titleRow.createCell(0);
-            titleCell.setCellValue("BÁO CÁO ĐƠN HÀNG - ĐỒ ĐỒNG KIM ÁNH");
+            titleCell.setCellValue("📊 BÁO CÁO ĐƠN HÀNG - ĐỒ ĐỒNG KIM ÁNH 📊");
             titleCell.setCellStyle(titleStyle);
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 24));
 
-            // Row 1: Date range info
-            Row infoRow = sheet.createRow(1);
-            infoRow.setHeightInPoints(20);
+            // Row 1: Spacer
+            sheet.createRow(1).setHeightInPoints(8);
+
+            // Row 2: Date range info
+            Row infoRow = sheet.createRow(2);
+            infoRow.setHeightInPoints(18);
             CellStyle infoStyle = workbook.createCellStyle();
             Font infoFont = workbook.createFont();
             infoFont.setItalic(true);
+            infoFont.setFontHeightInPoints((short) 10);
             infoFont.setColor(IndexedColors.GREY_50_PERCENT.getIndex());
             infoStyle.setFont(infoFont);
             infoStyle.setAlignment(HorizontalAlignment.CENTER);
             Cell infoCell = infoRow.createCell(0);
-            infoCell.setCellValue("Xuất ngày: " + LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    + " | Tổng: " + orders.size() + " đơn");
+            String infoText = "Xuất ngày: " + LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    + " |  Tổng: " + orders.size() + " đơn";
+            if (fromDate != null || toDate != null) {
+                infoText += " |  Khoảng: ";
+                if (fromDate != null) infoText += fromDate.format(DateTimeFormatter.ofPattern("dd/MM"));
+                if (toDate != null) infoText += " → " + toDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            }
+            infoCell.setCellValue(infoText);
             infoCell.setCellStyle(infoStyle);
-            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 24));
+            sheet.addMergedRegion(new CellRangeAddress(2, 2, 0, 24));
 
-            // Row 3: Headers
+            // Row 4: Headers
             String[] headers = {
                 "STT", "Ngày", "Mã Hóa Đơn", "Mã Đặt Hàng", "Khách Hàng", "SĐT", "Sale",
                 "Giá Vốn", "Tổng Tiền\n(Niêm Yết)", "Giá Bán\nLên Đơn", "Cước\nPhụ Trội",
@@ -419,45 +453,31 @@ public class DonHangService {
                 "Thu Bán\nTrực Tiếp", "Tổng Thu\nKhách", "LN Sau Trừ\nVốn & VC",
                 "Page", "Mã ID Bài\nQuảng Cáo", "Ghi Chú"
             };
-            Row headerRow = sheet.createRow(3);
-            headerRow.setHeightInPoints(32);
+            Row headerRow = sheet.createRow(4);
+            headerRow.setHeightInPoints(36);
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
                 cell.setCellStyle(headerStyle);
             }
+            sheet.setAutoFilter(new CellRangeAddress(4, 4, 0, 24));
 
-            // Data rows
+            // Data rows with better styling
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-            int rowNum = 4;
+            int rowNum = 5;
             BigDecimal totalGiaVon = BigDecimal.ZERO;
             BigDecimal totalDoanhThu = BigDecimal.ZERO;
             BigDecimal totalLoiNhuan = BigDecimal.ZERO;
 
-            // Alternating row color
-            XSSFCellStyle evenTextStyle = (XSSFCellStyle) workbook.createCellStyle();
-            evenTextStyle.cloneStyleFrom(textStyle);
-            evenTextStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 249, (byte) 250, (byte) 251}, null));
-            evenTextStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-
-            XSSFCellStyle evenNumberStyle = (XSSFCellStyle) workbook.createCellStyle();
-            evenNumberStyle.cloneStyleFrom(numberStyle);
-            evenNumberStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 249, (byte) 250, (byte) 251}, null));
-            evenNumberStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-
-            XSSFCellStyle evenDateStyle = (XSSFCellStyle) workbook.createCellStyle();
-            evenDateStyle.cloneStyleFrom(dateStyle);
-            evenDateStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 249, (byte) 250, (byte) 251}, null));
-            evenDateStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-
             for (int idx = 0; idx < orders.size(); idx++) {
                 DonHang d = orders.get(idx);
-                boolean even = idx % 2 == 1;
-                CellStyle ts = even ? evenTextStyle : textStyle;
+                boolean even = idx % 2 == 0;
+                CellStyle ts = even ? evenTextStyle : oddTextStyle;
                 CellStyle ns = even ? evenNumberStyle : numberStyle;
                 CellStyle ds = even ? evenDateStyle : dateStyle;
 
                 Row row = sheet.createRow(rowNum++);
+                row.setHeightInPoints(18);
                 int c = 0;
                 Cell stt = row.createCell(c++); stt.setCellValue(idx + 1); stt.setCellStyle(ts);
 
@@ -500,41 +520,49 @@ public class DonHangService {
                 totalLoiNhuan = totalLoiNhuan.add(d.getLoiNhuanSauTru() != null ? d.getLoiNhuanSauTru() : BigDecimal.ZERO);
             }
 
-            // Summary row
+            // Summary row with premium styling
             XSSFCellStyle sumStyle = (XSSFCellStyle) workbook.createCellStyle();
             Font sumFont = workbook.createFont();
             sumFont.setBold(true);
-            sumFont.setFontHeightInPoints((short) 11);
+            sumFont.setFontHeightInPoints((short) 12);
+            sumFont.setColor(IndexedColors.WHITE.getIndex());
             sumStyle.setFont(sumFont);
             sumStyle.setAlignment(HorizontalAlignment.RIGHT);
-            sumStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 238, (byte) 242, (byte) 255}, null));
+            sumStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 79, (byte) 70, (byte) 229}, null));
             sumStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
             sumStyle.setDataFormat(workbook.createDataFormat().getFormat("#,##0"));
             setBorders(sumStyle, BorderStyle.MEDIUM);
 
             XSSFCellStyle sumLabelStyle = (XSSFCellStyle) workbook.createCellStyle();
-            sumLabelStyle.cloneStyleFrom(sumStyle);
+            Font sumLabelFont = workbook.createFont();
+            sumLabelFont.setBold(true);
+            sumLabelFont.setFontHeightInPoints((short) 12);
+            sumLabelFont.setColor(IndexedColors.WHITE.getIndex());
+            sumLabelStyle.setFont(sumLabelFont);
             sumLabelStyle.setAlignment(HorizontalAlignment.CENTER);
+            sumLabelStyle.setFillForegroundColor(new XSSFColor(new byte[]{(byte) 79, (byte) 70, (byte) 229}, null));
+            sumLabelStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            setBorders(sumLabelStyle, BorderStyle.MEDIUM);
 
-            Row sumRow = sheet.createRow(rowNum);
-            sumRow.setHeightInPoints(24);
+            Row sumRow = sheet.createRow(rowNum + 1);
+            sumRow.setHeightInPoints(28);
             Cell sumLabel = sumRow.createCell(0);
-            sumLabel.setCellValue("TỔNG CỘNG");
+            sumLabel.setCellValue("✓ TỔNG CỘNG");
             sumLabel.setCellStyle(sumLabelStyle);
-            sheet.addMergedRegion(new CellRangeAddress(rowNum, rowNum, 0, 6));
+            sheet.addMergedRegion(new CellRangeAddress(rowNum + 1, rowNum + 1, 0, 6));
 
             Cell sv = sumRow.createCell(7); sv.setCellValue(totalGiaVon.doubleValue()); sv.setCellStyle(sumStyle);
             Cell sr = sumRow.createCell(11); sr.setCellValue(totalDoanhThu.doubleValue()); sr.setCellStyle(sumStyle);
             Cell sp = sumRow.createCell(21); sp.setCellValue(totalLoiNhuan.doubleValue()); sp.setCellStyle(sumStyle);
 
-            // Column widths
-            int[] widths = {6, 12, 16, 14, 20, 14, 16, 14, 14, 14, 10, 14, 10, 14, 18, 16, 12, 12, 12, 14, 14, 16, 22, 16, 18};
+            // Column widths (optimized for readability)
+            int[] widths = {6, 13, 17, 15, 22, 15, 14, 13, 15, 15, 11, 15, 11, 14, 16, 16, 13, 13, 13, 15, 15, 16, 24, 16, 20};
             for (int i = 0; i < widths.length; i++) {
                 sheet.setColumnWidth(i, widths[i] * 256);
             }
 
-            // Freeze header
-            sheet.createFreezePane(0, 4);
+            // Freeze panes (header stays visible when scrolling)
+            sheet.createFreezePane(0, 5);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             workbook.write(out);
