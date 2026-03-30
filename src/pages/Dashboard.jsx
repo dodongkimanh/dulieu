@@ -45,7 +45,20 @@ export default function Dashboard() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const params = { filter: activeFilter };
+      // Xác định: người dùng chọn DatePicker hay Quick Filter?
+      const isCustomDateRange = 
+        dateRange[0] && dateRange[1] && 
+        (dateRange[0].format('YYYY-MM-DD') !== dayjs().format('YYYY-MM-DD') || 
+         dateRange[1].format('YYYY-MM-DD') !== dayjs().format('YYYY-MM-DD'));
+      
+      // Nếu chọn custom date range → gửi fromDate/toDate, bỏ qua filter
+      const params = isCustomDateRange 
+        ? { 
+            fromDate: dateRange[0].format('YYYY-MM-DD'),
+            toDate: dateRange[1].format('YYYY-MM-DD')
+          }
+        : { filter: activeFilter };
+      
       const [s, r, os, d, ro] = await Promise.allSettled([
         dashboardApi.getStats(params),
         dashboardApi.getRevenueMonthly(),
