@@ -136,20 +136,26 @@ public class DonHang {
         BigDecimal dsvc = dsVanChuyen != null ? dsVanChuyen : BigDecimal.ZERO;
         BigDecimal cpvc = chiPhiVanChuyen != null ? chiPhiVanChuyen : BigDecimal.ZERO;
 
-        // Giá Thu Thực Tế = Giá Bán Lên Đơn - Cước Phụ Trội
+        // CÔNG THỨC 1: Giá Thu Thực Tế = Giá Bán Lên Đơn - Cước Phụ Trội
         giaThuThucTe = ban.subtract(phu);
-        // Tỷ lệ CK % = ((Giá niêm yết - Giá Thu Thực Tế) / Giá niêm yết) * 100
+        
+        // CÔNG THỨC 2: Tỷ lệ CK % = ((Giá niêm yết - Giá Thu Thực Tế) / Giá niêm yết) * 100
         if (niem.compareTo(BigDecimal.ZERO) > 0) {
             tyLeCk = niem.subtract(giaThuThucTe).multiply(BigDecimal.valueOf(100))
                     .divide(niem, 2, RoundingMode.HALF_UP);
         } else {
             tyLeCk = BigDecimal.ZERO;
         }
-        // Lợi Nhuận Ước Tính = Giá Thu Thực Tế - Giá Vốn
+        
+        // CÔNG THỨC 3: Lợi Nhuận Ước Tính = Giá Thu Thực Tế - Giá Vốn
         loiNhuanUocTinh = giaThuThucTe.subtract(von);
-        // Tổng thu khách = Đặt cọc + Thu bán trực tiếp + ĐS Vận Chuyển
+        
+        // CÔNG THỨC 4: Tổng thu khách = Đặt cọc + Thu bán trực tiếp + ĐS Vận Chuyển
         tongThuKhach = coc.add(truc).add(dsvc);
-        // Lợi nhuận sau trừ = Tổng thu khách - Chi phí Vận Chuyển
+        
+        // CÔNG THỨC 5: Lợi nhuận sau trừ VC = Tổng Thu Khách - Chi Phí Vận Chuyển
+        // = (Đặt cọc + Thu bán trực tiếp + ĐS Vận Chuyển) - Chi Phí Vận Chuyển
+        // Per khách hàng yêu cầu: Chỉ trừ VC, không trừ vốn
         loiNhuanSauTru = tongThuKhach.subtract(cpvc);
     }
 }

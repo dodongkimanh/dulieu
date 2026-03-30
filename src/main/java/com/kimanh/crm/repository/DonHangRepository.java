@@ -77,6 +77,21 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
 
     long count();
 
+    @Query("SELECT COALESCE(COUNT(d), 0) FROM DonHang d WHERE " +
+           "(CAST(:fromDate AS date) IS NULL OR d.ngay >= :fromDate) AND " +
+           "(CAST(:toDate AS date) IS NULL OR d.ngay <= :toDate)")
+    long countByDateRange(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
+    @Query("SELECT COALESCE(SUM(d.giaThuThucTe), 0) FROM DonHang d WHERE " +
+           "(CAST(:fromDate AS date) IS NULL OR d.ngay >= :fromDate) AND " +
+           "(CAST(:toDate AS date) IS NULL OR d.ngay <= :toDate)")
+    BigDecimal sumTotalRevenueByDateRange(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
+    @Query("SELECT COALESCE(COUNT(d), 0) FROM DonHang d WHERE d.tinhTrang = 'Đã Giao Thành Công' AND " +
+           "(CAST(:fromDate AS date) IS NULL OR d.ngay >= :fromDate) AND " +
+           "(CAST(:toDate AS date) IS NULL OR d.ngay <= :toDate)")
+    long countCompletedByDateRange(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate)
+
     @Query("SELECT COALESCE(SUM(d.giaThuThucTe), 0) FROM DonHang d")
     BigDecimal sumTotalRevenue();
 

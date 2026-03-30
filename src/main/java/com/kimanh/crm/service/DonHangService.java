@@ -119,9 +119,28 @@ public class DonHangService {
         repository.deleteById(id);
     }
 
-    // Dashboard stats
+    // Dashboard stats with optional date filter
     @Cacheable(value = "donhang_dashboard_stats")
     public Map<String, Object> getDashboardStats() {
+        return getDashboardStats(null, null);
+    }
+
+    public Map<String, Object> getDashboardStats(LocalDate fromDate, LocalDate toDate) {
+        Map<String, Object> stats = new LinkedHashMap<>();
+        long total = repository.countByDateRange(fromDate, toDate);
+        long completed = repository.countCompletedByDateRange(fromDate, toDate);
+        stats.put("tongDonHang", total);
+        stats.put("tongDoanhThu", repository.sumTotalRevenueByDateRange(fromDate, toDate));
+        stats.put("donMoiHomNay", repository.countTodayOrders(LocalDate.now()));
+        stats.put("donHoanThanh", completed);
+        double conversionRate = total > 0 ? (double) completed / total * 100 : 0;
+        stats.put("tyLeChuyenDoi", Math.round(conversionRate * 10.0) / 10.0);
+        return stats;
+    }
+
+    @Deprecated
+    @Cacheable(value = "donhang_dashboard_stats_old")
+    public Map<String, Object> getDashboardStatsOld() {
         Map<String, Object> stats = new LinkedHashMap<>();
         long total = repository.count();
         long completed = repository.countCompleted();
