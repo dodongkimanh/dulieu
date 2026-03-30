@@ -181,7 +181,7 @@ export default function DoanhSo() {
       const response = await dashboardApi.exportDoanhSo(params);
       const timestamp = selectedMonth.format('DD-MM-YYYY');
       const filename = `DoanhSo_${selectedSale}_${timestamp}.xlsx`;
-      const url = URL.createObjectURL(response);
+      const url = URL.createObjectURL(response.data);
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
