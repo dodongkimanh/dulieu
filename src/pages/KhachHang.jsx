@@ -351,6 +351,7 @@ export default function KhachHang() {
           </Row>
           <Row gutter={16}>
             <Col span={12}><Form.Item name="idTrang" label="ID Trang"><Input /></Form.Item></Col>
+          </Row>
           <Row gutter={16}>
             <Col span={12}><Form.Item name="uid" label="UID"><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="adId" label="Ad ID"><Input /></Form.Item></Col>
