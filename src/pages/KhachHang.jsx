@@ -164,7 +164,7 @@ export default function KhachHang() {
     { title: 'Khách hàng', dataIndex: 'khachHang', width: 180, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
     { title: 'SĐT', dataIndex: 'sdt', width: 130 },
     { title: 'Sale', dataIndex: 'sale', width: 100 },
-    { title: 'Page', dataIndex: 'page', width: 140, ellipsis: true },
+    { title: 'Tùy Chọn', dataIndex: 'page', width: 220, ellipsis: true, render: (v) => <Tooltip title={v}><span style={{ color: '#7C3AED', fontWeight: 500 }}>{v}</span></Tooltip> },
     { title: 'Trạng thái', dataIndex: 'status', width: 160, render: (v, record) => (
       <Select
         value={v}
@@ -316,12 +316,15 @@ export default function KhachHang() {
             </Form.Item></Col>
           </Row>
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="page" label="Tùy Chọn Kênh Tiếp Thị" tooltip="Chọn kênh nguồn khách hàng">
+            <Col span={24}><Form.Item name="page" label="Tùy Chọn Kênh Tiếp Thị" tooltip="Chọn kênh nguồn khách hàng">
               <Select 
                 showSearch 
                 allowClear 
-                placeholder="Ấn Tùy Chọn" 
+                placeholder="Chọn kênh tiếp thị" 
                 optionFilterProp="children"
+                popupMatchSelectWidth={false}
+                style={{ width: '100%' }}
+                popupStyle={{ minWidth: 380 }}
                 filterOption={(input, option) => {
                   const label = option.label?.toLowerCase() || '';
                   const inputLower = input.toLowerCase();
@@ -329,14 +332,14 @@ export default function KhachHang() {
                 }}
               >
                 {Object.entries(PAGE_CATEGORIES).map(([category, items]) => (
-                  <OptGroup key={category} label={<span style={{ fontWeight: 600, color: '#4F46E5' }}>{category}</span>}>
+                  <OptGroup key={category} label={<span style={{ fontWeight: 600, color: '#4F46E5', fontSize: 13 }}>{category}</span>}>
                     {items.map(item => (
                       <Option key={item} value={item} label={item}>
-                        <div style={{ padding: '4px 0' }}>
+                        <div style={{ padding: '6px 0', fontSize: 13 }}>
                           {category === 'KÊNH GIAO TIẾP' ? (
                             <span style={{ color: '#0891B2', fontWeight: 500 }}>💬 {item}</span>
                           ) : (
-                            <span style={{ color: '#7C3AED', fontWeight: 500 }}>🏭 {item}</span>
+                            <span style={{ color: '#7C3AED', fontWeight: 500, whiteSpace: 'normal' }}>🏭 {item}</span>
                           )}
                         </div>
                       </Option>
@@ -345,8 +348,9 @@ export default function KhachHang() {
                 ))}
               </Select>
             </Form.Item></Col>
-            <Col span={12}><Form.Item name="idTrang" label="ID Trang"><Input /></Form.Item></Col>
           </Row>
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="idTrang" label="ID Trang"><Input /></Form.Item></Col>
           <Row gutter={16}>
             <Col span={12}><Form.Item name="uid" label="UID"><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="adId" label="Ad ID"><Input /></Form.Item></Col>
