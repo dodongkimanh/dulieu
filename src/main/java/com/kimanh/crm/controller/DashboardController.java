@@ -81,7 +81,9 @@ public class DashboardController {
         LocalDate start = fromDate;
         LocalDate end = toDate;
         
-        if (filter != null && !filter.isBlank()) {
+        // Prioritize: Manual date range > Quick Filter
+        // If user provided fromDate/toDate, use them. Otherwise, use filter
+        if ((fromDate == null || toDate == null) && filter != null && !filter.isBlank()) {
             LocalDate[] range = getDateRangeFromFilter(filter);
             start = range[0];
             end = range[1];

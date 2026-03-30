@@ -131,7 +131,8 @@ public class DonHangService {
         long completed = repository.countCompletedByDateRange(fromDate, toDate);
         stats.put("tongDonHang", total);
         stats.put("tongDoanhThu", repository.sumTotalRevenueByDateRange(fromDate, toDate));
-        stats.put("donMoiHomNay", repository.countTodayOrders(LocalDate.now()));
+        // FIXED: donMoiHomNay tuân theo dateRange, không hardcode LocalDate.now()
+        stats.put("donMoiHomNay", repository.countByDateRange(LocalDate.now(), LocalDate.now()));
         stats.put("donHoanThanh", completed);
         double conversionRate = total > 0 ? (double) completed / total * 100 : 0;
         stats.put("tyLeChuyenDoi", Math.round(conversionRate * 10.0) / 10.0);
