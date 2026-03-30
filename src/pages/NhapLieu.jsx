@@ -39,8 +39,8 @@ const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
 const COLUMNS = [
   { key: 'stt', label: 'STT', width: 50, type: 'index' },
   { key: 'ngay', label: 'Ngày', width: 140, type: 'date' },
-  { key: 'maHoaDon', label: 'Mã Hóa Đơn', width: 130, type: 'text' },
-  { key: 'maDatHang', label: 'Mã Đặt Hàng', width: 120, type: 'text' },
+  { key: 'maHoaDon', label: 'Mã Hóa Đơn', width: 160, type: 'text', style: { fontWeight: 600, color: '#4F46E5' } },
+  { key: 'maDatHang', label: 'Mã Đặt Hàng', width: 130, type: 'text' },
   { key: 'khachHang', label: 'Khách Hàng', width: 160, type: 'text' },
   { key: 'sdt', label: 'SĐT', width: 120, type: 'text' },
   { key: 'sale', label: 'Sale', width: 120, type: 'select-sale' },
@@ -52,14 +52,14 @@ const COLUMNS = [
   { key: 'tyLeCk', label: 'Tỷ Lệ CK %', width: 100, type: 'computed-pct' },
   { key: 'loiNhuanUocTinh', label: 'LN Ước Tính', width: 130, type: 'computed' },
   { key: 'tinhTrang', label: 'Tình Trạng', width: 150, type: 'select-status' },
-  { key: 'maVanDon', label: 'Mã Vận Đơn', width: 130, type: 'text' },
+  { key: 'maVanDon', label: 'Mã Vận Đơn', width: 150, type: 'text' },
   { key: 'chiPhiVanChuyen', label: 'CP Vận Chuyển', width: 120, type: 'number' },
   { key: 'dsVanChuyen', label: 'ĐS Vận Chuyển', width: 120, type: 'number' },
   { key: 'datCoc', label: 'Đặt Cọc/CK', width: 110, type: 'number' },
   { key: 'thuBanTrucTiep', label: 'Thu Bán Trực Tiếp', width: 130, type: 'number' },
   { key: 'tongThuKhach', label: 'Tổng Thu Khách', width: 130, type: 'computed' },
   { key: 'loiNhuanSauTru', label: 'LN Sau Trừ Vốn & VC', width: 150, type: 'computed' },
-  { key: 'page', label: 'Page', width: 300, type: 'text' },
+  { key: 'page', label: 'Tùy Chọn', width: 200, type: 'text' },
   { key: 'maIdQuangCao', label: 'Mã ID Bài QC', width: 160, type: 'text' },
   { key: 'ghiChu', label: 'Ghi Chú', width: 200, type: 'text' },
 ];
@@ -102,7 +102,8 @@ export default function NhapLieu() {
     setData(prev => prev.map(row => {
       if (row.id !== rowId) return row;
       const updated = { ...row, [field]: value };
-      // Recalculate computed fields
+      
+      // Extract values
       const ban = Number(updated.giaBanLenDon || 0);
       const phu = Number(updated.cuocPhuTroi || 0);
       const von = Number(updated.giaVon || 0);
@@ -111,11 +112,24 @@ export default function NhapLieu() {
       const truc = Number(updated.thuBanTrucTiep || 0);
       const dsvc = Number(updated.dsVanChuyen || 0);
       const cpvc = Number(updated.chiPhiVanChuyen || 0);
+      
+      // CÔNG THỨC 1: Giá Thu Thực Tế = Giá Bán Lên Đơn - Cước Phụ Trội
       updated.giaThuThucTe = ban - phu;
+      
+      // CÔNG THỨC 2: Tỷ Lệ CK % = ((Niêm Yết - Giá Thu Thực Tế) / Niêm Yết) × 100
       updated.tyLeCk = niem > 0 ? ((niem - updated.giaThuThucTe) / niem) * 100 : 0;
+      
+      // CÔNG THỨC 3: Lợi Nhuận Ước Tính = Giá Thu Thực Tế - Giá Vốn
       updated.loiNhuanUocTinh = updated.giaThuThucTe - von;
+      
+      // CÔNG THỨC 4: Tổng Thu Khách = Đặt Cọc + Thu Bán Trực Tiếp + ĐS Vận Chuyển
       updated.tongThuKhach = coc + truc + dsvc;
+      
+      // CÔNG THỨC 5: Lợi Nhuận Sau Trừ VC = Tổng Thu Khách - Chi Phí Vận Chuyển
+      // = (Đặt Cọc + Thu Bán Trực Tiếp + ĐS Vận Chuyển) - Chi Phí Vận Chuyển
+      // Per khách hàng yêu cầu: Chỉ trừ VC, không trừ vốn
       updated.loiNhuanSauTru = updated.tongThuKhach - cpvc;
+      
       return updated;
     }));
     setEditedRows(prev => ({ ...prev, [rowId]: true }));
@@ -213,6 +227,13 @@ export default function NhapLieu() {
     const rowEdited = editedRows[record.id];
     if (col.type === 'index') {
       return <span className="nl-stt">{(pagination.current - 1) * pagination.pageSize + index + 1}</span>;
+    }
+    if (col.key === 'maHoaDon') {
+      return (
+        <span style={{ fontWeight: 700, color: '#4F46E5', fontSize: 13, letterSpacing: '0.5px' }}>
+          {record[col.key] || '-'}
+        </span>
+      );
     }
     if (col.type === 'computed') {
       const val = Number(record[col.key] || 0);

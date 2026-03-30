@@ -40,12 +40,14 @@ export default function Dashboard() {
   const [activeFilter, setActiveFilter] = useState('Hôm nay');
   const [dateRange, setDateRange] = useState([dayjs(), dayjs()]);
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchAll(); }, [activeFilter, dateRange]);
 
   const fetchAll = async () => {
+    setLoading(true);
     try {
+      const params = { filter: activeFilter };
       const [s, r, os, d, ro] = await Promise.allSettled([
-        dashboardApi.getStats(),
+        dashboardApi.getStats(params),
         dashboardApi.getRevenueMonthly(),
         dashboardApi.getOrderStatus(),
         dashboardApi.getOrdersDaily(),

@@ -40,7 +40,7 @@ export const authApi = {
 
 // Dashboard APIs
 export const dashboardApi = {
-  getStats: () => api.get('/dashboard/stats'),
+  getStats: (params) => api.get('/dashboard/stats', { params }),
   getRevenueMonthly: () => api.get('/dashboard/revenue-monthly'),
   getOrdersDaily: () => api.get('/dashboard/orders-daily'),
   getOrderStatus: () => api.get('/dashboard/order-status'),

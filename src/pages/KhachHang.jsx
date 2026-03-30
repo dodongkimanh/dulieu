@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip } from 'antd';
+import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -17,8 +17,28 @@ import { khachHangApi, authApi } from '../api';
 import dayjs from 'dayjs';
 import { useAuth } from '../contexts/AuthContext';
 
-const { Option } = Select;
+const { Option, OptGroup } = Select;
 const { TextArea } = Input;
+
+// PAGE OPTIONS - Danh sách kênh tiếp thị
+const PAGE_CATEGORIES = {
+  'KÊNH GIAO TIẾP': ['Khách Zalo', 'Hotline', 'Khách cũ, khách giới thiệu, tìm kiếm', 'Kh Showroom'],
+  'CÁC XƯỞNG/SHOWROOM': [
+    'Tranh Đồng Kim Ánh Nam Định(576414695535724)',
+    'Xưởng Chế Tác Đồ Thờ Kim Ánh(516517308218764)',
+    'Kim Ánh Đúc Đỉnh Đồng Nam Định(560584423798299)',
+    'Xưởng Đúc Đồng Kim Ánh(647496405105905)',
+    'Xưởng Đồng Gia Truyền Nam Định(101435218182393)',
+    'Xưởng Đúc Đồng Gia Truyền Kim Ánh (579540361901590)',
+    'Đúc Đỉnh Thờ Kim Ánh(576614052193406)',
+    'Kim Ánh Đỉnh Đồng Nam Định (585239897998547)',
+    'Xưởng Đồng Kim Ánh(530886750113441)',
+    'Xưởng Đúc Đồng Kim Ánh Gia Truyền Nam Định (567376346452543)',
+    'Đúc Đồng Làng Nghề Truyền Thống Nam Định (578286328693026)',
+    'Xưởng Đúc Đồng Nam Định (134583069730624)',
+    'Đồ Đồng Kim Ánh Nam Định(110027362001260)',
+  ],
+};
 
 const statusColors = {
   'moi': { color: '#3B82F6', bg: '#EFF6FF', label: 'Mới' },
@@ -296,9 +316,33 @@ export default function KhachHang() {
             </Form.Item></Col>
           </Row>
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="page" label="Page">
-              <Select showSearch allowClear optionFilterProp="children" placeholder="Chọn Page">
-                {pagesList.map(p => <Option key={p} value={p}>{p}</Option>)}
+            <Col span={12}><Form.Item name="page" label="Tùy Chọn Kênh Tiếp Thị" tooltip="Chọn kênh nguồn khách hàng">
+              <Select 
+                showSearch 
+                allowClear 
+                placeholder="Ấn Tùy Chọn" 
+                optionFilterProp="children"
+                filterOption={(input, option) => {
+                  const label = option.label?.toLowerCase() || '';
+                  const inputLower = input.toLowerCase();
+                  return label.includes(inputLower);
+                }}
+              >
+                {Object.entries(PAGE_CATEGORIES).map(([category, items]) => (
+                  <OptGroup key={category} label={<span style={{ fontWeight: 600, color: '#4F46E5' }}>{category}</span>}>
+                    {items.map(item => (
+                      <Option key={item} value={item} label={item}>
+                        <div style={{ padding: '4px 0' }}>
+                          {category === 'KÊNH GIAO TIẾP' ? (
+                            <span style={{ color: '#0891B2', fontWeight: 500 }}>💬 {item}</span>
+                          ) : (
+                            <span style={{ color: '#7C3AED', fontWeight: 500 }}>🏭 {item}</span>
+                          )}
+                        </div>
+                      </Option>
+                    ))}
+                  </OptGroup>
+                ))}
               </Select>
             </Form.Item></Col>
             <Col span={12}><Form.Item name="idTrang" label="ID Trang"><Input /></Form.Item></Col>
