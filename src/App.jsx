@@ -6,6 +6,9 @@ import DonHang from './pages/DonHang';
 import KhachHang from './pages/KhachHang';
 import GioiThieu from './pages/GioiThieu';
 import UserManagement from './pages/UserManagement';
+import NhapLieu from './pages/NhapLieu';
+import TongQuat from './pages/TongQuat';
+import DoanhSo from './pages/DoanhSo';
 import Login from './pages/Login';
 import './App.css';
 
@@ -40,6 +43,9 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="don-hang" element={<DonHang />} />
             <Route path="khach-hang" element={<KhachHang />} />
+            <Route path="nhap-lieu" element={<RoleRoute roles={['ADMIN', 'KE_TOAN']}><NhapLieu /></RoleRoute>} />
+            <Route path="tong-quat" element={<RoleRoute roles={['ADMIN', 'KE_TOAN']}><TongQuat /></RoleRoute>} />
+            <Route path="doanh-so" element={<DoanhSo />} />
             <Route path="gioi-thieu" element={<GioiThieu />} />
             <Route path="users" element={<RoleRoute roles={['ADMIN']}><UserManagement /></RoleRoute>} />
           </Route>

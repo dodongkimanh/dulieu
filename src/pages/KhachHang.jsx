@@ -10,24 +10,29 @@ import {
   UserOutlined,
   InfoCircleOutlined,
   ClockCircleOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
-import { khachHangApi } from '../api';
+import { khachHangApi, authApi } from '../api';
 import dayjs from 'dayjs';
 import { useAuth } from '../contexts/AuthContext';
 
 const { Option } = Select;
+const { TextArea } = Input;
 
 const statusColors = {
-  'pending': { color: '#F59E0B', bg: '#FFFBEB', label: 'Chờ xử lý' },
-  'contacted': { color: '#3B82F6', bg: '#EFF6FF', label: 'Đã liên hệ' },
-  'qualified': { color: '#10B981', bg: '#D1FAE5', label: 'Tiềm năng' },
-  'converted': { color: '#4F46E5', bg: '#EEF2FF', label: 'Đã chuyển đổi' },
-  'lost': { color: '#EF4444', bg: '#FEE2E2', label: 'Mất' },
+  'moi': { color: '#3B82F6', bg: '#EFF6FF', label: 'Mới' },
+  'da_lien_he': { color: '#8B5CF6', bg: '#F5F3FF', label: 'Đã liên hệ' },
+  'dang_cham_soc': { color: '#F59E0B', bg: '#FFFBEB', label: 'Đang chăm sóc' },
+  'da_chuyen_doi': { color: '#10B981', bg: '#D1FAE5', label: 'Đã chuyển đổi' },
+  'da_chot_don': { color: '#4F46E5', bg: '#EEF2FF', label: 'Đã chốt đơn' },
+  'tiem_nang': { color: '#06B6D4', bg: '#ECFEFF', label: 'Tiềm năng' },
+  'khong_tiem_nang': { color: '#94A3B8', bg: '#F1F5F9', label: 'Không tiềm năng' },
+  'huy_don': { color: '#EF4444', bg: '#FEE2E2', label: 'Hủy đơn' },
 };
 
 export default function KhachHang() {
-  const { user } = useAuth();
+  const { user, isAdmin, isSaler } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 15, total: 0 });
@@ -36,6 +41,8 @@ export default function KhachHang() {
   const [editingRecord, setEditingRecord] = useState(null);
   const [salesList, setSalesList] = useState([]);
   const [pagesList, setPagesList] = useState([]);
+  const [transferModal, setTransferModal] = useState({ open: false, record: null, sale: null });
+  const [allSaleUsers, setAllSaleUsers] = useState([]);
   const [form] = Form.useForm();
 
   useEffect(() => { fetchData(); fetchMeta(); }, []);
@@ -62,8 +69,13 @@ export default function KhachHang() {
   const fetchMeta = async () => {
     try {
       const [sr, pr] = await Promise.all([khachHangApi.getSales(), khachHangApi.getPages()]);
-      setSalesList(sr.data);
-      setPagesList(pr.data);
+      setSalesList(sr.data || []);
+      setPagesList(pr.data || []);
+    } catch {}
+    try {
+      const res = await authApi.getSaleUsers();
+      const names = (res.data || []).filter(Boolean);
+      setAllSaleUsers(names);
     } catch {}
   };
 
@@ -71,7 +83,7 @@ export default function KhachHang() {
   const handleSearch = () => fetchData(1, pagination.pageSize);
   const handleReset = () => { setFilters({ keyword: '', status: null, sale: null }); fetchData(1, pagination.pageSize, { keyword: '', status: null, sale: null }); };
 
-  const handleCreate = () => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ ngayThang: dayjs(), status: 'pending' }); setModalOpen(true); };
+  const handleCreate = () => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ ngayThang: dayjs(), status: 'moi' }); setModalOpen(true); };
   const handleEdit = (record) => { setEditingRecord(record); form.setFieldsValue({ ...record, ngayThang: record.ngayThang ? dayjs(record.ngayThang) : dayjs() }); setModalOpen(true); };
 
   const handleSubmit = async () => {
@@ -101,20 +113,74 @@ export default function KhachHang() {
     } catch { message.error('Lỗi khi xóa khách hàng'); }
   };
 
+  const handleStatusChange = async (id, status) => {
+    try {
+      await khachHangApi.updateStatus(id, status);
+      message.success('Cập nhật trạng thái thành công');
+      fetchData(pagination.current, pagination.pageSize);
+    } catch { message.error('Lỗi cập nhật trạng thái'); }
+  };
+
+  const handleTransfer = async () => {
+    if (!transferModal.record || !transferModal.sale) return;
+    try {
+      await khachHangApi.transferSale(transferModal.record.id, transferModal.sale);
+      message.success('Chuyển khách hàng thành công');
+      setTransferModal({ open: false, record: null, sale: null });
+      fetchData(pagination.current, pagination.pageSize);
+    } catch { message.error('Lỗi chuyển khách hàng'); }
+  };
+
+  const handleNoteSave = async (id, notes) => {
+    try {
+      await khachHangApi.updateNotes(id, notes);
+      message.success('Lưu ghi chú thành công');
+      fetchData(pagination.current, pagination.pageSize);
+    } catch { message.error('Lỗi lưu ghi chú'); }
+  };
+
   const columns = [
     { title: 'Ngày', dataIndex: 'ngayThang', width: 110, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
     { title: 'Khách hàng', dataIndex: 'khachHang', width: 180, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
     { title: 'SĐT', dataIndex: 'sdt', width: 130 },
     { title: 'Sale', dataIndex: 'sale', width: 100 },
     { title: 'Page', dataIndex: 'page', width: 140, ellipsis: true },
-    { title: 'Mess', dataIndex: 'mess', width: 180, ellipsis: true },
-    { title: 'Trạng thái', dataIndex: 'status', width: 130, render: (v) => {
-      const sc = statusColors[v] || { color: '#64748B', bg: '#F1F5F9', label: v };
-      return <Tag style={{ background: sc.bg, color: sc.color, border: 'none', fontWeight: 600, padding: '2px 10px', borderRadius: 6 }}>{sc.label}</Tag>;
+    { title: 'Trạng thái', dataIndex: 'status', width: 160, render: (v, record) => (
+      <Select
+        value={v}
+        onChange={(val) => handleStatusChange(record.id, val)}
+        size="small"
+        style={{ width: '100%' }}
+        popupMatchSelectWidth={false}
+      >
+        {Object.entries(statusColors).map(([k, sc]) => (
+          <Option key={k} value={k}>
+            <Tag style={{ background: sc.bg, color: sc.color, border: 'none', fontWeight: 600, padding: '1px 8px', borderRadius: 6, margin: 0 }}>{sc.label}</Tag>
+          </Option>
+        ))}
+      </Select>
+    )},
+    { title: 'Ghi chú', dataIndex: 'mess', width: 200, ellipsis: true, render: (v, record) => {
+      const val = v && v !== 'EMPTY' ? v : '';
+      return (
+        <Input.TextArea
+          defaultValue={val}
+          placeholder="Ghi chú..."
+          autoSize={{ minRows: 1, maxRows: 3 }}
+          style={{ fontSize: 12, border: 'none', background: 'transparent', padding: '2px 4px', resize: 'none' }}
+          onBlur={(e) => {
+            const newVal = e.target.value;
+            if (newVal !== val) handleNoteSave(record.id, newVal);
+          }}
+        />
+      );
     }},
-    { title: '', width: 90, fixed: 'right', render: (_, record) => (
+    { title: '', width: isAdmin ? 110 : 80, fixed: 'right', render: (_, record) => (
       <Space size={4}>
         <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} style={{ color: '#4F46E5' }} /></Tooltip>
+        {isAdmin && (
+          <Tooltip title="Chuyển Sale"><Button type="text" size="small" icon={<SwapOutlined />} onClick={() => setTransferModal({ open: true, record, sale: record.sale })} style={{ color: '#06B6D4' }} /></Tooltip>
+        )}
         <Popconfirm title="Xác nhận xóa khách hàng?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
           <Tooltip title="Xóa"><Button type="text" size="small" icon={<DeleteOutlined />} danger /></Tooltip>
         </Popconfirm>
@@ -130,14 +196,17 @@ export default function KhachHang() {
           <div className="expand-item"><span className="expand-label">Khách hàng</span><span className="expand-value">{record.khachHang || '—'}</span></div>
           <div className="expand-item"><span className="expand-label">SĐT</span><span className="expand-value">{record.sdt || '—'}</span></div>
           <div className="expand-item"><span className="expand-label">Sale</span><span className="expand-value">{record.sale || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">Mess</span><span className="expand-value">{record.mess || '—'}</span></div>
+          <div className="expand-item"><span className="expand-label">UID</span><span className="expand-value">{record.uid || '—'}</span></div>
+          <div className="expand-item"><span className="expand-label">Ad ID</span><span className="expand-value">{record.adId || '—'}</span></div>
+          <div className="expand-item"><span className="expand-label">ID Trang</span><span className="expand-value">{record.idTrang || '—'}</span></div>
         </div>
       </div>
       <div className="expand-section">
-        <div className="expand-section-title"><InfoCircleOutlined /> Nguồn & Page</div>
+        <div className="expand-section-title"><InfoCircleOutlined /> Nguồn & Trạng thái</div>
         <div className="expand-items">
           <div className="expand-item"><span className="expand-label">Page</span><span className="expand-value">{record.page || '—'}</span></div>
           <div className="expand-item"><span className="expand-label">Trạng thái</span><span className="expand-value" style={{ color: statusColors[record.status]?.color, fontWeight: 700 }}>{statusColors[record.status]?.label || record.status || '—'}</span></div>
+          <div className="expand-item"><span className="expand-label">Ghi chú</span><span className="expand-value">{(record.mess && record.mess !== 'EMPTY') ? record.mess : '—'}</span></div>
         </div>
       </div>
       <div className="expand-section">
@@ -170,12 +239,14 @@ export default function KhachHang() {
             style={{ width: 220 }}
             allowClear
           />
-          <Select placeholder="Trạng thái" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} allowClear style={{ width: 140 }}>
+          <Select placeholder="Trạng thái" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} allowClear style={{ width: 160 }} popupMatchSelectWidth={false}>
             {Object.entries(statusColors).map(([k, v]) => <Option key={k} value={k}>{v.label}</Option>)}
           </Select>
-          <Select placeholder="Sale" value={filters.sale} onChange={(v) => setFilters({ ...filters, sale: v })} allowClear style={{ width: 130 }}>
-            {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
-          </Select>
+          {!isSaler && (
+            <Select placeholder="Sale" value={filters.sale} onChange={(v) => setFilters({ ...filters, sale: v })} allowClear style={{ width: 130 }}>
+              {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
+            </Select>
+          )}
           <Button icon={<SearchOutlined />} onClick={handleSearch}>Lọc</Button>
           <Button icon={<ReloadOutlined />} onClick={handleReset}>Reset</Button>
         </div>
@@ -218,10 +289,18 @@ export default function KhachHang() {
           </Row>
           <Row gutter={16}>
             <Col span={12}><Form.Item name="sdt" label="Số điện thoại"><Input /></Form.Item></Col>
-            <Col span={12}><Form.Item name="sale" label="Sale"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="sale" label="Sale">
+              <Select showSearch allowClear optionFilterProp="children" placeholder="Chọn Sale">
+                {allSaleUsers.map(s => <Option key={s} value={s}>{s}</Option>)}
+              </Select>
+            </Form.Item></Col>
           </Row>
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="page" label="Page"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="page" label="Page">
+              <Select showSearch allowClear optionFilterProp="children" placeholder="Chọn Page">
+                {pagesList.map(p => <Option key={p} value={p}>{p}</Option>)}
+              </Select>
+            </Form.Item></Col>
             <Col span={12}><Form.Item name="idTrang" label="ID Trang"><Input /></Form.Item></Col>
           </Row>
           <Row gutter={16}>
@@ -229,10 +308,39 @@ export default function KhachHang() {
             <Col span={12}><Form.Item name="adId" label="Ad ID"><Input /></Form.Item></Col>
           </Row>
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="status" label="Trạng thái"><Select>{Object.entries(statusColors).map(([k, v]) => <Option key={k} value={k}>{v.label}</Option>)}</Select></Form.Item></Col>
-            <Col span={12}><Form.Item name="mess" label="Mess"><Input /></Form.Item></Col>
+            <Col span={12}><Form.Item name="status" label="Trạng thái"><Select popupMatchSelectWidth={false}>{Object.entries(statusColors).map(([k, v]) => <Option key={k} value={k}>{v.label}</Option>)}</Select></Form.Item></Col>
+            <Col span={12}><Form.Item name="mess" label="Ghi chú"><TextArea rows={2} placeholder="Ghi chú tình trạng chăm sóc..." /></Form.Item></Col>
           </Row>
         </Form>
+      </Modal>
+
+      {/* Transfer Sale Modal */}
+      <Modal
+        title="Chuyển khách hàng cho Sale khác"
+        open={transferModal.open}
+        onCancel={() => setTransferModal({ open: false, record: null, sale: null })}
+        onOk={handleTransfer}
+        okText="Chuyển"
+        cancelText="Hủy"
+        width={400}
+      >
+        <div style={{ marginBottom: 12 }}>
+          <strong>Khách hàng:</strong> {transferModal.record?.khachHang}
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <strong>Sale hiện tại:</strong> {transferModal.record?.sale || '—'}
+        </div>
+        <div>
+          <strong>Chuyển cho Sale:</strong>
+          <Select
+            value={transferModal.sale}
+            onChange={(v) => setTransferModal(prev => ({ ...prev, sale: v }))}
+            style={{ width: '100%', marginTop: 8 }}
+            placeholder="Chọn Sale"
+          >
+            {allSaleUsers.map(s => <Option key={s} value={s}>{s}</Option>)}
+          </Select>
+        </div>
       </Modal>
     </motion.div>
   );

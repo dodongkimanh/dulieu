@@ -11,6 +11,9 @@ import {
   BellOutlined,
   UserOutlined,
   MoonOutlined,
+  TableOutlined,
+  FundOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +22,9 @@ const allSidebarItems = [
   { key: '/dashboard', icon: <AppstoreOutlined />, label: 'Tổng quan' },
   { key: '/don-hang', icon: <ShoppingCartOutlined />, label: 'Đơn hàng' },
   { key: '/khach-hang', icon: <TeamOutlined />, label: 'Khách hàng' },
+  { key: '/nhap-lieu', icon: <TableOutlined />, label: 'Nhập liệu kế toán', roles: ['ADMIN', 'KE_TOAN'] },
+  { key: '/tong-quat', icon: <FundOutlined />, label: 'Tổng quát', roles: ['ADMIN', 'KE_TOAN'] },
+  { key: '/doanh-so', icon: <BarChartOutlined />, label: 'Doanh số' },
   { key: '/users', icon: <UserOutlined />, label: 'Quản lý tài khoản', roles: ['ADMIN'] },
   { key: '/gioi-thieu', icon: <InfoCircleOutlined />, label: 'Giới thiệu' },
 ];
@@ -27,6 +33,9 @@ const pageTitles = {
   '/dashboard': 'Tổng quan',
   '/don-hang': 'Quản lý Đơn hàng',
   '/khach-hang': 'Quản lý Khách hàng',
+  '/nhap-lieu': 'Nhập liệu kế toán',
+  '/tong-quat': 'Tổng quát phân tích',
+  '/doanh-so': 'Doanh số & Mess',
   '/users': 'Quản lý Tài khoản',
   '/gioi-thieu': 'Giới thiệu hệ thống',
 };

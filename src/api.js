@@ -45,6 +45,8 @@ export const dashboardApi = {
   getOrdersDaily: () => api.get('/dashboard/orders-daily'),
   getOrderStatus: () => api.get('/dashboard/order-status'),
   getRecentOrders: () => api.get('/dashboard/recent-orders'),
+  getAnalytics: (params) => api.get('/dashboard/analytics', { params }),
+  getSaleDashboard: (params) => api.get('/dashboard/sale-dashboard', { params }),
 };
 
 // Don Hang (Orders) APIs
@@ -71,6 +73,8 @@ export const khachHangApi = {
   search: (keyword) => api.get('/khach-hang/search', { params: { keyword } }),
   getPages: () => api.get('/khach-hang/pages'),
   getSales: () => api.get('/khach-hang/sales'),
+  transferSale: (id, sale) => api.patch(`/khach-hang/${id}/transfer`, { sale }),
+  updateNotes: (id, notes) => api.patch(`/khach-hang/${id}/notes`, { notes }),
 };
 
 export default api;

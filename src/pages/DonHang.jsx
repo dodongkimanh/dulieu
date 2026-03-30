@@ -1,9 +1,7 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Input, Select, DatePicker, Tag, Modal, Form, InputNumber, Space, Popconfirm, message, Row, Col, Tooltip, Typography, Badge } from 'antd';
+import { Table, Button, Input, Select, DatePicker, Tag, Popconfirm, message, Row, Col, Tooltip, Badge } from 'antd';
 import {
-  PlusOutlined,
   SearchOutlined,
-  EditOutlined,
   DeleteOutlined,
   FileExcelOutlined,
   ReloadOutlined,
@@ -12,7 +10,6 @@ import {
   InfoCircleOutlined,
   DollarOutlined,
   CarOutlined,
-  CloseOutlined,
   FileTextOutlined,
 } from '@ant-design/icons';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,8 +18,6 @@ import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
-const { TextArea } = Input;
-const { Text } = Typography;
 
 const STATUS_OPTIONS = [
   'Đã Giao Thành Công', 'Đang Chờ', 'KH Showroom', 'Hoàn hàng',
@@ -59,8 +54,6 @@ const statusColors = {
 };
 
 const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
-const numFmt = (v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-const numParse = (v) => v.replace(/,/g, '');
 
 export default function DonHang() {
   const { isAdmin, isKeToan, isSaler } = useAuth();
@@ -70,12 +63,8 @@ export default function DonHang() {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [filters, setFilters] = useState({ keyword: '', tinhTrang: null, sale: null, page: null, maIdQuangCao: '' });
   const [dateRange, setDateRange] = useState([null, null]);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
   const [salesList, setSalesList] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [calculated, setCalculated] = useState({ giaThuThucTe: 0, tyLeCk: 0, loiNhuanUocTinh: 0, tongThuKhach: 0, loiNhuanSauTru: 0 });
-  const [form] = Form.useForm();
 
   const fetchData = useCallback(async (pg = 1, size = 20, overrides = {}) => {
     setLoading(true);
@@ -99,10 +88,7 @@ export default function DonHang() {
   }, [filters, dateRange]);
 
   const fetchSales = async () => {
-    try {
-      const res = await authApi.getSaleUsers();
-      setSalesList(res.data);
-    } catch {}
+    try { const res = await authApi.getSaleUsers(); setSalesList(res.data); } catch {}
   };
 
   useEffect(() => { fetchData(); fetchSales(); }, []);
@@ -113,60 +99,6 @@ export default function DonHang() {
     setFilters({ keyword: '', tinhTrang: null, sale: null, page: null, maIdQuangCao: '' });
     setDateRange([null, null]);
     fetchData(1, pagination.pageSize, { keyword: '', tinhTrang: null, sale: null, page: null, maIdQuangCao: '' });
-  };
-
-  const handleCreate = () => {
-    setEditingRecord(null);
-    form.resetFields();
-    form.setFieldsValue({ ngay: dayjs(), tinhTrang: 'Đang Chờ', cuocPhuTroi: 0 });
-    setCalculated({ giaThuThucTe: 0, tyLeCk: 0, loiNhuanUocTinh: 0, tongThuKhach: 0, loiNhuanSauTru: 0 });
-    setModalOpen(true);
-  };
-
-  const handleEdit = (record) => {
-    setEditingRecord(record);
-    form.setFieldsValue({ ...record, ngay: record.ngay ? dayjs(record.ngay) : dayjs() });
-    recalculate(record);
-    setModalOpen(true);
-  };
-
-  const recalculate = (vals) => {
-    const ban = Number(vals.giaBanLenDon || 0);
-    const phu = Number(vals.cuocPhuTroi || 0);
-    const von = Number(vals.giaVon || 0);
-    const niem = Number(vals.tongTienNiemYet || 0);
-    const coc = Number(vals.datCoc || 0);
-    const truc = Number(vals.thuBanTrucTiep || 0);
-    const dsvc = Number(vals.dsVanChuyen || 0);
-    const cpvc = Number(vals.chiPhiVanChuyen || 0);
-
-    const giaThuThucTe = ban - phu;
-    const tyLeCk = niem > 0 ? ((niem - giaThuThucTe) / niem) * 100 : 0;
-    const loiNhuanUocTinh = giaThuThucTe - von;
-    const tongThuKhach = coc + truc + dsvc;
-    const loiNhuanSauTru = tongThuKhach - cpvc;
-    setCalculated({ giaThuThucTe, tyLeCk, loiNhuanUocTinh, tongThuKhach, loiNhuanSauTru });
-  };
-
-  const handleValuesChange = (_, allValues) => recalculate(allValues);
-
-  const handleSubmit = async () => {
-    try {
-      const values = await form.validateFields();
-      values.ngay = values.ngay?.format('YYYY-MM-DD');
-      if (editingRecord) {
-        await donHangApi.update(editingRecord.id, values);
-        message.success('Cập nhật đơn hàng thành công');
-      } else {
-        await donHangApi.create(values);
-        message.success('Tạo đơn hàng thành công');
-      }
-      setModalOpen(false);
-      fetchData(pagination.current, pagination.pageSize);
-    } catch (e) {
-      if (e.errorFields) return;
-      message.error('Lỗi khi lưu đơn hàng');
-    }
   };
 
   const handleDelete = async (id) => {
@@ -197,7 +129,6 @@ export default function DonHang() {
     } catch { message.error('Lỗi khi xuất Excel'); }
   };
 
-  // Columns for ADMIN / KE_TOAN
   const adminColumns = [
     { title: 'Ngày', dataIndex: 'ngay', width: 100, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
     { title: 'Mã HĐ', dataIndex: 'maHoaDon', width: 130, render: (v) => <span style={{ color: '#4F46E5', fontWeight: 600 }}>{v}</span> },
@@ -211,17 +142,13 @@ export default function DonHang() {
       const sc = statusColors[v] || { color: '#64748B', bg: '#F1F5F9' };
       return <Tag style={{ background: sc.bg, color: sc.color, border: 'none', fontWeight: 600, padding: '2px 10px', borderRadius: 6 }}>{v}</Tag>;
     }},
-    { title: '', width: 80, fixed: 'right', render: (_, record) => (
-      <Space size={4}>
-        <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); handleEdit(record); }} style={{ color: '#4F46E5' }} /></Tooltip>
-        <Popconfirm title="Xác nhận xóa?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
-          <Tooltip title="Xóa"><Button type="text" size="small" icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} danger /></Tooltip>
-        </Popconfirm>
-      </Space>
-    )},
+    ...(canEdit ? [{ title: '', width: 50, fixed: 'right', render: (_, record) => (
+      <Popconfirm title="Xác nhận xóa?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
+        <Tooltip title="Xóa"><Button type="text" size="small" icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} danger /></Tooltip>
+      </Popconfirm>
+    )}] : []),
   ];
 
-  // Columns for SALER (view-only, limited fields)
   const salerColumns = [
     { title: 'Ngày', dataIndex: 'ngay', width: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
     { title: 'Mã HĐ', dataIndex: 'maHoaDon', width: 130, render: (v) => <span style={{ color: '#4F46E5', fontWeight: 600 }}>{v}</span> },
@@ -293,16 +220,8 @@ export default function DonHang() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-      {/* Page Header - Create button on LEFT */}
       <div className="page-header-premium">
         <div className="page-header-left">
-          {canEdit && (
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} size="large" className="create-btn-premium">
-                Tạo đơn hàng
-              </Button>
-            </motion.div>
-          )}
           <div className="page-header-info">
             <ShoppingCartOutlined style={{ fontSize: 20, color: '#4F46E5' }} />
             <span className="page-header-title-text">Đơn hàng</span>
@@ -320,14 +239,7 @@ export default function DonHang() {
             allowClear
           />
           <Tooltip title="Bộ lọc nâng cao">
-            <Button
-              icon={<FilterOutlined />}
-              onClick={() => setShowFilters(!showFilters)}
-              type={showFilters ? 'primary' : 'default'}
-              ghost={showFilters}
-            >
-              Bộ lọc
-            </Button>
+            <Button icon={<FilterOutlined />} onClick={() => setShowFilters(!showFilters)} type={showFilters ? 'primary' : 'default'} ghost={showFilters}>Bộ lọc</Button>
           </Tooltip>
           {canEdit && (
             <Tooltip title="Xuất Excel">
@@ -337,16 +249,9 @@ export default function DonHang() {
         </div>
       </div>
 
-      {/* Animated Filter Panel */}
       <AnimatePresence>
         {showFilters && (
-          <motion.div
-            className="filter-panel-premium"
-            initial={{ height: 0, opacity: 0, marginBottom: 0 }}
-            animate={{ height: 'auto', opacity: 1, marginBottom: 16 }}
-            exit={{ height: 0, opacity: 0, marginBottom: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-          >
+          <motion.div className="filter-panel-premium" initial={{ height: 0, opacity: 0, marginBottom: 0 }} animate={{ height: 'auto', opacity: 1, marginBottom: 16 }} exit={{ height: 0, opacity: 0, marginBottom: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }}>
             <div className="filter-panel-inner">
               <Row gutter={[12, 12]} align="middle">
                 <Col xs={24} sm={12} md={5}>
@@ -362,7 +267,7 @@ export default function DonHang() {
                   </Col>
                 )}
                 <Col xs={24} sm={12} md={5}>
-                  <Select placeholder="Page" value={filters.page} onChange={(v) => setFilters(f => ({ ...f, page: v }))} allowClear style={{ width: '100%' }} showSearch optionFilterProp="children">
+                  <Select placeholder="Page" value={filters.page} onChange={(v) => setFilters(f => ({ ...f, page: v }))} allowClear style={{ width: '100%' }} showSearch optionFilterProp="children" popupMatchSelectWidth={false}>
                     {PAGE_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
                   </Select>
                 </Col>
@@ -370,13 +275,7 @@ export default function DonHang() {
                   <Input placeholder="Mã ID QC" value={filters.maIdQuangCao} onChange={(e) => setFilters(f => ({ ...f, maIdQuangCao: e.target.value }))} allowClear />
                 </Col>
                 <Col xs={24} sm={24} md={6}>
-                  <DatePicker.RangePicker
-                    value={dateRange}
-                    onChange={(v) => setDateRange(v || [null, null])}
-                    format="DD/MM/YYYY"
-                    style={{ width: '100%' }}
-                    placeholder={['Từ ngày', 'Đến ngày']}
-                  />
+                  <DatePicker.RangePicker value={dateRange} onChange={(v) => setDateRange(v || [null, null])} format="DD/MM/YYYY" style={{ width: '100%' }} placeholder={['Từ ngày', 'Đến ngày']} />
                 </Col>
               </Row>
               <div className="filter-actions">
@@ -388,7 +287,6 @@ export default function DonHang() {
         )}
       </AnimatePresence>
 
-      {/* Table with expandable rows */}
       <motion.div className="sg-card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.4 }}>
         <Table
           dataSource={data}
@@ -399,157 +297,10 @@ export default function DonHang() {
           onChange={handleTableChange}
           scroll={{ x: isSaler ? 1500 : 1300 }}
           size="middle"
-          expandable={{
-            expandedRowRender,
-            expandRowByClick: true,
-            rowExpandable: () => true,
-          }}
+          expandable={{ expandedRowRender, expandRowByClick: true, rowExpandable: () => true }}
           rowClassName="clickable-row"
         />
       </motion.div>
-
-      {/* Premium Centered Modal */}
-      <Modal
-        title={null}
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        footer={null}
-        width={800}
-        centered
-        destroyOnClose
-        closable={false}
-        className="premium-order-modal"
-        styles={{ body: { padding: 0 } }}
-      >
-        <div className="modal-custom-header">
-          <div className="modal-header-content">
-            <div className="modal-header-icon">
-              <ShoppingCartOutlined />
-            </div>
-            <div>
-              <h3>{editingRecord ? 'Cập nhật đơn hàng' : 'Tạo đơn hàng mới'}</h3>
-              <p>Điền đầy đủ thông tin đơn hàng</p>
-            </div>
-          </div>
-          <Button type="text" icon={<CloseOutlined />} onClick={() => setModalOpen(false)} className="modal-close-btn" />
-        </div>
-
-        <div className="modal-body-content">
-          <Form form={form} layout="vertical" onValuesChange={handleValuesChange}>
-            <div className="form-section-card">
-              <div className="form-section-header">
-                <InfoCircleOutlined />
-                <span>Thông tin chung</span>
-              </div>
-              <Row gutter={16}>
-                <Col span={8}><Form.Item name="ngay" label="Ngày"><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" /></Form.Item></Col>
-                <Col span={8}><Form.Item name="maHoaDon" label="Mã Hóa Đơn"><Input placeholder="Tự động nếu để trống" /></Form.Item></Col>
-                <Col span={8}><Form.Item name="maDatHang" label="Mã Đặt Hàng"><Input /></Form.Item></Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}><Form.Item name="khachHang" label="Khách hàng" rules={[{ required: true, message: 'Nhập tên' }]}><Input /></Form.Item></Col>
-                <Col span={12}><Form.Item name="sdt" label="SĐT"><Input /></Form.Item></Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={8}>
-                  <Form.Item name="sale" label="Sale">
-                    <Select allowClear showSearch optionFilterProp="children" placeholder="Chọn Sale">
-                      {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col span={8}>
-                  <Form.Item name="page" label="Page">
-                    <Select allowClear showSearch optionFilterProp="children" placeholder="Chọn Page">
-                      {PAGE_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col span={8}>
-                  <Form.Item name="tinhTrang" label="Tình trạng">
-                    <Select>
-                      {STATUS_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}><Form.Item name="maIdQuangCao" label="ID Bài Quảng Cáo"><Input placeholder="Nhập mã ID quảng cáo" /></Form.Item></Col>
-              </Row>
-            </div>
-
-            <div className="form-section-card">
-              <div className="form-section-header">
-                <DollarOutlined />
-                <span>Giá & Chiết khấu</span>
-              </div>
-              <Row gutter={16}>
-                <Col span={12}><Form.Item name="giaVon" label="Giá Vốn"><InputNumber min={0} style={{ width: '100%' }} formatter={numFmt} parser={numParse} /></Form.Item></Col>
-                <Col span={12}><Form.Item name="tongTienNiemYet" label="Tổng Niêm Yết"><InputNumber min={0} style={{ width: '100%' }} formatter={numFmt} parser={numParse} /></Form.Item></Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}><Form.Item name="giaBanLenDon" label="Giá Bán Lên Đơn"><InputNumber min={0} style={{ width: '100%' }} formatter={numFmt} parser={numParse} /></Form.Item></Col>
-                <Col span={12}><Form.Item name="cuocPhuTroi" label="Cước Phụ Trội"><InputNumber min={0} style={{ width: '100%' }} formatter={numFmt} parser={numParse} /></Form.Item></Col>
-              </Row>
-              <div className="calc-cards-row">
-                <div className="calc-card green">
-                  <span className="calc-label">Giá Thu Thực Tế</span>
-                  <span className="calc-value">{vnd(calculated.giaThuThucTe)} đ</span>
-                </div>
-                <div className="calc-card blue">
-                  <span className="calc-label">Tỷ lệ CK</span>
-                  <span className="calc-value">{calculated.tyLeCk.toFixed(1)}%</span>
-                </div>
-                <div className="calc-card purple">
-                  <span className="calc-label">LN Ước Tính</span>
-                  <span className="calc-value">{vnd(calculated.loiNhuanUocTinh)} đ</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="form-section-card">
-              <div className="form-section-header">
-                <CarOutlined />
-                <span>Vận chuyển & Thanh toán</span>
-              </div>
-              <Row gutter={16}>
-                <Col span={8}><Form.Item name="maVanDon" label="Mã Vận Đơn"><Input /></Form.Item></Col>
-                <Col span={8}><Form.Item name="chiPhiVanChuyen" label="Chi Phí Vận Chuyển"><InputNumber min={0} style={{ width: '100%' }} formatter={numFmt} parser={numParse} /></Form.Item></Col>
-                <Col span={8}><Form.Item name="dsVanChuyen" label="ĐS Vận Chuyển"><InputNumber min={0} style={{ width: '100%' }} formatter={numFmt} parser={numParse} /></Form.Item></Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}><Form.Item name="datCoc" label="Đặt cọc / CK"><InputNumber min={0} style={{ width: '100%' }} formatter={numFmt} parser={numParse} /></Form.Item></Col>
-                <Col span={12}><Form.Item name="thuBanTrucTiep" label="Thu bán trực tiếp (tiền mặt)"><InputNumber min={0} style={{ width: '100%' }} formatter={numFmt} parser={numParse} /></Form.Item></Col>
-              </Row>
-              <div className="calc-cards-row">
-                <div className="calc-card orange">
-                  <span className="calc-label">Tổng Thu Khách</span>
-                  <span className="calc-value">{vnd(calculated.tongThuKhach)} đ</span>
-                </div>
-                <div className="calc-card emerald">
-                  <span className="calc-label">Lợi Nhuận Sau Trừ</span>
-                  <span className="calc-value">{vnd(calculated.loiNhuanSauTru)} đ</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="form-section-card">
-              <div className="form-section-header">
-                <FileTextOutlined />
-                <span>Ghi chú</span>
-              </div>
-              <Form.Item name="ghiChu"><TextArea rows={3} placeholder="Ghi chú thêm..." /></Form.Item>
-            </div>
-          </Form>
-        </div>
-
-        <div className="modal-custom-footer">
-          <Button onClick={() => setModalOpen(false)} size="large">Hủy</Button>
-          <Button type="primary" onClick={handleSubmit} size="large" className="submit-btn-premium">
-            {editingRecord ? 'Cập nhật' : 'Tạo đơn hàng'}
-          </Button>
-        </div>
-      </Modal>
     </motion.div>
   );
 }

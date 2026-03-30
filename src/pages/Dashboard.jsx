@@ -44,18 +44,24 @@ export default function Dashboard() {
 
   const fetchAll = async () => {
     try {
-      const [s, r, os, d, ro] = await Promise.all([
+      const [s, r, os, d, ro] = await Promise.allSettled([
         dashboardApi.getStats(),
         dashboardApi.getRevenueMonthly(),
         dashboardApi.getOrderStatus(),
         dashboardApi.getOrdersDaily(),
         dashboardApi.getRecentOrders(),
       ]);
-      setStats(s.data);
-      setRevenueData(Array.isArray(r.data) ? r.data.map(item => ({ ...item, revenue: Number(item.revenue) })) : [r.data].map(item => ({ ...item, revenue: Number(item.revenue) })));
-      setOrderStatusData(Array.isArray(os.data) ? os.data : []);
-      setDailyData(Array.isArray(d.data) ? d.data.map(item => ({ ...item, total: Number(item.total) })) : [d.data].map(item => ({ ...item, total: Number(item.total) })));
-      setRecentOrders(Array.isArray(ro.data) ? ro.data : []);
+      if (s.status === 'fulfilled') setStats(s.value.data);
+      if (r.status === 'fulfilled') {
+        const rd = r.value.data;
+        setRevenueData(Array.isArray(rd) ? rd.map(item => ({ ...item, revenue: Number(item.revenue) })) : [rd].map(item => ({ ...item, revenue: Number(item.revenue) })));
+      }
+      if (os.status === 'fulfilled') setOrderStatusData(Array.isArray(os.value.data) ? os.value.data : []);
+      if (d.status === 'fulfilled') {
+        const dd = d.value.data;
+        setDailyData(Array.isArray(dd) ? dd.map(item => ({ ...item, total: Number(item.total) })) : [dd].map(item => ({ ...item, total: Number(item.total) })));
+      }
+      if (ro.status === 'fulfilled') setRecentOrders(Array.isArray(ro.value.data) ? ro.value.data : []);
     } catch (e) {
       console.error('Dashboard error:', e);
     } finally {
