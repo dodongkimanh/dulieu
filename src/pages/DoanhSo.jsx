@@ -573,7 +573,7 @@ export default function DoanhSo() {
 
           {/* Tier table */}
           <div style={{ fontWeight: 700, fontSize: 14, color: '#1E293B', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>📊 Bảng mốc Mess theo Doanh số</span>
+            <span>Bảng mốc Mess theo Doanh số</span>
             <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={handleAddTier}>Thêm mốc</Button>
           </div>
           <div style={{ overflowX: 'auto' }}>
