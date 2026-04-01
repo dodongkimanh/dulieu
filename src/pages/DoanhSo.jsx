@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Row, Col, DatePicker, Select, Spin, Checkbox, message, Button, Tag, InputNumber, Modal } from 'antd';
+import { Row, Col, DatePicker, Select, Spin, Checkbox, message, Button, Tag, InputNumber, Modal, Input } from 'antd';
 import {
   DollarOutlined,
   MessageOutlined,
@@ -11,6 +11,8 @@ import {
   SettingOutlined,
   WalletOutlined,
   CalculatorOutlined,
+  PlusOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion } from 'framer-motion';
@@ -28,7 +30,7 @@ const vndShort = (v) => {
   return n.toLocaleString('vi-VN');
 };
 
-const MESS_TIER_BUDGETS = [
+const DEFAULT_TIERS = [
   { min: 0, max: 49_999_999, budget: 6_000_000, label: '< 50 triệu' },
   { min: 50_000_000, max: 74_999_999, budget: 9_000_000, label: '50 triệu ≤ 75 triệu' },
   { min: 75_000_000, max: 99_999_999, budget: 12_000_000, label: '75 triệu ≤ 100 triệu' },
@@ -42,21 +44,21 @@ const MESS_TIER_BUDGETS = [
   { min: 350_000_000, max: 399_999_999, budget: 48_000_000, label: '350 triệu ≤ 400 triệu' },
   { min: 400_000_000, max: 449_999_999, budget: 54_000_000, label: '400 triệu ≤ 450 triệu' },
   { min: 450_000_000, max: 499_999_999, budget: 60_000_000, label: '450 triệu ≤ 500 triệu' },
-  { min: 500_000_000, max: Infinity, budget: 64_000_000, label: 'DS > 500 triệu' },
+  { min: 500_000_000, max: 999_999_999_999, budget: 64_000_000, label: 'DS > 500 triệu' },
 ];
 
-function buildMessTiers(cost) {
+function buildMessTiers(tiers, cost) {
   const c = Number(cost) || 65000;
-  return MESS_TIER_BUDGETS.map(t => ({ ...t, mess: Math.floor(t.budget / c) }));
+  return (tiers || DEFAULT_TIERS).map(t => ({ ...t, mess: Math.floor(Number(t.budget) / c) }));
 }
 
-function getMessTier(revenue, cost) {
-  const tiers = buildMessTiers(cost);
+function getMessTier(revenue, tiers, cost) {
+  const built = buildMessTiers(tiers, cost);
   const rev = Number(revenue || 0);
-  for (const tier of tiers) {
-    if (rev < tier.max) return tier;
+  for (const tier of built) {
+    if (rev <= Number(tier.max)) return tier;
   }
-  return tiers[tiers.length - 1];
+  return built[built.length - 1];
 }
 
 /* SVG Semi-circle Gauge */
@@ -131,6 +133,8 @@ export default function DoanhSo() {
   const [costPerMess, setCostPerMess] = useState(65000);
   const [configModal, setConfigModal] = useState(false);
   const [editCost, setEditCost] = useState(65000);
+  const [messTierConfig, setMessTierConfig] = useState(DEFAULT_TIERS);
+  const [editTiers, setEditTiers] = useState([]);
 
   const getMonthRange = (m) => {
     const from = m.startOf('month').format('YYYY-MM-DD');
@@ -160,6 +164,9 @@ export default function DoanhSo() {
       const c = Number(res.data?.costPerMess || 65000);
       setCostPerMess(c);
       setEditCost(c);
+      if (res.data?.tiers && Array.isArray(res.data.tiers)) {
+        setMessTierConfig(res.data.tiers);
+      }
     }).catch(() => {});
   }, []);
 
@@ -222,16 +229,40 @@ export default function DoanhSo() {
 
   const handleSaveConfig = async () => {
     try {
-      const res = await messConfigApi.updateCostPerMess(editCost);
-      setCostPerMess(Number(res.data?.costPerMess || editCost));
+      // Save cost per mess
+      const costRes = await messConfigApi.updateCostPerMess(editCost);
+      setCostPerMess(Number(costRes.data?.costPerMess || editCost));
+      // Save tiers
+      const tierRes = await messConfigApi.updateTiers(editTiers);
+      if (tierRes.data?.tiers) setMessTierConfig(tierRes.data.tiers);
       setConfigModal(false);
-      message.success('Cập nhật chi phí/mess thành công');
-      // Reload data to refresh mess calculation
+      message.success('Cập nhật cấu hình mess thành công');
       const { from, to } = getMonthRange(selectedMonth);
       fetchData(selectedSale, from, to);
     } catch {
       message.error('Lỗi khi cập nhật cấu hình');
     }
+  };
+
+  const handleOpenConfig = () => {
+    setEditCost(apiCostPerMess);
+    setEditTiers(messTierConfig.map(t => ({ ...t })));
+    setConfigModal(true);
+  };
+
+  const handleTierChange = (idx, field, value) => {
+    setEditTiers(prev => prev.map((t, i) => i === idx ? { ...t, [field]: value } : t));
+  };
+
+  const handleAddTier = () => {
+    const last = editTiers[editTiers.length - 1];
+    const newMin = last ? Number(last.max) + 1 : 0;
+    setEditTiers(prev => [...prev, { min: newMin, max: newMin + 49_999_999, budget: (last?.budget || 6_000_000) + 3_000_000, label: '' }]);
+  };
+
+  const handleRemoveTier = (idx) => {
+    if (editTiers.length <= 1) return;
+    setEditTiers(prev => prev.filter((_, i) => i !== idx));
   };
 
   if (loading && !data) {
@@ -251,8 +282,8 @@ export default function DoanhSo() {
   const messRemaining = Math.max(0, messAllocation - totalMess);
   const messOverflow = totalMess > messAllocation;
   const messOverflowCount = messOverflow ? totalMess - messAllocation : 0;
-  const tier = getMessTier(qualifiedRevenue, apiCostPerMess);
-  const messTiers = buildMessTiers(apiCostPerMess);
+  const tier = getMessTier(qualifiedRevenue, messTierConfig, apiCostPerMess);
+  const messTiers = buildMessTiers(messTierConfig, apiCostPerMess);
   const saleName = data?.sale || user?.fullName || '';
   const totalMessCost = totalMess * apiCostPerMess;
 
@@ -300,7 +331,7 @@ export default function DoanhSo() {
         <div className="ds-filter-right">
           <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={!data} style={{ background: '#10B981', borderColor: '#10B981', color: '#fff' }}>Tải xuống</Button>
           {isAdmin && (
-            <Button icon={<SettingOutlined />} onClick={() => { setEditCost(apiCostPerMess); setConfigModal(true); }} style={{ color: '#4F46E5' }}>Cấu hình Mess</Button>
+            <Button icon={<SettingOutlined />} onClick={handleOpenConfig} style={{ color: '#4F46E5' }}>Cấu hình Mess</Button>
           )}
           <div className="ds-sale-name" style={{ marginLeft: 24, fontSize: 15, fontWeight: 600, color: '#4F46E5' }}>{saleName}</div>
         </div>
@@ -477,9 +508,9 @@ export default function DoanhSo() {
                   {messTiers.map((t, i) => (
                     <tr key={i} className={t.mess === tier.mess ? 'active' : ''}>
                       <td style={{ fontWeight: 600 }}>{t.label}</td>
-                      <td className="td-num">{t.min > 0 ? t.min.toLocaleString('vi-VN') : '—'}</td>
-                      <td className="td-num">{t.max < Infinity ? t.max.toLocaleString('vi-VN') : '—'}</td>
-                      <td className="td-num">{t.budget.toLocaleString('vi-VN')}</td>
+                      <td className="td-num">{Number(t.min) > 0 ? Number(t.min).toLocaleString('vi-VN') : '—'}</td>
+                      <td className="td-num">{Number(t.max) < 999_999_999_999 ? Number(t.max).toLocaleString('vi-VN') : '∞'}</td>
+                      <td className="td-num">{Number(t.budget).toLocaleString('vi-VN')}</td>
                       <td className="td-num" style={{ fontWeight: 700, color: '#4F46E5' }}>{t.mess} Mess</td>
                     </tr>
                   ))}
@@ -510,34 +541,87 @@ export default function DoanhSo() {
 
       {/* Mess Config Modal (ADMIN) */}
       <Modal
-        title={<span><SettingOutlined style={{ color: '#4F46E5', marginRight: 8 }} />Cấu hình chi phí Mess</span>}
+        title={<span><SettingOutlined style={{ color: '#4F46E5', marginRight: 8 }} />Cấu hình Hệ thống Mess</span>}
         open={configModal}
         onCancel={() => setConfigModal(false)}
         onOk={handleSaveConfig}
-        okText="Lưu"
+        okText="Lưu tất cả"
         cancelText="Hủy"
-        width={400}
+        width={720}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
       >
-        <div style={{ padding: '16px 0' }}>
-          <div style={{ marginBottom: 16, color: '#64748B', fontSize: 13 }}>
-            Chi phí trên mỗi mess được dùng để tính "Chi phí ước tính" và "Số Mess" trong bảng mốc.
-            Giá trị hiện tại sẽ áp dụng cho toàn bộ hệ thống.
+        <div style={{ padding: '8px 0' }}>
+          {/* Cost per mess */}
+          <div style={{ marginBottom: 20, padding: 16, background: '#F8FAFC', borderRadius: 12, border: '1px solid #E2E8F0' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#1E293B', marginBottom: 8 }}>💰 Chi phí trên mỗi Mess</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <InputNumber
+                value={editCost}
+                onChange={(v) => setEditCost(v)}
+                min={1000}
+                max={1000000}
+                step={1000}
+                style={{ width: 200 }}
+                size="middle"
+                formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={(v) => v.replace(/\$\s?|(,*)/g, '')}
+                addonAfter="VNĐ"
+              />
+              <span style={{ fontSize: 12, color: '#64748B' }}>Áp dụng toàn bộ hệ thống</span>
+            </div>
           </div>
-          <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: '#374151' }}>Chi phí trên mỗi Mess (VNĐ):</div>
-          <InputNumber
-            value={editCost}
-            onChange={(v) => setEditCost(v)}
-            min={1000}
-            max={1000000}
-            step={1000}
-            style={{ width: '100%' }}
-            size="large"
-            formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-            parser={(v) => v.replace(/\$\s?|(,*)/g, '')}
-            addonAfter="VNĐ"
-          />
-          <div style={{ marginTop: 12, background: '#F0F9FF', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#1E40AF' }}>
-            Ví dụ: Với {vnd(editCost)} đ/mess × 92 mess = <strong>{vnd(editCost * 92)} đ</strong> ngân sách mốc đầu
+
+          {/* Tier table */}
+          <div style={{ fontWeight: 700, fontSize: 14, color: '#1E293B', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>📊 Bảng mốc Mess theo Doanh số</span>
+            <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={handleAddTier}>Thêm mốc</Button>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#374151', color: '#fff' }}>
+                  <th style={{ padding: '8px 6px', textAlign: 'left', fontWeight: 600, fontSize: 11, borderRadius: '8px 0 0 0' }}>Nhãn</th>
+                  <th style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 600, fontSize: 11 }}>DS Tối Thiểu</th>
+                  <th style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 600, fontSize: 11 }}>DS Tối Đa</th>
+                  <th style={{ padding: '8px 6px', textAlign: 'right', fontWeight: 600, fontSize: 11 }}>Ngân Sách</th>
+                  <th style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 600, fontSize: 11 }}>Mess</th>
+                  <th style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 600, fontSize: 11, borderRadius: '0 8px 0 0', width: 40 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {editTiers.map((t, i) => {
+                  const messCount = editCost > 0 ? Math.floor(Number(t.budget || 0) / editCost) : 0;
+                  return (
+                    <tr key={i} style={{ borderBottom: '1px solid #E2E8F0', background: i % 2 === 0 ? '#fff' : '#F8FAFC' }}>
+                      <td style={{ padding: '4px 4px' }}>
+                        <Input size="small" value={t.label || ''} onChange={(e) => handleTierChange(i, 'label', e.target.value)} style={{ fontSize: 12 }} />
+                      </td>
+                      <td style={{ padding: '4px 4px' }}>
+                        <InputNumber size="small" value={t.min} onChange={(v) => handleTierChange(i, 'min', v || 0)} style={{ width: '100%', fontSize: 12 }}
+                          formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} />
+                      </td>
+                      <td style={{ padding: '4px 4px' }}>
+                        <InputNumber size="small" value={t.max} onChange={(v) => handleTierChange(i, 'max', v || 0)} style={{ width: '100%', fontSize: 12 }}
+                          formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} />
+                      </td>
+                      <td style={{ padding: '4px 4px' }}>
+                        <InputNumber size="small" value={t.budget} onChange={(v) => handleTierChange(i, 'budget', v || 0)} style={{ width: '100%', fontSize: 12 }}
+                          formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} />
+                      </td>
+                      <td style={{ padding: '4px 4px', textAlign: 'center', fontWeight: 700, color: '#4F46E5', fontSize: 13 }}>
+                        {messCount}
+                      </td>
+                      <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                        <Button type="text" size="small" danger icon={<DeleteOutlined />} disabled={editTiers.length <= 1} onClick={() => handleRemoveTier(i)} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop: 12, background: '#F0F9FF', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#1E40AF' }}>
+            💡 Số Mess = Ngân Sách ÷ Chi phí/Mess. Chỉnh sửa chi phí hoặc ngân sách sẽ tự động cập nhật số mess.
           </div>
         </div>
       </Modal>

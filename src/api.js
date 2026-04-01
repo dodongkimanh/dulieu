@@ -99,6 +99,7 @@ export const kenhTiepThiApi = {
 export const messConfigApi = {
   getConfig: () => api.get('/mess-config'),
   updateCostPerMess: (costPerMess) => api.put('/mess-config/cost-per-mess', { costPerMess }),
+  updateTiers: (tiers) => api.put('/mess-config/tiers', { tiers }),
 };
 
 export default api;

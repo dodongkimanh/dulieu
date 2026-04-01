@@ -6,7 +6,6 @@ import {
   TeamOutlined,
   InfoCircleOutlined,
   LogoutOutlined,
-  SettingOutlined,
   BellOutlined,
   UserOutlined,
   MoonOutlined,
@@ -103,11 +102,6 @@ export default function MainLayout() {
         </div>
 
         <div className="sg-sidebar-bottom">
-          <Tooltip title="Cài đặt" placement="right">
-            <div className="sg-nav-item">
-              <SettingOutlined />
-            </div>
-          </Tooltip>
           <div className="sg-sidebar-footer-text">KA</div>
         </div>
       </aside>

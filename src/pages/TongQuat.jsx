@@ -6,7 +6,7 @@ import {
   FundOutlined,
   AppstoreOutlined,
 } from '@ant-design/icons';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
 import { motion } from 'framer-motion';
 import { dashboardApi, donHangApi } from '../api';
 import dayjs from 'dayjs';
@@ -106,30 +106,24 @@ export default function TongQuat() {
     saleMap[sale][item.tinhTrang] = Number(item.sumGiaBan || 0);
     saleMap[sale].total += Number(item.sumGiaBan || 0);
   });
-  const chartData = Object.values(saleMap).sort((a, b) => b.total - a.total);
+  const chartData = Object.values(saleMap).sort((a, b) => b.total - a.total).map(d => ({ ...d, _lbl: 0.001 }));
   const activeStatuses = [...new Set(bySaleStatus.map(i => i.tinhTrang))].filter(s => selectedStatuses.includes(s));
 
-  // Custom label renderer — shows total at end of each stacked bar
-  // Only renders from the rightmost segment that has data for each row
-  const renderTotalLabel = (statusKey) => (props) => {
+  // Label renderer for the transparent label bar at end of stack
+  const renderStackLabel = (props) => {
     const { x, y, width, height, index } = props;
-    if (!chartData[index]) return null;
     const entry = chartData[index];
-    const total = entry.total;
-    if (!total) return null;
-    // Only render from the last status that has data for this specific entry
-    const lastStatusWithData = [...activeStatuses].reverse().find(s => (entry[s] || 0) > 0);
-    if (statusKey !== lastStatusWithData) return null;
+    if (!entry?.total) return null;
     return (
       <text
-        x={x + width + 8}
-        y={y + height / 2}
+        x={(x || 0) + (width || 0) + 8}
+        y={(y || 0) + (height || 0) / 2}
         fill="#374151"
         fontSize={11}
         fontWeight={700}
         dominantBaseline="middle"
       >
-        {vnd(total)} đ
+        {vnd(entry.total)} đ
       </text>
     );
   };
@@ -235,13 +229,23 @@ export default function TongQuat() {
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
               <YAxis type="category" dataKey="sale" tick={{ fontSize: 12, fill: '#374151' }} width={80} />
-              <Tooltip formatter={(v, name) => [vndFull(v), name]} contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Tooltip
+                formatter={(v, name) => {
+                  if (name === '_lbl' || name === '') return null;
+                  return [vndFull(v), name];
+                }}
+                contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }}
+              />
+              <Legend
+                payload={activeStatuses.map(s => ({ value: s, type: 'rect', color: STATUS_COLORS[s] || '#94A3B8' }))}
+                wrapperStyle={{ fontSize: 11 }}
+              />
               {activeStatuses.map(status => (
-                <Bar key={status} dataKey={status} stackId="a" fill={STATUS_COLORS[status] || '#94A3B8'} name={status}>
-                  <LabelList content={renderTotalLabel(status)} />
-                </Bar>
+                <Bar key={status} dataKey={status} stackId="a" fill={STATUS_COLORS[status] || '#94A3B8'} name={status} />
               ))}
+              <Bar dataKey="_lbl" stackId="a" fill="transparent" isAnimationActive={false} legendType="none">
+                <LabelList content={renderStackLabel} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         ) : (
