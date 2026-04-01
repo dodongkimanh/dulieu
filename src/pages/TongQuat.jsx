@@ -121,11 +121,11 @@ export default function TongQuat() {
         x={x + width + 8}
         y={y + height / 2}
         fill="#374151"
-        fontSize={12}
+        fontSize={11}
         fontWeight={700}
         dominantBaseline="middle"
       >
-        {vndShort(total)}
+        {vnd(total)} đ
       </text>
     );
   };
@@ -227,7 +227,7 @@ export default function TongQuat() {
         </div>
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 50)}>
-            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 80, left: 80, bottom: 5 }}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 160, left: 80, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
               <YAxis type="category" dataKey="sale" tick={{ fontSize: 12, fill: '#374151' }} width={80} />
@@ -275,7 +275,7 @@ export default function TongQuat() {
             <AppstoreOutlined style={{ color: '#4F46E5' }} /> Doanh số theo Kênh Tiếp Thị
           </div>
           <ResponsiveContainer width="100%" height={Math.max(280, (analytics.byPage || []).length * 44)}>
-            <BarChart data={analytics.byPage} layout="vertical" margin={{ top: 5, right: 80, left: 120, bottom: 5 }}>
+            <BarChart data={analytics.byPage} layout="vertical" margin={{ top: 5, right: 160, left: 120, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
               <YAxis type="category" dataKey="page" tick={{ fontSize: 11, fill: '#374151' }} width={120} />
@@ -285,7 +285,7 @@ export default function TongQuat() {
                 labelFormatter={(label) => `Kênh: ${label}`}
               />
               <Bar dataKey="sumGiaBan" fill="#4F46E5" name="Tổng Giá Bán Lên Đơn" radius={[0, 6, 6, 0]} barSize={28}>
-                <LabelList position="right" formatter={(v) => vndShort(v)} style={{ fontSize: 11, fontWeight: 700, fill: '#374151' }} />
+                <LabelList position="right" formatter={(v) => vnd(v) + ' đ'} style={{ fontSize: 11, fontWeight: 700, fill: '#374151' }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>

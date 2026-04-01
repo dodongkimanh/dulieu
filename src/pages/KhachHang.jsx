@@ -184,10 +184,10 @@ export default function KhachHang() {
   };
 
   const columns = [
-    { title: 'Ngày', dataIndex: 'ngayThang', width: 110, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
-    { title: 'Khách hàng', dataIndex: 'khachHang', width: 170, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
-    { title: 'SĐT', dataIndex: 'sdt', width: 125 },
-    { title: 'Tùy Chọn', dataIndex: 'loaiMess', width: 140, render: (v, record) => (
+    { title: 'Ngày', dataIndex: 'ngayThang', width: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
+    { title: 'Khách hàng', dataIndex: 'khachHang', width: 140, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
+    { title: 'SĐT', dataIndex: 'sdt', width: 100 },
+    { title: 'Tùy Chọn', dataIndex: 'loaiMess', width: 115, render: (v, record) => (
       <Select
         value={v || undefined}
         onChange={(val) => handleLoaiMessChange(record.id, val)}
@@ -204,13 +204,13 @@ export default function KhachHang() {
         ))}
       </Select>
     )},
-    { title: 'Sale', dataIndex: 'sale', width: 100 },
-    { title: 'Kênh Tiếp Thị', dataIndex: 'page', width: 200, ellipsis: true, render: (v) => v ? <Tooltip title={v}><Tag style={{ background: '#F5F3FF', color: '#7C3AED', border: 'none', fontWeight: 500, borderRadius: 6, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</Tag></Tooltip> : <span style={{ color: '#CBD5E1' }}>—</span> },
+    { title: 'Sale', dataIndex: 'sale', width: 90, ellipsis: true },
+    { title: 'Kênh Tiếp Thị', dataIndex: 'page', width: 170, ellipsis: true, render: (v) => v ? <Tooltip title={v}><Tag style={{ background: '#F5F3FF', color: '#7C3AED', border: 'none', fontWeight: 500, borderRadius: 6, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</Tag></Tooltip> : <span style={{ color: '#CBD5E1' }}>—</span> },
     ...(activeTab === 'assigned' ? [{
       title: 'Chuyển từ', dataIndex: 'assignedFrom', width: 110,
       render: (v) => v ? <Tag color="cyan">{v}</Tag> : '—'
     }] : []),
-    { title: 'Trạng thái', dataIndex: 'status', width: 160, render: (v, record) => (
+    { title: 'Trạng thái', dataIndex: 'status', width: 130, render: (v, record) => (
       <Select
         value={v}
         onChange={(val) => handleStatusChange(record.id, val)}
@@ -225,7 +225,7 @@ export default function KhachHang() {
         ))}
       </Select>
     )},
-    { title: 'Ghi chú', dataIndex: 'mess', width: 200, ellipsis: true, render: (v, record) => {
+    { title: 'Ghi chú', dataIndex: 'mess', width: 180, ellipsis: true, render: (v, record) => {
       const val = v && v !== 'EMPTY' ? v : '';
       return (
         <Input.TextArea
@@ -358,8 +358,8 @@ export default function KhachHang() {
           loading={loading}
           pagination={{ ...pagination, showSizeChanger: true, showTotal: (t) => `Tổng ${t} khách hàng` }}
           onChange={handleTableChange}
-          scroll={{ x: 1400 }}
-          size="middle"
+          scroll={{ x: 1200 }}
+          size="small"
           expandable={{ expandedRowRender, expandRowByClick: true }}
         />
       </motion.div>

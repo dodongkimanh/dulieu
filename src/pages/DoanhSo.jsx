@@ -238,6 +238,7 @@ export default function DoanhSo() {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}><Spin size="large" /></div>;
   }
 
+  const apiCostPerMess = Number(data?.costPerMess || costPerMess);
   const totalRevenue = Number(data?.totalRevenue || 0);
   const qualifiedRevenue = Number(data?.qualifiedRevenue || 0);
   const messAllocation = Number(data?.messAllocation || 92);
@@ -253,7 +254,6 @@ export default function DoanhSo() {
   const tier = getMessTier(qualifiedRevenue, apiCostPerMess);
   const messTiers = buildMessTiers(apiCostPerMess);
   const saleName = data?.sale || user?.fullName || '';
-  const apiCostPerMess = Number(data?.costPerMess || costPerMess);
   const totalMessCost = totalMess * apiCostPerMess;
 
   // Filter orders by status
