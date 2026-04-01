@@ -62,4 +62,19 @@ public class AuthController {
     public ResponseEntity<List<String>> getSaleUsers() {
         return ResponseEntity.ok(authService.getSaleUserNames());
     }
+
+    @PutMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String fullName = body.get("fullName");
+        String password = body.get("password");
+        return ResponseEntity.ok(authService.updateUser(id, fullName, password));
+    }
+
+    @DeleteMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        authService.deleteUser(id);
+        return ResponseEntity.noContent().build();
+    }
 }

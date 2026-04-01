@@ -75,6 +75,7 @@ public class DonHangService {
     public DonHang update(Long id, DonHang data) {
         DonHang e = findById(id);
         e.setNgay(data.getNgay());
+        e.setMaHoaDon(data.getMaHoaDon());
         e.setMaDatHang(data.getMaDatHang());
         e.setKhachHang(data.getKhachHang());
         e.setSdt(data.getSdt());

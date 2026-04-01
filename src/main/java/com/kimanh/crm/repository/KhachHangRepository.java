@@ -25,7 +25,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
            "AND (CAST(:fromDate AS date) IS NULL OR k.ngay_thang >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR k.ngay_thang <= CAST(:toDate AS date)) " +
            "AND (:hasSdt IS NULL OR (CAST(:hasSdt AS boolean) = true AND k.sdt IS NOT NULL AND k.sdt <> '')) " +
-           "AND (:assignedOnly IS NULL OR (CAST(:assignedOnly AS boolean) = true AND k.assigned_from IS NOT NULL AND k.assigned_from <> '' AND k.status = 'moi')) " +
+           "AND (:assignedOnly IS NULL OR (CAST(:assignedOnly AS boolean) = true AND k.assigned_from IS NOT NULL AND k.assigned_from <> '')) " +
            "ORDER BY k.created_at DESC",
            countQuery = "SELECT COUNT(*) FROM public.data_dulieukhach k WHERE " +
            "(CAST(:keyword AS text) IS NULL OR LOWER(k.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
@@ -37,7 +37,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
            "AND (CAST(:fromDate AS date) IS NULL OR k.ngay_thang >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR k.ngay_thang <= CAST(:toDate AS date)) " +
            "AND (:hasSdt IS NULL OR (CAST(:hasSdt AS boolean) = true AND k.sdt IS NOT NULL AND k.sdt <> '')) " +
-           "AND (:assignedOnly IS NULL OR (CAST(:assignedOnly AS boolean) = true AND k.assigned_from IS NOT NULL AND k.assigned_from <> '' AND k.status = 'moi'))",
+           "AND (:assignedOnly IS NULL OR (CAST(:assignedOnly AS boolean) = true AND k.assigned_from IS NOT NULL AND k.assigned_from <> ''))",
            nativeQuery = true)
     Page<KhachHang> findWithFilters(
             @Param("keyword") String keyword,

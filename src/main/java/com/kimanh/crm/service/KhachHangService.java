@@ -73,12 +73,7 @@ public class KhachHangService {
     })
     public KhachHang updateStatus(Long id, String status) {
         KhachHang existing = findById(id);
-        String oldStatus = existing.getStatus();
         existing.setStatus(status);
-        // When sale changes status from "moi" (assigned) to any other status → clear assignedFrom
-        if ("moi".equals(oldStatus) && !"moi".equals(status) && existing.getAssignedFrom() != null) {
-            existing.setAssignedFrom(null);
-        }
         return repository.save(existing);
     }
 

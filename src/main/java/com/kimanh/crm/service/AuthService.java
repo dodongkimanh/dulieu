@@ -84,4 +84,30 @@ public class AuthService {
                 .map(User::getFullName)
                 .toList();
     }
+
+    public User updateUser(Long id, String fullName, String password) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+        if (fullName != null && !fullName.isBlank()) {
+            user.setFullName(fullName);
+        }
+        if (password != null && !password.isBlank()) {
+            if (password.length() < 6) {
+                throw new RuntimeException("Mật khẩu phải có ít nhất 6 ký tự");
+            }
+            user.setPassword(passwordEncoder.encode(password));
+        }
+        User saved = userRepository.save(user);
+        saved.setPassword(null);
+        return saved;
+    }
+
+    public void deleteUser(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+        if ("ADMIN".equals(user.getRole())) {
+            throw new RuntimeException("Không thể xóa tài khoản Admin");
+        }
+        userRepository.delete(user);
+    }
 }
