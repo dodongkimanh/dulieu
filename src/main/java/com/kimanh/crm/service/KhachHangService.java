@@ -21,13 +21,16 @@ public class KhachHangService {
 
     private final KhachHangRepository repository;
 
-    public Page<KhachHang> findAll(String keyword, String status, String page, String sale, Pageable pageable) {
+    public Page<KhachHang> findAll(String keyword, String status, String page, String sale,
+                                    LocalDate fromDate, LocalDate toDate,
+                                    Boolean hasSdt, Boolean assignedOnly,
+                                    Pageable pageable) {
         String kw = (keyword != null && !keyword.isBlank()) ? keyword : null;
         String st = (status != null && !status.isBlank()) ? status : null;
         String pg = (page != null && !page.isBlank()) ? page : null;
         String sl = (sale != null && !sale.isBlank()) ? sale : null;
         Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
-        return repository.findWithFilters(kw, st, pg, sl, unsorted);
+        return repository.findWithFilters(kw, st, pg, sl, fromDate, toDate, hasSdt, assignedOnly, unsorted);
     }
 
     @Cacheable(value = "khachHang", key = "#id")
@@ -60,6 +63,7 @@ public class KhachHangService {
         existing.setAdId(data.getAdId());
         existing.setIdTrang(data.getIdTrang());
         existing.setPage(data.getPage());
+        existing.setLoaiMess(data.getLoaiMess());
         existing.setStatus(data.getStatus());
         return repository.save(existing);
     }
@@ -69,7 +73,12 @@ public class KhachHangService {
     })
     public KhachHang updateStatus(Long id, String status) {
         KhachHang existing = findById(id);
+        String oldStatus = existing.getStatus();
         existing.setStatus(status);
+        // When sale changes status from "moi" (assigned) to any other status → clear assignedFrom
+        if ("moi".equals(oldStatus) && !"moi".equals(status) && existing.getAssignedFrom() != null) {
+            existing.setAssignedFrom(null);
+        }
         return repository.save(existing);
     }
 
@@ -79,7 +88,10 @@ public class KhachHangService {
     })
     public KhachHang transferSale(Long id, String newSale) {
         KhachHang existing = findById(id);
+        String oldSale = existing.getSale();
+        existing.setAssignedFrom(oldSale);
         existing.setSale(newSale);
+        existing.setStatus("moi");
         return repository.save(existing);
     }
 
@@ -89,6 +101,15 @@ public class KhachHangService {
     public KhachHang updateNotes(Long id, String notes) {
         KhachHang existing = findById(id);
         existing.setMess(notes);
+        return repository.save(existing);
+    }
+
+    @Caching(evict = {
+        @CacheEvict(value = "khachHang", key = "#id")
+    })
+    public KhachHang updateLoaiMess(Long id, String loaiMess) {
+        KhachHang existing = findById(id);
+        existing.setLoaiMess(loaiMess);
         return repository.save(existing);
     }
 

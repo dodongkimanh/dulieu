@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +36,10 @@ public class KhachHangController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String page,
             @RequestParam(required = false) String sale,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) Boolean hasSdt,
+            @RequestParam(required = false) Boolean assignedOnly,
             @RequestParam(defaultValue = "0") int pageNum,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -53,7 +58,7 @@ public class KhachHangController {
         String safeSortBy = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : "createdAt";
         Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(safeSortBy).ascending() : Sort.by(safeSortBy).descending();
         PageRequest pageable = PageRequest.of(pageNum, size, sort);
-        return ResponseEntity.ok(service.findAll(keyword, status, page, sale, pageable));
+        return ResponseEntity.ok(service.findAll(keyword, status, page, sale, fromDate, toDate, hasSdt, assignedOnly, pageable));
     }
 
     @GetMapping("/{id}")
@@ -98,7 +103,7 @@ public class KhachHangController {
     }
 
     @PatchMapping("/{id}/transfer")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'KE_TOAN')")
     public ResponseEntity<KhachHang> transferSale(@PathVariable Long id, @RequestBody Map<String, String> body) {
         return ResponseEntity.ok(service.transferSale(id, body.get("sale")));
     }
@@ -106,5 +111,10 @@ public class KhachHangController {
     @PatchMapping("/{id}/notes")
     public ResponseEntity<KhachHang> updateNotes(@PathVariable Long id, @RequestBody Map<String, String> body) {
         return ResponseEntity.ok(service.updateNotes(id, body.get("notes")));
+    }
+
+    @PatchMapping("/{id}/loai-mess")
+    public ResponseEntity<KhachHang> updateLoaiMess(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(service.updateLoaiMess(id, body.get("loaiMess")));
     }
 }

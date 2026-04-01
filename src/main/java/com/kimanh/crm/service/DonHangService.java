@@ -268,6 +268,21 @@ public class DonHangService {
         }
         result.put("byDate", dateData);
 
+        // By page (marketing channel)
+        List<Object[]> byPage = repository.aggregateByPage(fromDate, toDate);
+        List<Map<String, Object>> pageData = new ArrayList<>();
+        for (Object[] row : byPage) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("page", row[0] != null ? row[0] : "Không xác định");
+            item.put("count", ((Number) row[1]).longValue());
+            item.put("sumGiaBan", row[2]);
+            item.put("sumGiaThu", row[3]);
+            item.put("sumLoiNhuan", row[4]);
+            item.put("sumGiaVon", row[5]);
+            pageData.add(item);
+        }
+        result.put("byPage", pageData);
+
         return result;
     }
 
@@ -281,6 +296,9 @@ public class DonHangService {
         result.put("totalRevenue", totalRevenue != null ? totalRevenue : BigDecimal.ZERO);
         result.put("qualifiedRevenue", qualifiedRevenue != null ? qualifiedRevenue : BigDecimal.ZERO);
         result.put("messAllocation", calculateMessAllocation(qualifiedRevenue));
+
+        BigDecimal totalProfit = repository.sumProfitBySale(sale, fromDate, toDate);
+        result.put("totalProfit", totalProfit != null ? totalProfit : BigDecimal.ZERO);
 
         // Orders by status
         List<Object[]> byStatus = repository.ordersByStatusForSale(sale, fromDate, toDate);

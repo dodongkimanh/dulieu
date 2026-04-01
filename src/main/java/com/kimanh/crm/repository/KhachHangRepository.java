@@ -22,6 +22,10 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
            "AND (CAST(:status AS text) IS NULL OR k.status = CAST(:status AS text)) " +
            "AND (CAST(:page AS text) IS NULL OR k.page = CAST(:page AS text)) " +
            "AND (CAST(:sale AS text) IS NULL OR k.sale = CAST(:sale AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR k.ngay_thang >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR k.ngay_thang <= CAST(:toDate AS date)) " +
+           "AND (:hasSdt IS NULL OR (CAST(:hasSdt AS boolean) = true AND k.sdt IS NOT NULL AND k.sdt <> '')) " +
+           "AND (:assignedOnly IS NULL OR (CAST(:assignedOnly AS boolean) = true AND k.assigned_from IS NOT NULL AND k.assigned_from <> '' AND k.status = 'moi')) " +
            "ORDER BY k.created_at DESC",
            countQuery = "SELECT COUNT(*) FROM public.data_dulieukhach k WHERE " +
            "(CAST(:keyword AS text) IS NULL OR LOWER(k.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
@@ -29,13 +33,21 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
            "OR LOWER(k.uid) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
            "AND (CAST(:status AS text) IS NULL OR k.status = CAST(:status AS text)) " +
            "AND (CAST(:page AS text) IS NULL OR k.page = CAST(:page AS text)) " +
-           "AND (CAST(:sale AS text) IS NULL OR k.sale = CAST(:sale AS text))",
+           "AND (CAST(:sale AS text) IS NULL OR k.sale = CAST(:sale AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR k.ngay_thang >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR k.ngay_thang <= CAST(:toDate AS date)) " +
+           "AND (:hasSdt IS NULL OR (CAST(:hasSdt AS boolean) = true AND k.sdt IS NOT NULL AND k.sdt <> '')) " +
+           "AND (:assignedOnly IS NULL OR (CAST(:assignedOnly AS boolean) = true AND k.assigned_from IS NOT NULL AND k.assigned_from <> '' AND k.status = 'moi'))",
            nativeQuery = true)
     Page<KhachHang> findWithFilters(
             @Param("keyword") String keyword,
             @Param("status") String status,
             @Param("page") String page,
             @Param("sale") String sale,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate,
+            @Param("hasSdt") Boolean hasSdt,
+            @Param("assignedOnly") Boolean assignedOnly,
             Pageable pageable);
 
     @Query("SELECT k FROM KhachHang k WHERE LOWER(k.khachHang) LIKE LOWER(CONCAT('%',:name,'%')) " +

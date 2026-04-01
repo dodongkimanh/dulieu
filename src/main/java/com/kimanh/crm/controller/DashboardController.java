@@ -33,6 +33,7 @@ public class DashboardController {
     private final DonHangService donHangService;
     private final KhachHangService khachHangService;
     private final UserRepository userRepository;
+    private final com.kimanh.crm.service.MessConfigService messConfigService;
 
     private LocalDate[] getDateRangeFromFilter(String filter) {
         LocalDate end = LocalDate.now();
@@ -154,6 +155,7 @@ public class DashboardController {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sale", sale);
+        result.put("costPerMess", messConfigService.getCostPerMess());
         result.putAll(donHangService.getSaleRevenue(sale, fromDate, toDate));
         result.putAll(khachHangService.getMessStats(sale, fromDate, toDate));
 

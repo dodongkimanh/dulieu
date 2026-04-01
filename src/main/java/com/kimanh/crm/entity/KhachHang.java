@@ -46,6 +46,12 @@ public class KhachHang implements Serializable {
     @Column(name = "page")
     private String page;
 
+    @Column(name = "loai_mess")
+    private String loaiMess;
+
+    @Column(name = "assigned_from")
+    private String assignedFrom;
+
     @Column(name = "status")
     private String status;
 

@@ -186,10 +186,21 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 
+    // Sale dashboard: total estimated profit for a sale
+    @Query(value = "SELECT COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) FROM don_hang d " +
+           "WHERE d.sale = :sale " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
+           nativeQuery = true)
+    BigDecimal sumProfitBySale(
+            @Param("sale") String sale,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
     // Sale dashboard: qualified revenue (delivered/shipping statuses) for mess calculation
     @Query(value = "SELECT COALESCE(SUM(d.gia_thu_thuc_te), 0) FROM don_hang d " +
            "WHERE d.sale = :sale " +
-           "AND d.tinh_trang IN ('Đã Giao Thành Công', 'Đang giao', 'Đang vận chuyển', 'Khách Đặt Cọc', 'KH Showroom') " +
+           "AND d.tinh_trang IN ('Đã Giao Thành Công', 'Đang giao', 'Đang vận chuyển', 'Khách Đặt Cọc', 'KH Showroom', 'Kho đang gọi hàng') " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
            nativeQuery = true)
@@ -207,6 +218,22 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
            nativeQuery = true)
     List<Object[]> ordersByStatusForSale(
             @Param("sale") String sale,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    // Analytics: aggregate by page (marketing channel)
+    @Query(value = "SELECT d.page, " +
+           "COUNT(*) as cnt, " +
+           "COALESCE(SUM(d.gia_ban_len_don), 0) as sum_gia_ban, " +
+           "COALESCE(SUM(d.gia_thu_thuc_te), 0) as sum_gia_thu, " +
+           "COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) as sum_loi_nhuan, " +
+           "COALESCE(SUM(d.gia_von), 0) as sum_gia_von " +
+           "FROM don_hang d WHERE d.page IS NOT NULL AND d.page <> '' " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "GROUP BY d.page " +
+           "ORDER BY sum_gia_ban DESC", nativeQuery = true)
+    List<Object[]> aggregateByPage(
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 }
