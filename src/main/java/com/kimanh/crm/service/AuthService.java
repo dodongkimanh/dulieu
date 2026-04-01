@@ -21,14 +21,16 @@ public class AuthService {
     private final JwtUtil jwtUtil;
 
     public Map<String, Object> login(String username, String password) {
+        // Support login by either username or fullName
         User user = userRepository.findByUsername(username)
+                .or(() -> userRepository.findByFullName(username))
                 .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại"));
 
         if (!user.getActive()) {
             throw new RuntimeException("Tài khoản đã bị khóa");
         }
 
-        if (!passwordEncoder.matches(password, user.getPassword())) {
+        if (user.getPassword() == null || !passwordEncoder.matches(password, user.getPassword())) {
             throw new RuntimeException("Mật khẩu không chính xác");
         }
 

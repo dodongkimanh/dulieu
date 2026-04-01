@@ -65,34 +65,38 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     @Query("SELECT DISTINCT k.sale FROM KhachHang k WHERE k.sale IS NOT NULL")
     List<String> findDistinctSales();
 
-    // Sale dashboard: total mess + distinct phones in a single query
-    @Query(value = "SELECT COUNT(*), COUNT(DISTINCT CASE WHEN sdt IS NOT NULL THEN sdt END) " +
+    // Sale dashboard: total mess + distinct phones in a single query (excludes assigned/transferred customers)
+    @Query(value = "SELECT COUNT(*), COUNT(DISTINCT CASE WHEN sdt IS NOT NULL AND sdt <> '' THEN sdt END) " +
            "FROM data_dulieukhach WHERE sale = :sale " +
+           "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR ngay_thang >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR ngay_thang <= CAST(:toDate AS date))", nativeQuery = true)
     Object[] countMessAndPhonesBySale(@Param("sale") String sale,
                                       @Param("fromDate") LocalDate fromDate,
                                       @Param("toDate") LocalDate toDate);
 
-    // Sale dashboard: total mess (records) for a sale in date range
+    // Sale dashboard: total mess (records) for a sale in date range (excludes assigned/transferred customers)
     @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE sale = :sale " +
+           "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR ngay_thang >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR ngay_thang <= CAST(:toDate AS date))", nativeQuery = true)
     long countMessBySale(@Param("sale") String sale,
                          @Param("fromDate") LocalDate fromDate,
                          @Param("toDate") LocalDate toDate);
 
-    // Sale dashboard: distinct phone numbers for a sale in date range
-    @Query(value = "SELECT COUNT(DISTINCT sdt) FROM data_dulieukhach WHERE sale = :sale AND sdt IS NOT NULL " +
+    // Sale dashboard: distinct phone numbers for a sale in date range (excludes assigned/transferred customers)
+    @Query(value = "SELECT COUNT(DISTINCT sdt) FROM data_dulieukhach WHERE sale = :sale AND sdt IS NOT NULL AND sdt <> '' " +
+           "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR ngay_thang >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR ngay_thang <= CAST(:toDate AS date))", nativeQuery = true)
     long countDistinctSdtBySale(@Param("sale") String sale,
                                 @Param("fromDate") LocalDate fromDate,
                                 @Param("toDate") LocalDate toDate);
 
-    // Sale dashboard: mess count by day for a sale
+    // Sale dashboard: mess count by day for a sale (excludes assigned/transferred customers)
     @Query(value = "SELECT CAST(TO_CHAR(ngay_thang, 'DD') AS integer) as day_num, COUNT(*) as cnt " +
            "FROM data_dulieukhach WHERE sale = :sale " +
+           "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR ngay_thang >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR ngay_thang <= CAST(:toDate AS date)) " +
            "GROUP BY CAST(TO_CHAR(ngay_thang, 'DD') AS integer) ORDER BY day_num", nativeQuery = true)
