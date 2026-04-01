@@ -6,6 +6,9 @@ import {
   LockOutlined,
   CheckCircleOutlined,
   StopOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { authApi } from '../api';
@@ -23,7 +26,12 @@ export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [form] = Form.useForm();
+  const [editForm] = Form.useForm();
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -63,6 +71,41 @@ export default function UserManagement() {
     } catch { message.error('Lỗi khi cập nhật'); }
   };
 
+  const handleEdit = (record) => {
+    setEditingUser(record);
+    editForm.resetFields();
+    editForm.setFieldsValue({ fullName: record.fullName, password: '' });
+    setEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      const data = { fullName: values.fullName };
+      if (values.password) data.password = values.password;
+      await authApi.updateUser(editingUser.id, data);
+      message.success('Cập nhật tài khoản thành công');
+      setEditModalOpen(false);
+      setEditingUser(null);
+      fetchUsers();
+    } catch (e) {
+      if (e.errorFields) return;
+      message.error(e.response?.data?.error || 'Lỗi khi cập nhật tài khoản');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await authApi.deleteUser(id);
+      message.success('Xóa tài khoản thành công');
+      setDeleteConfirmId(null);
+      setDeleteConfirmName('');
+      fetchUsers();
+    } catch (e) {
+      message.error(e.response?.data?.error || 'Lỗi khi xóa tài khoản');
+    }
+  };
+
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: 'Tài khoản', dataIndex: 'username', width: 150, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
@@ -76,16 +119,33 @@ export default function UserManagement() {
       : <Tag icon={<StopOutlined />} color="error">Đã khóa</Tag>
     },
     { title: 'Ngày tạo', dataIndex: 'createdAt', width: 150, render: (v) => v ? dayjs(v).format('DD/MM/YYYY HH:mm') : '' },
-    { title: '', width: 100, render: (_, record) => record.username === 'admin' ? null : (
-      <Popconfirm
-        title={record.active ? 'Khóa tài khoản này?' : 'Mở khóa tài khoản này?'}
-        onConfirm={() => handleToggle(record.id)}
-        okText="Xác nhận" cancelText="Hủy"
-      >
-        <Button type="text" size="small" danger={record.active} style={!record.active ? { color: '#059669' } : {}}>
-          {record.active ? 'Khóa' : 'Mở khóa'}
-        </Button>
-      </Popconfirm>
+    { title: '', width: 200, render: (_, record) => record.username === 'admin' ? null : (
+      <Space size={4}>
+        <Tooltip title="Sửa thông tin">
+          <Button type="text" size="small" icon={<EditOutlined />} style={{ color: '#4F46E5' }} onClick={() => handleEdit(record)} />
+        </Tooltip>
+        <Popconfirm
+          title={record.active ? 'Khóa tài khoản này?' : 'Mở khóa tài khoản này?'}
+          onConfirm={() => handleToggle(record.id)}
+          okText="Xác nhận" cancelText="Hủy"
+        >
+          <Button type="text" size="small" danger={record.active} style={!record.active ? { color: '#059669' } : {}}>
+            {record.active ? 'Khóa' : 'Mở khóa'}
+          </Button>
+        </Popconfirm>
+        <Popconfirm
+          title={<span style={{ color: '#DC2626', fontWeight: 600 }}>Xóa tài khoản "{record.fullName || record.username}"?</span>}
+          description="Hành động này không thể hoàn tác!"
+          icon={<ExclamationCircleOutlined style={{ color: '#DC2626' }} />}
+          onConfirm={() => handleDelete(record.id)}
+          okText="Xóa vĩnh viễn" cancelText="Hủy"
+          okButtonProps={{ danger: true }}
+        >
+          <Tooltip title="Xóa tài khoản">
+            <Button type="text" size="small" icon={<DeleteOutlined />} danger />
+          </Tooltip>
+        </Popconfirm>
+      </Space>
     )},
   ];
 
@@ -143,6 +203,27 @@ export default function UserManagement() {
               <Option value="SALER">Nhân viên Sale</Option>
               <Option value="KE_TOAN">Kế toán</Option>
             </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={<span><EditOutlined style={{ color: '#4F46E5', marginRight: 8 }} />Sửa tài khoản: {editingUser?.fullName || editingUser?.username}</span>}
+        open={editModalOpen}
+        onCancel={() => { setEditModalOpen(false); setEditingUser(null); }}
+        onOk={handleEditSubmit}
+        okText="Lưu"
+        cancelText="Hủy"
+        width={500}
+        destroyOnClose
+        className="premium-modal"
+      >
+        <Form form={editForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="fullName" label="Họ tên đầy đủ" rules={[{ required: true, message: 'Nhập họ tên' }]}>
+            <Input prefix={<UserOutlined />} placeholder="Họ tên đầy đủ" />
+          </Form.Item>
+          <Form.Item name="password" label="Đặt lại mật khẩu" rules={[{ min: 6, message: 'Tối thiểu 6 ký tự' }]}>
+            <Input.Password prefix={<LockOutlined />} placeholder="Để trống = không đổi mật khẩu" />
           </Form.Item>
         </Form>
       </Modal>

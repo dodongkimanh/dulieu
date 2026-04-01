@@ -28,29 +28,35 @@ const vndShort = (v) => {
   return n.toLocaleString('vi-VN');
 };
 
-const MESS_TIERS = [
-  { min: 0, max: 49_999_999, mess: 92, budget: 6_000_000, label: '< 50 triệu' },
-  { min: 50_000_000, max: 74_999_999, mess: 138, budget: 9_000_000, label: '50 triệu ≤ 75 triệu' },
-  { min: 75_000_000, max: 99_999_999, mess: 184, budget: 12_000_000, label: '75 triệu ≤ 100 triệu' },
-  { min: 100_000_000, max: 124_999_999, mess: 230, budget: 15_000_000, label: '100 triệu ≤ 125 triệu' },
-  { min: 125_000_000, max: 149_999_999, mess: 276, budget: 18_000_000, label: '125 triệu ≤ 150 triệu' },
-  { min: 150_000_000, max: 174_999_999, mess: 323, budget: 21_000_000, label: '150 triệu ≤ 175 triệu' },
-  { min: 175_000_000, max: 199_999_999, mess: 369, budget: 24_000_000, label: '175 triệu ≤ 200 triệu' },
-  { min: 200_000_000, max: 249_999_999, mess: 461, budget: 30_000_000, label: '200 triệu ≤ 250 triệu' },
-  { min: 250_000_000, max: 299_999_999, mess: 553, budget: 36_000_000, label: '250 triệu ≤ 300 triệu' },
-  { min: 300_000_000, max: 349_999_999, mess: 646, budget: 42_000_000, label: '300 triệu ≤ 350 triệu' },
-  { min: 350_000_000, max: 399_999_999, mess: 738, budget: 48_000_000, label: '350 triệu ≤ 400 triệu' },
-  { min: 400_000_000, max: 449_999_999, mess: 830, budget: 54_000_000, label: '400 triệu ≤ 450 triệu' },
-  { min: 450_000_000, max: 499_999_999, mess: 923, budget: 60_000_000, label: '450 triệu ≤ 500 triệu' },
-  { min: 500_000_000, max: Infinity, mess: 984, budget: 64_000_000, label: 'DS > 500 triệu' },
+const MESS_TIER_BUDGETS = [
+  { min: 0, max: 49_999_999, budget: 6_000_000, label: '< 50 triệu' },
+  { min: 50_000_000, max: 74_999_999, budget: 9_000_000, label: '50 triệu ≤ 75 triệu' },
+  { min: 75_000_000, max: 99_999_999, budget: 12_000_000, label: '75 triệu ≤ 100 triệu' },
+  { min: 100_000_000, max: 124_999_999, budget: 15_000_000, label: '100 triệu ≤ 125 triệu' },
+  { min: 125_000_000, max: 149_999_999, budget: 18_000_000, label: '125 triệu ≤ 150 triệu' },
+  { min: 150_000_000, max: 174_999_999, budget: 21_000_000, label: '150 triệu ≤ 175 triệu' },
+  { min: 175_000_000, max: 199_999_999, budget: 24_000_000, label: '175 triệu ≤ 200 triệu' },
+  { min: 200_000_000, max: 249_999_999, budget: 30_000_000, label: '200 triệu ≤ 250 triệu' },
+  { min: 250_000_000, max: 299_999_999, budget: 36_000_000, label: '250 triệu ≤ 300 triệu' },
+  { min: 300_000_000, max: 349_999_999, budget: 42_000_000, label: '300 triệu ≤ 350 triệu' },
+  { min: 350_000_000, max: 399_999_999, budget: 48_000_000, label: '350 triệu ≤ 400 triệu' },
+  { min: 400_000_000, max: 449_999_999, budget: 54_000_000, label: '400 triệu ≤ 450 triệu' },
+  { min: 450_000_000, max: 499_999_999, budget: 60_000_000, label: '450 triệu ≤ 500 triệu' },
+  { min: 500_000_000, max: Infinity, budget: 64_000_000, label: 'DS > 500 triệu' },
 ];
 
-function getMessTier(revenue) {
+function buildMessTiers(cost) {
+  const c = Number(cost) || 65000;
+  return MESS_TIER_BUDGETS.map(t => ({ ...t, mess: Math.floor(t.budget / c) }));
+}
+
+function getMessTier(revenue, cost) {
+  const tiers = buildMessTiers(cost);
   const rev = Number(revenue || 0);
-  for (const tier of MESS_TIERS) {
+  for (const tier of tiers) {
     if (rev < tier.max) return tier;
   }
-  return MESS_TIERS[MESS_TIERS.length - 1];
+  return tiers[tiers.length - 1];
 }
 
 /* SVG Semi-circle Gauge */
@@ -244,7 +250,8 @@ export default function DoanhSo() {
   const messRemaining = Math.max(0, messAllocation - totalMess);
   const messOverflow = totalMess > messAllocation;
   const messOverflowCount = messOverflow ? totalMess - messAllocation : 0;
-  const tier = getMessTier(qualifiedRevenue);
+  const tier = getMessTier(qualifiedRevenue, apiCostPerMess);
+  const messTiers = buildMessTiers(apiCostPerMess);
   const saleName = data?.sale || user?.fullName || '';
   const apiCostPerMess = Number(data?.costPerMess || costPerMess);
   const totalMessCost = totalMess * apiCostPerMess;
@@ -467,7 +474,7 @@ export default function DoanhSo() {
                   </tr>
                 </thead>
                 <tbody>
-                  {MESS_TIERS.map((t, i) => (
+                  {messTiers.map((t, i) => (
                     <tr key={i} className={t.mess === tier.mess ? 'active' : ''}>
                       <td style={{ fontWeight: 600 }}>{t.label}</td>
                       <td className="td-num">{t.min > 0 ? t.min.toLocaleString('vi-VN') : '—'}</td>

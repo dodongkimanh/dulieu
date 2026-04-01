@@ -268,28 +268,25 @@ export default function TongQuat() {
         </motion.div>
       )}
 
-      {/* Channel Revenue Chart */}
+      {/* Channel Revenue Chart - Single total bar per channel */}
       {(analytics?.byPage || []).length > 0 && (
         <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <div className="sg-card-title">
             <AppstoreOutlined style={{ color: '#4F46E5' }} /> Doanh số theo Kênh Tiếp Thị
           </div>
-          <ResponsiveContainer width="100%" height={Math.max(280, (analytics.byPage || []).length * 48)}>
+          <ResponsiveContainer width="100%" height={Math.max(280, (analytics.byPage || []).length * 44)}>
             <BarChart data={analytics.byPage} layout="vertical" margin={{ top: 5, right: 80, left: 120, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
               <YAxis type="category" dataKey="page" tick={{ fontSize: 11, fill: '#374151' }} width={120} />
               <Tooltip
-                formatter={(v, name) => [vndFull(v), name === 'sumGiaBan' ? 'Giá Bán' : name === 'sumGiaThu' ? 'Giá Thu' : name === 'sumLoiNhuan' ? 'Lợi Nhuận' : name]}
+                formatter={(v) => [vndFull(v), 'Tổng Giá Bán']}
                 contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }}
                 labelFormatter={(label) => `Kênh: ${label}`}
               />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="sumGiaBan" fill="#4F46E5" name="Giá Bán Lên Đơn" radius={[0, 4, 4, 0]}>
-                <LabelList position="right" formatter={(v) => vndShort(v)} style={{ fontSize: 11, fontWeight: 600, fill: '#374151' }} />
+              <Bar dataKey="sumGiaBan" fill="#4F46E5" name="Tổng Giá Bán Lên Đơn" radius={[0, 6, 6, 0]} barSize={28}>
+                <LabelList position="right" formatter={(v) => vndShort(v)} style={{ fontSize: 11, fontWeight: 700, fill: '#374151' }} />
               </Bar>
-              <Bar dataKey="sumGiaThu" fill="#10B981" name="Giá Thu Thực Tế" radius={[0, 4, 4, 0]} />
-              <Bar dataKey="sumLoiNhuan" fill="#F59E0B" name="Lợi Nhuận Ước Tính" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </motion.div>

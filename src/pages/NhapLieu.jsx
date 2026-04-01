@@ -40,7 +40,7 @@ const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
 const COLUMNS = [
   { key: 'stt', label: 'STT', width: 50, type: 'index' },
   { key: 'ngay', label: 'Ngày', width: 140, type: 'date' },
-  { key: 'maHoaDon', label: 'Mã Hóa Đơn', width: 160, type: 'auto', style: { fontWeight: 600, color: '#4F46E5' } },
+  { key: 'maHoaDon', label: 'Mã Hóa Đơn', width: 160, type: 'text', style: { fontWeight: 600, color: '#4F46E5' } },
   { key: 'maDatHang', label: 'Mã Đặt Hàng', width: 130, type: 'text' },
   { key: 'khachHang', label: 'Khách Hàng', width: 160, type: 'text' },
   { key: 'sdt', label: 'SĐT', width: 120, type: 'text' },
@@ -275,13 +275,6 @@ export default function NhapLieu() {
     const rowEdited = editedRows[record.id];
     if (col.type === 'index') {
       return <span className="nl-stt">{(pagination.current - 1) * pagination.pageSize + index + 1}</span>;
-    }
-    if (col.key === 'maHoaDon') {
-      return (
-        <span style={{ fontWeight: 700, color: '#4F46E5', fontSize: 13, letterSpacing: '0.5px' }}>
-          {record[col.key] || '-'}
-        </span>
-      );
     }
     if (col.type === 'computed') {
       const val = Number(record[col.key] || 0);
@@ -520,7 +513,7 @@ export default function NhapLieu() {
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item label="Mã Hóa Đơn" name="maHoaDon">
-                <Input disabled style={{ fontWeight: 700, color: '#4F46E5' }} />
+                <Input style={{ fontWeight: 700, color: '#4F46E5' }} placeholder="Để trống sẽ tự tạo" />
               </Form.Item>
             </Col>
             <Col span={8}>

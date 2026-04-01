@@ -36,6 +36,8 @@ export const authApi = {
   getUsers: () => api.get('/auth/users'),
   toggleUser: (id) => api.patch(`/auth/users/${id}/toggle`),
   getSaleUsers: () => api.get('/auth/users/sales'),
+  updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
+  deleteUser: (id) => api.delete(`/auth/users/${id}`),
 };
 
 // Dashboard APIs

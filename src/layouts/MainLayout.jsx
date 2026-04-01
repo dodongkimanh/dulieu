@@ -19,11 +19,11 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 
 const allSidebarItems = [
+  { key: '/tong-quat', icon: <FundOutlined />, label: 'Phân tích tổng quan', roles: ['ADMIN'] },
   { key: '/doanh-so', icon: <BarChartOutlined />, label: 'Doanh số & Mess', roles: ['ADMIN', 'SALER'] },
   { key: '/don-hang', icon: <ShoppingCartOutlined />, label: 'Đơn hàng' },
   { key: '/khach-hang', icon: <TeamOutlined />, label: 'Khách hàng', roles: ['ADMIN', 'SALER'] },
   { key: '/nhap-lieu', icon: <TableOutlined />, label: 'Nhập liệu kế toán', roles: ['ADMIN', 'KE_TOAN'] },
-  { key: '/tong-quat', icon: <FundOutlined />, label: 'Phân tích tổng quan', roles: ['ADMIN'] },
   { key: '/kenh-tiep-thi', icon: <AppstoreOutlined />, label: 'Kênh tiếp thị', roles: ['ADMIN'] },
   { key: '/users', icon: <UserOutlined />, label: 'Quản lý tài khoản', roles: ['ADMIN'] },
   { key: '/gioi-thieu', icon: <InfoCircleOutlined />, label: 'Giới thiệu', roles: ['ADMIN', 'SALER'] },
@@ -65,7 +65,7 @@ export default function MainLayout() {
     return item.roles.includes(user?.role);
   });
 
-  const defaultPath = user?.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
+  const defaultPath = user?.role === 'ADMIN' ? '/tong-quat' : user?.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
 
   return (
     <div className="sg-layout">

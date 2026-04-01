@@ -22,7 +22,7 @@ function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (user) {
-    const target = user.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
+    const target = user.role === 'ADMIN' ? '/tong-quat' : user.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
     return <Navigate to={target} replace />;
   }
   return children;
@@ -33,7 +33,7 @@ function RoleRoute({ children, roles }) {
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
   if (!roles.includes(user.role)) {
-    const fallback = user.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
+    const fallback = user.role === 'ADMIN' ? '/tong-quat' : user.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
     return <Navigate to={fallback} replace />;
   }
   return children;
@@ -41,7 +41,7 @@ function RoleRoute({ children, roles }) {
 
 function DefaultRedirect() {
   const { user } = useAuth();
-  const target = user?.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
+  const target = user?.role === 'ADMIN' ? '/tong-quat' : user?.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
   return <Navigate to={target} replace />;
 }
 
