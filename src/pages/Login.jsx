@@ -91,11 +91,11 @@ export default function Login() {
             <Form.Item
               name="username"
               label="Tài khoản"
-              rules={[{ required: true, message: 'Nhập tên đăng nhập' }]}
+              rules={[{ required: true, message: 'Nhập tên đăng nhập hoặc họ tên' }]}
             >
               <Input
                 prefix={<MailOutlined style={{ color: '#94A3B8' }} />}
-                placeholder="admin"
+                placeholder="Tên đăng nhập hoặc họ tên"
                 className="login-input"
               />
             </Form.Item>
