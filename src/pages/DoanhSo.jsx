@@ -1,16 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Row, Col, DatePicker, Select, Spin, Checkbox, message, Button } from 'antd';
+import { Row, Col, DatePicker, Select, Spin, Checkbox, message, Button, Tag, InputNumber, Modal } from 'antd';
 import {
   DollarOutlined,
   MessageOutlined,
   PhoneOutlined,
   RiseOutlined,
   DownloadOutlined,
+  WarningOutlined,
+  CheckCircleOutlined,
+  SettingOutlined,
+  WalletOutlined,
+  CalculatorOutlined,
 } from '@ant-design/icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { dashboardApi, authApi } from '../api';
+import { dashboardApi, authApi, messConfigApi } from '../api';
 import dayjs from 'dayjs';
 
 const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
@@ -49,14 +54,15 @@ function getMessTier(revenue) {
 }
 
 /* SVG Semi-circle Gauge */
-function MessGauge({ used, total }) {
-  const pct = total > 0 ? Math.min(used / total, 1) : 0;
+function MessGauge({ used, total, isOverflow }) {
+  const rawPct = total > 0 ? used / total : 0;
+  const pct = Math.min(rawPct, 1);
   const r = 80;
   const cx = 100;
   const cy = 95;
   const circumference = Math.PI * r;
   const offset = circumference * (1 - pct);
-  const color = pct >= 0.9 ? '#EF4444' : pct >= 0.7 ? '#F59E0B' : '#4F46E5';
+  const color = isOverflow ? '#EF4444' : rawPct >= 0.9 ? '#EF4444' : rawPct >= 0.7 ? '#F59E0B' : '#4F46E5';
 
   return (
     <svg width="200" height="120" viewBox="0 0 200 120">
@@ -73,14 +79,14 @@ function MessGauge({ used, total }) {
         style={{ transition: 'stroke-dashoffset 1s ease, stroke 0.5s ease' }}
       />
       {/* Center text */}
-      <text x={cx} y={cy - 24} textAnchor="middle" fontSize="28" fontWeight="800" fill="#1F2937">
+      <text x={cx} y={cy - 24} textAnchor="middle" fontSize="28" fontWeight="800" fill={isOverflow ? '#EF4444' : '#1F2937'}>
         {used}
       </text>
       <text x={cx} y={cy - 6} textAnchor="middle" fontSize="12" fontWeight="600" fill="#6B7280">
         / {total}
       </text>
       <text x={cx} y={cy + 14} textAnchor="middle" fontSize="11" fontWeight="600" fill={color}>
-        {(pct * 100).toFixed(0)}%
+        {isOverflow ? `${Math.round(rawPct * 100)}% — Vượt mốc!` : `${(pct * 100).toFixed(0)}%`}
       </text>
     </svg>
   );
@@ -89,6 +95,11 @@ function MessGauge({ used, total }) {
 const STATUS_OPTIONS = [
   'Đã Giao Thành Công', 'Đang Chờ', 'KH Showroom', 'Hoàn hàng',
   'Đang vận chuyển', 'Đang giao', 'HỦY ĐƠN', 'Khách Đặt Cọc', 'Kho đang gọi hàng',
+];
+
+// Statuses that count for revenue & mess calculation (qualified)
+const QUALIFIED_STATUSES = [
+  'Đã Giao Thành Công', 'KH Showroom', 'Đang vận chuyển', 'Đang giao', 'Khách Đặt Cọc', 'Kho đang gọi hàng',
 ];
 
 const STATUS_COLORS = {
@@ -110,7 +121,10 @@ export default function DoanhSo() {
   const [salesList, setSalesList] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(dayjs());
-  const [selectedStatuses, setSelectedStatuses] = useState([...STATUS_OPTIONS]);
+  const [selectedStatuses, setSelectedStatuses] = useState([...QUALIFIED_STATUSES]);
+  const [costPerMess, setCostPerMess] = useState(65000);
+  const [configModal, setConfigModal] = useState(false);
+  const [editCost, setEditCost] = useState(65000);
 
   const getMonthRange = (m) => {
     const from = m.startOf('month').format('YYYY-MM-DD');
@@ -135,6 +149,12 @@ export default function DoanhSo() {
       const { from, to } = getMonthRange(dayjs());
       fetchData(undefined, from, to);
     }
+    // Load mess config
+    messConfigApi.getConfig().then(res => {
+      const c = Number(res.data?.costPerMess || 65000);
+      setCostPerMess(c);
+      setEditCost(c);
+    }).catch(() => {});
   }, []);
 
   const fetchData = useCallback(async (sale, from, to) => {
@@ -194,6 +214,20 @@ export default function DoanhSo() {
     }
   };
 
+  const handleSaveConfig = async () => {
+    try {
+      const res = await messConfigApi.updateCostPerMess(editCost);
+      setCostPerMess(Number(res.data?.costPerMess || editCost));
+      setConfigModal(false);
+      message.success('Cập nhật chi phí/mess thành công');
+      // Reload data to refresh mess calculation
+      const { from, to } = getMonthRange(selectedMonth);
+      fetchData(selectedSale, from, to);
+    } catch {
+      message.error('Lỗi khi cập nhật cấu hình');
+    }
+  };
+
   if (loading && !data) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}><Spin size="large" /></div>;
   }
@@ -204,11 +238,16 @@ export default function DoanhSo() {
   const totalMess = Number(data?.totalMess || 0);
   const totalPhones = Number(data?.totalPhones || 0);
   const totalOrders = Number(data?.totalOrders || 0);
+  const totalProfit = Number(data?.totalProfit || 0);
   const ordersByStatus = data?.ordersByStatus || [];
   const messByDay = data?.messByDay || [];
   const messRemaining = Math.max(0, messAllocation - totalMess);
+  const messOverflow = totalMess > messAllocation;
+  const messOverflowCount = messOverflow ? totalMess - messAllocation : 0;
   const tier = getMessTier(qualifiedRevenue);
   const saleName = data?.sale || user?.fullName || '';
+  const apiCostPerMess = Number(data?.costPerMess || costPerMess);
+  const totalMessCost = totalMess * apiCostPerMess;
 
   // Filter orders by status
   const filteredOrders = ordersByStatus.filter(o => selectedStatuses.includes(o.tinhTrang));
@@ -253,6 +292,9 @@ export default function DoanhSo() {
         </div>
         <div className="ds-filter-right">
           <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={!data} style={{ background: '#10B981', borderColor: '#10B981', color: '#fff' }}>Tải xuống</Button>
+          {isAdmin && (
+            <Button icon={<SettingOutlined />} onClick={() => { setEditCost(apiCostPerMess); setConfigModal(true); }} style={{ color: '#4F46E5' }}>Cấu hình Mess</Button>
+          )}
           <div className="ds-sale-name" style={{ marginLeft: 24, fontSize: 15, fontWeight: 600, color: '#4F46E5' }}>{saleName}</div>
         </div>
       </div>
@@ -297,16 +339,99 @@ export default function DoanhSo() {
         </Col>
       </Row>
 
+      {/* ADMIN-only KPI: Profit + Mess Cost */}
+      {isAdmin && (
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          <Col xs={24} sm={12}>
+            <motion.div className="ds-kpi-card" whileHover={{ y: -3 }} style={{ background: 'linear-gradient(135deg, #FEF3C7, #FDE68A)', border: '1px solid #F59E0B' }}>
+              <div className="ds-kpi-icon" style={{ background: '#F59E0B20', color: '#D97706' }}><WalletOutlined /></div>
+              <div className="ds-kpi-content">
+                <div className="ds-kpi-value" style={{ color: '#92400E' }}>{vnd(totalProfit)} đ</div>
+                <div className="ds-kpi-label" style={{ color: '#A16207' }}>Lợi Nhuận Ước Tính của Sale</div>
+              </div>
+            </motion.div>
+          </Col>
+          <Col xs={24} sm={12}>
+            <motion.div className="ds-kpi-card" whileHover={{ y: -3 }} style={{ background: 'linear-gradient(135deg, #ECFDF5, #A7F3D0)', border: '1px solid #10B981' }}>
+              <div className="ds-kpi-icon" style={{ background: '#10B98120', color: '#059669' }}><CalculatorOutlined /></div>
+              <div className="ds-kpi-content">
+                <div className="ds-kpi-value" style={{ color: '#065F46' }}>{vnd(totalMessCost)} đ</div>
+                <div className="ds-kpi-label" style={{ color: '#047857' }}>Chi Phí Ước Tính ({vnd(apiCostPerMess)}đ × {totalMess} mess)</div>
+              </div>
+            </motion.div>
+          </Col>
+        </Row>
+      )}
+
+      {/* Status Filter + Orders — moved above gauge */}
+      <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+        <div className="sg-card-title" style={{ marginBottom: 4 }}>
+          <DollarOutlined style={{ color: '#4F46E5' }} /> Tình Trạng Đơn Hàng
+        </div>
+        <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 12, paddingLeft: 22 }}>
+          <CheckCircleOutlined style={{ color: '#10B981', marginRight: 4 }} />
+          Tích xanh = Tính vào doanh số &amp; mốc mess. Đang Chờ, Hoàn hàng, HỦY ĐƠN không được tính.
+        </div>
+        <div className="ds-status-checks" style={{ marginBottom: 16 }}>
+          <Checkbox
+            checked={selectedStatuses.length === STATUS_OPTIONS.length}
+            indeterminate={selectedStatuses.length > 0 && selectedStatuses.length < STATUS_OPTIONS.length}
+            onChange={(e) => setSelectedStatuses(e.target.checked ? [...STATUS_OPTIONS] : [])}
+          ><span style={{ fontWeight: 600 }}>Tất cả</span></Checkbox>
+          {STATUS_OPTIONS.map(s => {
+            const isQualified = QUALIFIED_STATUSES.includes(s);
+            return (
+              <Checkbox key={s} checked={selectedStatuses.includes(s)}
+                onChange={() => setSelectedStatuses(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}>
+                <span style={{ fontSize: 12, color: isQualified ? undefined : '#94A3B8' }}>
+                  {isQualified && <CheckCircleOutlined style={{ color: '#10B981', marginRight: 3, fontSize: 10 }} />}
+                  {s}
+                </span>
+              </Checkbox>
+            );
+          })}
+        </div>
+        <div className="ds-status-summary">
+          <span>Tổng đơn: <strong>{filteredOrderCount}</strong></span>
+          <span>Doanh thu: <strong>{vndFull(filteredRevenue)}</strong></span>
+        </div>
+        <div className="ds-status-grid">
+          {filteredOrders.map((o, i) => (
+            <div key={i} className="ds-status-item" style={{ borderLeftColor: STATUS_COLORS[o.tinhTrang] || '#94A3B8' }}>
+              <div className="ds-status-name">{o.tinhTrang}</div>
+              <div className="ds-status-count">{o.count} đơn</div>
+              <div className="ds-status-rev">{vndShort(o.revenue)}</div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+
       {/* Mess Gauge + Info */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} md={8}>
-          <motion.div className="sg-card ds-gauge-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+          <motion.div className={`sg-card ds-gauge-card ${messOverflow ? 'ds-gauge-overflow' : ''}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <div className="sg-card-title">
-              <MessageOutlined style={{ color: '#4F46E5' }} /> Mốc Số Mess
+              <MessageOutlined style={{ color: messOverflow ? '#EF4444' : '#4F46E5' }} /> Mốc Số Mess
             </div>
             <div className="ds-gauge-wrapper">
-              <MessGauge used={totalMess} total={messAllocation} />
+              <MessGauge used={totalMess} total={messAllocation} isOverflow={messOverflow} />
             </div>
+            {messOverflow ? (
+              <div className="ds-mess-warning">
+                <WarningOutlined /> KHÔNG ĐẠT
+                <div className="ds-mess-warning-detail">
+                  Vượt <strong>{messOverflowCount}</strong> mess so với mốc {messAllocation} mess.
+                  Doanh số chưa đạt mốc tiếp theo!
+                </div>
+              </div>
+            ) : totalMess > 0 ? (
+              <div className="ds-mess-success">
+                <CheckCircleOutlined /> ĐẠT
+                <div className="ds-mess-success-detail">
+                  Còn {messRemaining} mess trong mốc {messAllocation} mess
+                </div>
+              </div>
+            ) : null}
             <div className="ds-gauge-info">
               <div className="ds-gauge-row">
                 <span>Mốc hiện tại</span>
@@ -314,18 +439,19 @@ export default function DoanhSo() {
               </div>
               <div className="ds-gauge-row">
                 <span>Đã dùng</span>
-                <span className="ds-gauge-val ds-used">{totalMess} mess</span>
+                <span className={`ds-gauge-val ${messOverflow ? 'ds-overflow' : 'ds-used'}`}>{totalMess} mess</span>
               </div>
               <div className="ds-gauge-row">
                 <span>Còn lại</span>
-                <span className="ds-gauge-val ds-remain">{messRemaining} mess</span>
+                <span className={`ds-gauge-val ${messOverflow ? 'ds-overflow' : 'ds-remain'}`}>
+                  {messOverflow ? `−${messOverflowCount} mess` : `${messRemaining} mess`}
+                </span>
               </div>
             </div>
           </motion.div>
         </Col>
-
         <Col xs={24} md={16}>
-          <motion.div className="sg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <motion.div className="sg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
             <div className="sg-card-title">
               <RiseOutlined style={{ color: '#4F46E5' }} /> Bảng Mốc Mess Theo Doanh Số
             </div>
@@ -337,7 +463,7 @@ export default function DoanhSo() {
                     <th>Doanh Số Tối Thiểu</th>
                     <th>Doanh Số Tối Đa</th>
                     <th>Ngân Sách</th>
-                    <th>Số Mess (65k/Mess)</th>
+                    <th>Số Mess ({vnd(apiCostPerMess)}đ/Mess)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -357,39 +483,6 @@ export default function DoanhSo() {
         </Col>
       </Row>
 
-      {/* Status Filter + Orders */}
-      <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-        <div className="sg-card-title" style={{ marginBottom: 12 }}>
-          <DollarOutlined style={{ color: '#4F46E5' }} /> Tình Trạng Đơn Hàng
-        </div>
-        <div className="ds-status-checks" style={{ marginBottom: 16 }}>
-          <Checkbox
-            checked={selectedStatuses.length === STATUS_OPTIONS.length}
-            indeterminate={selectedStatuses.length > 0 && selectedStatuses.length < STATUS_OPTIONS.length}
-            onChange={(e) => setSelectedStatuses(e.target.checked ? [...STATUS_OPTIONS] : [])}
-          ><span style={{ fontWeight: 600 }}>Tất cả</span></Checkbox>
-          {STATUS_OPTIONS.map(s => (
-            <Checkbox key={s} checked={selectedStatuses.includes(s)}
-              onChange={() => setSelectedStatuses(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}>
-              <span style={{ fontSize: 12 }}>{s}</span>
-            </Checkbox>
-          ))}
-        </div>
-        <div className="ds-status-summary">
-          <span>Tổng đơn: <strong>{filteredOrderCount}</strong></span>
-          <span>Doanh thu: <strong>{vndFull(filteredRevenue)}</strong></span>
-        </div>
-        <div className="ds-status-grid">
-          {filteredOrders.map((o, i) => (
-            <div key={i} className="ds-status-item" style={{ borderLeftColor: STATUS_COLORS[o.tinhTrang] || '#94A3B8' }}>
-              <div className="ds-status-name">{o.tinhTrang}</div>
-              <div className="ds-status-count">{o.count} đơn</div>
-              <div className="ds-status-rev">{vndShort(o.revenue)}</div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-
       {/* Mess By Day Chart */}
       {messDayChart.length > 0 && (
         <motion.div className="sg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
@@ -407,6 +500,40 @@ export default function DoanhSo() {
           </ResponsiveContainer>
         </motion.div>
       )}
+
+      {/* Mess Config Modal (ADMIN) */}
+      <Modal
+        title={<span><SettingOutlined style={{ color: '#4F46E5', marginRight: 8 }} />Cấu hình chi phí Mess</span>}
+        open={configModal}
+        onCancel={() => setConfigModal(false)}
+        onOk={handleSaveConfig}
+        okText="Lưu"
+        cancelText="Hủy"
+        width={400}
+      >
+        <div style={{ padding: '16px 0' }}>
+          <div style={{ marginBottom: 16, color: '#64748B', fontSize: 13 }}>
+            Chi phí trên mỗi mess được dùng để tính "Chi phí ước tính" và "Số Mess" trong bảng mốc.
+            Giá trị hiện tại sẽ áp dụng cho toàn bộ hệ thống.
+          </div>
+          <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: '#374151' }}>Chi phí trên mỗi Mess (VNĐ):</div>
+          <InputNumber
+            value={editCost}
+            onChange={(v) => setEditCost(v)}
+            min={1000}
+            max={1000000}
+            step={1000}
+            style={{ width: '100%' }}
+            size="large"
+            formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+            parser={(v) => v.replace(/\$\s?|(,*)/g, '')}
+            addonAfter="VNĐ"
+          />
+          <div style={{ marginTop: 12, background: '#F0F9FF', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#1E40AF' }}>
+            Ví dụ: Với {vnd(editCost)} đ/mess × 92 mess = <strong>{vnd(editCost * 92)} đ</strong> ngân sách mốc đầu
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }

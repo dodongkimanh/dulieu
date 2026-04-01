@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Input, Select, DatePicker, InputNumber, message, Popconfirm, Space, Tooltip, Badge, Tag } from 'antd';
+import { Button, Input, Select, DatePicker, InputNumber, message, Popconfirm, Space, Tooltip, Badge, Tag, Modal, Form, Row, Col } from 'antd';
 import {
   PlusOutlined,
   SaveOutlined,
@@ -10,12 +10,13 @@ import {
   FilterOutlined,
   LeftOutlined,
   RightOutlined,
+  EditOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
-import { donHangApi, authApi } from '../api';
+import { donHangApi, authApi, kenhTiepThiApi } from '../api';
 import dayjs from 'dayjs';
 
-const { Option } = Select;
+const { Option, OptGroup } = Select;
 
 const STATUS_OPTIONS = [
   'Đã Giao Thành Công', 'Đang Chờ', 'KH Showroom', 'Hoàn hàng',
@@ -39,7 +40,7 @@ const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
 const COLUMNS = [
   { key: 'stt', label: 'STT', width: 50, type: 'index' },
   { key: 'ngay', label: 'Ngày', width: 140, type: 'date' },
-  { key: 'maHoaDon', label: 'Mã Hóa Đơn', width: 160, type: 'text', style: { fontWeight: 600, color: '#4F46E5' } },
+  { key: 'maHoaDon', label: 'Mã Hóa Đơn', width: 160, type: 'auto', style: { fontWeight: 600, color: '#4F46E5' } },
   { key: 'maDatHang', label: 'Mã Đặt Hàng', width: 130, type: 'text' },
   { key: 'khachHang', label: 'Khách Hàng', width: 160, type: 'text' },
   { key: 'sdt', label: 'SĐT', width: 120, type: 'text' },
@@ -59,7 +60,7 @@ const COLUMNS = [
   { key: 'thuBanTrucTiep', label: 'Thu Bán Trực Tiếp', width: 130, type: 'number' },
   { key: 'tongThuKhach', label: 'Tổng Thu Khách', width: 130, type: 'computed' },
   { key: 'loiNhuanSauTru', label: 'LN Sau Trừ Vốn & VC', width: 150, type: 'computed' },
-  { key: 'page', label: 'Tùy Chọn', width: 220, type: 'text' },
+  { key: 'page', label: 'Tùy Chọn', width: 220, type: 'select-page' },
   { key: 'maIdQuangCao', label: 'Mã ID Bài QC', width: 160, type: 'text' },
   { key: 'ghiChu', label: 'Ghi Chú', width: 200, type: 'text' },
 ];
@@ -71,8 +72,11 @@ export default function NhapLieu() {
   const [salesList, setSalesList] = useState([]);
   const [editedRows, setEditedRows] = useState({});
   const [keyword, setKeyword] = useState('');
-  const [dateRange, setDateRange] = useState([null, null]);
+  const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
   const [saving, setSaving] = useState(false);
+  const [editModal, setEditModal] = useState({ open: false, record: null });
+  const [editForm] = Form.useForm();
+  const [pageChannels, setPageChannels] = useState({});
   const tableRef = useRef(null);
 
   const fetchData = useCallback(async (pg = 1, size = 50) => {
@@ -92,10 +96,14 @@ export default function NhapLieu() {
     finally { setLoading(false); }
   }, [keyword, dateRange]);
 
-  useEffect(() => { fetchData(); fetchSales(); }, []);
+  useEffect(() => { fetchData(); fetchSales(); fetchChannels(); }, []);
 
   const fetchSales = async () => {
     try { const res = await authApi.getSaleUsers(); setSalesList(res.data); } catch {}
+  };
+
+  const fetchChannels = async () => {
+    try { const res = await kenhTiepThiApi.getGrouped(); setPageChannels(res.data || {}); } catch {}
   };
 
   const handleCellChange = (rowId, field, value) => {
@@ -206,6 +214,44 @@ export default function NhapLieu() {
     } catch { message.error('Lỗi khi thêm'); }
   };
 
+  const handleOpenEdit = (record) => {
+    setEditModal({ open: true, record });
+    editForm.setFieldsValue({
+      ...record,
+      ngay: record.ngay ? dayjs(record.ngay) : null,
+    });
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      const values = await editForm.validateFields();
+      const payload = { ...editModal.record, ...values };
+      if (payload.ngay && payload.ngay.format) payload.ngay = payload.ngay.format('YYYY-MM-DD');
+      // Recalculate fields
+      const ban = Number(payload.giaBanLenDon || 0);
+      const phu = Number(payload.cuocPhuTroi || 0);
+      const von = Number(payload.giaVon || 0);
+      const niem = Number(payload.tongTienNiemYet || 0);
+      const coc = Number(payload.datCoc || 0);
+      const truc = Number(payload.thuBanTrucTiep || 0);
+      const dsvc = Number(payload.dsVanChuyen || 0);
+      const cpvc = Number(payload.chiPhiVanChuyen || 0);
+      payload.giaThuThucTe = ban - phu;
+      payload.tyLeCk = niem > 0 ? ((niem - payload.giaThuThucTe) / niem) * 100 : 0;
+      payload.loiNhuanUocTinh = payload.giaThuThucTe - von;
+      payload.tongThuKhach = coc + truc + dsvc;
+      payload.loiNhuanSauTru = payload.tongThuKhach - cpvc;
+
+      await donHangApi.update(editModal.record.id, payload);
+      message.success(`Đã cập nhật đơn ${editModal.record.maHoaDon || editModal.record.id}`);
+      setEditModal({ open: false, record: null });
+      fetchData(pagination.current, pagination.pageSize);
+    } catch (e) {
+      if (e.errorFields) return;
+      message.error('Lỗi khi cập nhật');
+    }
+  };
+
   const editedCount = Object.keys(editedRows).length;
 
   // Compute summary row
@@ -311,6 +357,31 @@ export default function NhapLieu() {
         />
       );
     }
+    if (col.type === 'select-page') {
+      return (
+        <Select
+          value={record[col.key]}
+          onChange={(v) => handleCellChange(record.id, col.key, v)}
+          size="small"
+          variant="borderless"
+          className="nl-select"
+          allowClear
+          showSearch
+          optionFilterProp="children"
+          popupMatchSelectWidth={false}
+          style={{ width: '100%' }}
+          popupStyle={{ minWidth: 340 }}
+        >
+          {Object.entries(pageChannels).map(([category, items]) => (
+            <OptGroup key={category} label={<span style={{ fontWeight: 600, color: '#4F46E5', fontSize: 11 }}>{category}</span>}>
+              {items.map(item => (
+                <Option key={item.name} value={item.name}>{item.name}</Option>
+              ))}
+            </OptGroup>
+          ))}
+        </Select>
+      );
+    }
     // text
     return (
       <Input
@@ -384,7 +455,7 @@ export default function NhapLieu() {
 
       {/* Spreadsheet Table */}
       <div className="nl-spreadsheet-wrapper" ref={tableRef}>
-        <div className="nl-spreadsheet" style={{ minWidth: COLUMNS.reduce((s, c) => s + c.width, 0) + 60 }}>
+        <div className="nl-spreadsheet" style={{ minWidth: COLUMNS.reduce((s, c) => s + c.width, 0) + 90 }}>
           {/* Header */}
           <div className="nl-header-row">
             {COLUMNS.map(col => (
@@ -392,7 +463,7 @@ export default function NhapLieu() {
                 {col.label}
               </div>
             ))}
-            <div className="nl-header-cell nl-action-col" style={{ width: 60 }}>...</div>
+            <div className="nl-header-cell nl-action-col" style={{ width: 90 }}>Thao tác</div>
           </div>
 
           {/* Summary Row */}
@@ -402,7 +473,7 @@ export default function NhapLieu() {
                 {renderSummaryCell(col)}
               </div>
             ))}
-            <div className="nl-summary-cell" style={{ width: 60 }}></div>
+            <div className="nl-summary-cell" style={{ width: 90 }}></div>
           </div>
 
           {/* Data Rows */}
@@ -417,8 +488,9 @@ export default function NhapLieu() {
                   {renderCell(col, record, index)}
                 </div>
               ))}
-              <div className="nl-data-cell nl-action-col" style={{ width: 60 }}>
+              <div className="nl-data-cell nl-action-col" style={{ width: 90 }}>
                 <Space size={0}>
+                  <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleOpenEdit(record)} style={{ color: '#4F46E5' }} /></Tooltip>
                   {editedRows[record.id] && (
                     <Tooltip title="Lưu"><Button type="text" size="small" icon={<SaveOutlined />} onClick={() => handleSaveRow(record)} style={{ color: '#10B981' }} /></Tooltip>
                   )}
@@ -431,6 +503,150 @@ export default function NhapLieu() {
           ))}
         </div>
       </div>
+
+      {/* Edit Modal */}
+      <Modal
+        title={<span style={{ fontSize: 16, fontWeight: 700, color: '#1F2937' }}>✏️ Chỉnh sửa đơn hàng {editModal.record?.maHoaDon || ''}</span>}
+        open={editModal.open}
+        onCancel={() => setEditModal({ open: false, record: null })}
+        onOk={handleEditSubmit}
+        okText="Lưu thay đổi"
+        cancelText="Hủy"
+        width={900}
+        destroyOnClose
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto', padding: '20px 24px' } }}
+      >
+        <Form form={editForm} layout="vertical" size="middle">
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item label="Mã Hóa Đơn" name="maHoaDon">
+                <Input disabled style={{ fontWeight: 700, color: '#4F46E5' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Ngày" name="ngay">
+                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Mã Đặt Hàng" name="maDatHang">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item label="Khách Hàng" name="khachHang">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="SĐT" name="sdt">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Sale" name="sale">
+                <Select allowClear showSearch optionFilterProp="children" placeholder="Chọn Sale">
+                  {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item label="Giá Vốn" name="giaVon">
+                <InputNumber min={0} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Tổng Niêm Yết" name="tongTienNiemYet">
+                <InputNumber min={0} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Giá Bán Lên Đơn" name="giaBanLenDon">
+                <InputNumber min={0} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item label="Cước Phụ Trội" name="cuocPhuTroi">
+                <InputNumber min={0} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Tình Trạng" name="tinhTrang">
+                <Select placeholder="Chọn trạng thái">
+                  {STATUS_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Mã Vận Đơn" name="maVanDon">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item label="CP Vận Chuyển" name="chiPhiVanChuyen">
+                <InputNumber min={0} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="ĐS Vận Chuyển" name="dsVanChuyen">
+                <InputNumber min={0} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Đặt Cọc/CK" name="datCoc">
+                <InputNumber min={0} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item label="Thu Bán Trực Tiếp" name="thuBanTrucTiep">
+                <InputNumber min={0} formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(v) => v.replace(/,/g, '')} style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Tùy Chọn" name="page">
+                <Select
+                  showSearch
+                  allowClear
+                  placeholder="Chọn kênh tiếp thị"
+                  optionFilterProp="children"
+                  popupMatchSelectWidth={false}
+                  popupStyle={{ minWidth: 340 }}
+                >
+                  {Object.entries(pageChannels).map(([category, items]) => (
+                    <OptGroup key={category} label={<span style={{ fontWeight: 600, color: '#4F46E5', fontSize: 12 }}>{category}</span>}>
+                      {items.map(item => (
+                        <Option key={item.name} value={item.name}>{item.name}</Option>
+                      ))}
+                    </OptGroup>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Mã ID Bài QC" name="maIdQuangCao">
+                <Input />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={24}>
+              <Form.Item label="Ghi Chú" name="ghiChu">
+                <Input.TextArea rows={2} />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
     </motion.div>
   );
 }

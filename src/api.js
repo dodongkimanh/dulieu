@@ -79,6 +79,24 @@ export const khachHangApi = {
   getSales: () => api.get('/khach-hang/sales'),
   transferSale: (id, sale) => api.patch(`/khach-hang/${id}/transfer`, { sale }),
   updateNotes: (id, notes) => api.patch(`/khach-hang/${id}/notes`, { notes }),
+  updateLoaiMess: (id, loaiMess) => api.patch(`/khach-hang/${id}/loai-mess`, { loaiMess }),
+};
+
+// Kenh Tiep Thi (Marketing Channels) APIs
+export const kenhTiepThiApi = {
+  getAll: () => api.get('/kenh-tiep-thi'),
+  getActive: () => api.get('/kenh-tiep-thi/active'),
+  getGrouped: () => api.get('/kenh-tiep-thi/grouped'),
+  getFlat: () => api.get('/kenh-tiep-thi/flat'),
+  create: (data) => api.post('/kenh-tiep-thi', data),
+  update: (id, data) => api.put(`/kenh-tiep-thi/${id}`, data),
+  delete: (id) => api.delete(`/kenh-tiep-thi/${id}`),
+};
+
+// Mess Config APIs
+export const messConfigApi = {
+  getConfig: () => api.get('/mess-config'),
+  updateCostPerMess: (costPerMess) => api.put('/mess-config/cost-per-mess', { costPerMess }),
 };
 
 export default api;

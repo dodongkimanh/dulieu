@@ -2,7 +2,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Tooltip, Dropdown, Badge } from 'antd';
 import {
-  AppstoreOutlined,
   ShoppingCartOutlined,
   TeamOutlined,
   InfoCircleOutlined,
@@ -12,30 +11,31 @@ import {
   UserOutlined,
   MoonOutlined,
   TableOutlined,
-  FundOutlined,
   BarChartOutlined,
+  FundOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 
 const allSidebarItems = [
-  { key: '/dashboard', icon: <AppstoreOutlined />, label: 'Tổng quan' },
+  { key: '/doanh-so', icon: <BarChartOutlined />, label: 'Doanh số & Mess', roles: ['ADMIN', 'SALER'] },
   { key: '/don-hang', icon: <ShoppingCartOutlined />, label: 'Đơn hàng' },
-  { key: '/khach-hang', icon: <TeamOutlined />, label: 'Khách hàng' },
+  { key: '/khach-hang', icon: <TeamOutlined />, label: 'Khách hàng', roles: ['ADMIN', 'SALER'] },
   { key: '/nhap-lieu', icon: <TableOutlined />, label: 'Nhập liệu kế toán', roles: ['ADMIN', 'KE_TOAN'] },
-  { key: '/tong-quat', icon: <FundOutlined />, label: 'Tổng quát', roles: ['ADMIN', 'KE_TOAN'] },
-  { key: '/doanh-so', icon: <BarChartOutlined />, label: 'Doanh số' },
+  { key: '/tong-quat', icon: <FundOutlined />, label: 'Phân tích tổng quan', roles: ['ADMIN'] },
+  { key: '/kenh-tiep-thi', icon: <AppstoreOutlined />, label: 'Kênh tiếp thị', roles: ['ADMIN'] },
   { key: '/users', icon: <UserOutlined />, label: 'Quản lý tài khoản', roles: ['ADMIN'] },
-  { key: '/gioi-thieu', icon: <InfoCircleOutlined />, label: 'Giới thiệu' },
+  { key: '/gioi-thieu', icon: <InfoCircleOutlined />, label: 'Giới thiệu', roles: ['ADMIN', 'SALER'] },
 ];
 
 const pageTitles = {
-  '/dashboard': 'Tổng quan',
+  '/doanh-so': 'Doanh số & Mess',
   '/don-hang': 'Quản lý Đơn hàng',
   '/khach-hang': 'Quản lý Khách hàng',
   '/nhap-lieu': 'Nhập liệu kế toán',
-  '/tong-quat': 'Tổng quát phân tích',
-  '/doanh-so': 'Doanh số & Mess',
+  '/tong-quat': 'Phân tích tổng quan',
+  '/kenh-tiep-thi': 'Quản lý Kênh tiếp thị',
   '/users': 'Quản lý Tài khoản',
   '/gioi-thieu': 'Giới thiệu hệ thống',
 };
@@ -65,6 +65,8 @@ export default function MainLayout() {
     return item.roles.includes(user?.role);
   });
 
+  const defaultPath = user?.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
+
   return (
     <div className="sg-layout">
       {/* Icon Sidebar */}
@@ -74,7 +76,7 @@ export default function MainLayout() {
             className="sg-sidebar-logo"
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(defaultPath)}
           >
             <div className="sg-logo-icon">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

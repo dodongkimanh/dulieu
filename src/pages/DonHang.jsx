@@ -13,32 +13,15 @@ import {
   FileTextOutlined,
 } from '@ant-design/icons';
 import { motion, AnimatePresence } from 'framer-motion';
-import { donHangApi, authApi } from '../api';
+import { donHangApi, authApi, kenhTiepThiApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
 
-const { Option } = Select;
+const { Option, OptGroup } = Select;
 
 const STATUS_OPTIONS = [
   'Đã Giao Thành Công', 'Đang Chờ', 'KH Showroom', 'Hoàn hàng',
   'Đang vận chuyển', 'Đang giao', 'HỦY ĐƠN', 'Khách Đặt Cọc', 'Kho đang gọi hàng',
-];
-
-const PAGE_OPTIONS = [
-  'Khách Zalo', 'Hotline', 'Khách cũ, khách giới thiệu, tìm kiếm', 'Kh Showroom',
-  'Tranh Đồng Kim Ánh Nam Định(576414695535724)',
-  'Xưởng Chế Tác Đồ Thờ Kim Ánh(516517308218764)',
-  'Kim Ánh Đúc Đỉnh Đồng Nam Định(560584423798299)',
-  'Xưởng Đúc Đồng Kim Ánh(647496405105905)',
-  'Xưởng Đồng Gia Truyền Nam Định(101435218182393)',
-  'Xưởng Đúc Đồng Gia Truyền Kim Ánh(579540361901590)',
-  'Đúc Đỉnh Thờ Kim Ánh(576614052193406)',
-  'Kim Ánh Đỉnh Đồng Nam Định(585239897998547)',
-  'Xưởng Đồng Kim Ánh(530886750113441)',
-  'Xưởng Đúc Đồng Kim Ánh Gia Truyền Nam Định(567376346452543)',
-  'Đúc Đồng Làng Nghề Truyền Thống Nam Định(578286328693026)',
-  'Xưởng Đúc Đồng Nam Định(134583069730624)',
-  'Đồ Đồng Kim Ánh Nam Định(110027362001260)',
 ];
 
 const statusColors = {
@@ -62,9 +45,10 @@ export default function DonHang() {
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
   const [filters, setFilters] = useState({ keyword: '', tinhTrang: null, sale: null, page: null, maIdQuangCao: '' });
-  const [dateRange, setDateRange] = useState([null, null]);
+  const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
   const [salesList, setSalesList] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [pageChannels, setPageChannels] = useState({});
 
   const fetchData = useCallback(async (pg = 1, size = 20, overrides = {}) => {
     setLoading(true);
@@ -91,13 +75,17 @@ export default function DonHang() {
     try { const res = await authApi.getSaleUsers(); setSalesList(res.data); } catch {}
   };
 
-  useEffect(() => { fetchData(); fetchSales(); }, []);
+  const fetchChannels = async () => {
+    try { const res = await kenhTiepThiApi.getGrouped(); setPageChannels(res.data || {}); } catch {}
+  };
+
+  useEffect(() => { fetchData(); fetchSales(); fetchChannels(); }, []);
 
   const handleTableChange = (pag) => fetchData(pag.current, pag.pageSize);
   const handleSearch = () => fetchData(1, pagination.pageSize);
   const handleReset = () => {
     setFilters({ keyword: '', tinhTrang: null, sale: null, page: null, maIdQuangCao: '' });
-    setDateRange([null, null]);
+    setDateRange([dayjs().startOf('month'), dayjs().endOf('month')]);
     fetchData(1, pagination.pageSize, { keyword: '', tinhTrang: null, sale: null, page: null, maIdQuangCao: '' });
   };
 
@@ -268,7 +256,13 @@ export default function DonHang() {
                 )}
                 <Col xs={24} sm={12} md={5}>
                   <Select placeholder="Page" value={filters.page} onChange={(v) => setFilters(f => ({ ...f, page: v }))} allowClear style={{ width: '100%' }} showSearch optionFilterProp="children" popupMatchSelectWidth={false}>
-                    {PAGE_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
+                    {Object.entries(pageChannels).map(([category, items]) => (
+                      <OptGroup key={category} label={<span style={{ fontWeight: 600, color: '#4F46E5', fontSize: 12 }}>{category}</span>}>
+                        {items.map(item => (
+                          <Option key={item.name} value={item.name}>{item.name}</Option>
+                        ))}
+                      </OptGroup>
+                    ))}
                   </Select>
                 </Col>
                 <Col xs={24} sm={12} md={4}>

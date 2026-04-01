@@ -4,10 +4,12 @@ import {
   DollarOutlined,
   BarChartOutlined,
   FundOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList, Cell } from 'recharts';
 import { motion } from 'framer-motion';
 import { dashboardApi, donHangApi } from '../api';
+import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
 
@@ -41,14 +43,14 @@ const vndShort = (v) => {
 export default function TongQuat() {
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState(null);
-  const [dateRange, setDateRange] = useState([null, null]);
+  const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
   const [salesList, setSalesList] = useState([]);
   const [selectedSales, setSelectedSales] = useState([]);
   const [selectedStatuses, setSelectedStatuses] = useState([...STATUS_OPTIONS]);
 
   useEffect(() => {
     fetchSales();
-    fetchAnalytics();
+    fetchAnalytics(dayjs().startOf('month').format('YYYY-MM-DD'), dayjs().endOf('month').format('YYYY-MM-DD'));
   }, []);
 
   const fetchSales = async () => {
@@ -106,6 +108,27 @@ export default function TongQuat() {
   });
   const chartData = Object.values(saleMap).sort((a, b) => b.total - a.total);
   const activeStatuses = [...new Set(bySaleStatus.map(i => i.tinhTrang))].filter(s => selectedStatuses.includes(s));
+  const lastActiveStatus = activeStatuses.length > 0 ? activeStatuses[activeStatuses.length - 1] : null;
+
+  // Custom label renderer for total at end of stacked bar
+  const renderTotalLabel = (props) => {
+    const { x, y, width, height, index } = props;
+    if (!chartData[index]) return null;
+    const total = chartData[index].total;
+    if (!total) return null;
+    return (
+      <text
+        x={x + width + 8}
+        y={y + height / 2}
+        fill="#374151"
+        fontSize={12}
+        fontWeight={700}
+        dominantBaseline="middle"
+      >
+        {vndShort(total)}
+      </text>
+    );
+  };
 
   // Filtered totals
   let filteredTotal = { sumGiaBan: 0, sumGiaThu: 0, sumLoiNhuan: 0, sumGiaVon: 0, count: 0 };
@@ -204,14 +227,18 @@ export default function TongQuat() {
         </div>
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 50)}>
-            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 80, left: 80, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
               <YAxis type="category" dataKey="sale" tick={{ fontSize: 12, fill: '#374151' }} width={80} />
               <Tooltip formatter={(v, name) => [vndFull(v), name]} contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {activeStatuses.map(status => (
-                <Bar key={status} dataKey={status} stackId="a" fill={STATUS_COLORS[status] || '#94A3B8'} name={status} />
+                <Bar key={status} dataKey={status} stackId="a" fill={STATUS_COLORS[status] || '#94A3B8'} name={status}>
+                  {status === lastActiveStatus && (
+                    <LabelList content={renderTotalLabel} />
+                  )}
+                </Bar>
               ))}
             </BarChart>
           </ResponsiveContainer>
@@ -236,6 +263,33 @@ export default function TongQuat() {
               <Bar dataKey="giaBan" fill="#4F46E5" name="Giá Bán Lên Đơn" radius={[3, 3, 0, 0]} />
               <Bar dataKey="giaThu" fill="#10B981" name="Giá Thu Thực Tế" radius={[3, 3, 0, 0]} />
               <Bar dataKey="loiNhuan" fill="#F59E0B" name="Lợi Nhuận Ước Tính" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </motion.div>
+      )}
+
+      {/* Channel Revenue Chart */}
+      {(analytics?.byPage || []).length > 0 && (
+        <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+          <div className="sg-card-title">
+            <AppstoreOutlined style={{ color: '#4F46E5' }} /> Doanh số theo Kênh Tiếp Thị
+          </div>
+          <ResponsiveContainer width="100%" height={Math.max(280, (analytics.byPage || []).length * 48)}>
+            <BarChart data={analytics.byPage} layout="vertical" margin={{ top: 5, right: 80, left: 120, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
+              <YAxis type="category" dataKey="page" tick={{ fontSize: 11, fill: '#374151' }} width={120} />
+              <Tooltip
+                formatter={(v, name) => [vndFull(v), name === 'sumGiaBan' ? 'Giá Bán' : name === 'sumGiaThu' ? 'Giá Thu' : name === 'sumLoiNhuan' ? 'Lợi Nhuận' : name]}
+                contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }}
+                labelFormatter={(label) => `Kênh: ${label}`}
+              />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="sumGiaBan" fill="#4F46E5" name="Giá Bán Lên Đơn" radius={[0, 4, 4, 0]}>
+                <LabelList position="right" formatter={(v) => vndShort(v)} style={{ fontSize: 11, fontWeight: 600, fill: '#374151' }} />
+              </Bar>
+              <Bar dataKey="sumGiaThu" fill="#10B981" name="Giá Thu Thực Tế" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="sumLoiNhuan" fill="#F59E0B" name="Lợi Nhuận Ước Tính" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </motion.div>
