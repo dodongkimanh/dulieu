@@ -719,6 +719,64 @@ body {
 .ant-pagination .ant-pagination-item-active a {
   color: #fff !important;
 }
+/* Enhanced pagination visibility */
+.ant-pagination .ant-pagination-item {
+  border: 1.5px solid var(--gray-300) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  min-width: 34px !important;
+  height: 34px !important;
+  line-height: 32px !important;
+}
+.ant-pagination .ant-pagination-item a {
+  color: var(--gray-600) !important;
+  font-weight: 600 !important;
+}
+.ant-pagination .ant-pagination-item:hover {
+  border-color: var(--primary) !important;
+}
+.ant-pagination .ant-pagination-item:hover a {
+  color: var(--primary) !important;
+}
+.ant-pagination .ant-pagination-item-active {
+  border-color: var(--primary) !important;
+}
+.ant-pagination .ant-pagination-prev,
+.ant-pagination .ant-pagination-next {
+  min-width: 34px !important;
+  height: 34px !important;
+  line-height: 32px !important;
+  border: 1.5px solid var(--gray-300) !important;
+  border-radius: 8px !important;
+}
+.ant-pagination .ant-pagination-prev:hover,
+.ant-pagination .ant-pagination-next:hover {
+  border-color: var(--primary) !important;
+}
+.ant-pagination .ant-pagination-prev .ant-pagination-item-link,
+.ant-pagination .ant-pagination-next .ant-pagination-item-link {
+  color: var(--gray-600) !important;
+  font-size: 14px !important;
+}
+.ant-pagination .ant-pagination-prev:hover .ant-pagination-item-link,
+.ant-pagination .ant-pagination-next:hover .ant-pagination-item-link {
+  color: var(--primary) !important;
+}
+.ant-pagination .ant-pagination-disabled .ant-pagination-item-link {
+  color: var(--gray-300) !important;
+}
+.ant-pagination .ant-pagination-total-text {
+  color: var(--gray-600) !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+}
+.ant-pagination .ant-pagination-options .ant-select-selector {
+  border: 1.5px solid var(--gray-300) !important;
+  border-radius: 8px !important;
+  height: 34px !important;
+  font-weight: 500 !important;
+  color: var(--gray-600) !important;
+}
 
 /* Form */
 .ant-form-item-label > label {

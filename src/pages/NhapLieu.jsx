@@ -78,9 +78,17 @@ export default function NhapLieu() {
   const [editForm] = Form.useForm();
   const [pageChannels, setPageChannels] = useState({});
   const tableRef = useRef(null);
-  const [colWidths, setColWidths] = useState(() =>
-    Object.fromEntries(COLUMNS_DEFAULT.map(c => [c.key, c.width]))
-  );
+  const [colWidths, setColWidths] = useState(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('nl_colWidths') || '{}');
+      if (Object.keys(saved).length) return saved;
+    } catch {}
+    return Object.fromEntries(COLUMNS_DEFAULT.map(c => [c.key, c.width]));
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('nl_colWidths', JSON.stringify(colWidths));
+  }, [colWidths]);
 
   const handleHeaderResizeStart = useCallback((colKey) => (e) => {
     e.preventDefault();

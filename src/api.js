@@ -82,6 +82,7 @@ export const khachHangApi = {
   transferSale: (id, sale) => api.patch(`/khach-hang/${id}/transfer`, { sale }),
   updateNotes: (id, notes) => api.patch(`/khach-hang/${id}/notes`, { notes }),
   updateLoaiMess: (id, loaiMess) => api.patch(`/khach-hang/${id}/loai-mess`, { loaiMess }),
+  getAssignedCount: () => api.get('/khach-hang/assigned-count'),
 };
 
 // Kenh Tiep Thi (Marketing Channels) APIs

@@ -74,7 +74,7 @@ export default function UserManagement() {
   const handleEdit = (record) => {
     setEditingUser(record);
     editForm.resetFields();
-    editForm.setFieldsValue({ fullName: record.fullName, password: '' });
+    editForm.setFieldsValue({ fullName: record.fullName });
     setEditModalOpen(true);
   };
 
@@ -82,9 +82,10 @@ export default function UserManagement() {
     try {
       const values = await editForm.validateFields();
       const data = { fullName: values.fullName };
-      if (values.password) data.password = values.password;
+      const pw = values.password?.trim();
+      if (pw) data.password = pw;
       await authApi.updateUser(editingUser.id, data);
-      message.success('Cập nhật tài khoản thành công');
+      message.success(pw ? 'Cập nhật tài khoản & mật khẩu thành công' : 'Cập nhật tài khoản thành công');
       setEditModalOpen(false);
       setEditingUser(null);
       fetchUsers();
@@ -222,9 +223,25 @@ export default function UserManagement() {
           <Form.Item name="fullName" label="Họ tên đầy đủ" rules={[{ required: true, message: 'Nhập họ tên' }]}>
             <Input prefix={<UserOutlined />} placeholder="Họ tên đầy đủ" />
           </Form.Item>
-          <Form.Item name="password" label="Đặt lại mật khẩu" rules={[{ min: 6, message: 'Tối thiểu 6 ký tự' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="Để trống = không đổi mật khẩu" />
-          </Form.Item>
+          <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 16px 4px', marginBottom: 16, border: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <LockOutlined style={{ color: '#F59E0B', fontSize: 16 }} />
+              <span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Đặt lại mật khẩu</span>
+              <span style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic' }}>— Để trống nếu không đổi</span>
+            </div>
+            <Form.Item
+              name="password"
+              rules={[{
+                validator: (_, value) => {
+                  if (!value || !value.trim()) return Promise.resolve();
+                  return value.trim().length >= 6 ? Promise.resolve() : Promise.reject('Mật khẩu mới phải có ít nhất 6 ký tự');
+                }
+              }]}
+              style={{ marginBottom: 12 }}
+            >
+              <Input.Password prefix={<LockOutlined />} placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)" autoComplete="new-password" />
+            </Form.Item>
+          </div>
         </Form>
       </Modal>
     </motion.div>

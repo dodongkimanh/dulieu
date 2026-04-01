@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox } from 'antd';
+import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox, Badge } from 'antd';
 import {
   PlusOutlined,
   SearchOutlined,
@@ -58,8 +58,15 @@ export default function KhachHang() {
   const [transferModal, setTransferModal] = useState({ open: false, record: null, sale: null });
   const [allSaleUsers, setAllSaleUsers] = useState([]);
   const [pageChannels, setPageChannels] = useState({});
+  const [assignedCount, setAssignedCount] = useState(0);
   const [form] = Form.useForm();
-  const [colWidths, setColWidths] = useState({});
+  const [colWidths, setColWidths] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('kh_colWidths') || '{}'); } catch { return {}; }
+  });
+
+  useEffect(() => {
+    if (Object.keys(colWidths).length) sessionStorage.setItem('kh_colWidths', JSON.stringify(colWidths));
+  }, [colWidths]);
 
   const handleResizeStart = useCallback((dataIndex) => (e) => {
     e.preventDefault();
@@ -86,10 +93,14 @@ export default function KhachHang() {
     document.body.style.userSelect = 'none';
   }, []);
 
-  useEffect(() => { fetchData(); fetchMeta(); fetchChannels(); }, []);
+  useEffect(() => { fetchData(); fetchMeta(); fetchChannels(); fetchAssignedCount(); }, []);
 
   const fetchChannels = async () => {
     try { const res = await kenhTiepThiApi.getGrouped(); setPageChannels(res.data || {}); } catch {}
+  };
+
+  const fetchAssignedCount = async () => {
+    try { const res = await khachHangApi.getAssignedCount(); setAssignedCount(res.data?.count || 0); } catch {}
   };
 
   const fetchData = async (page = 1, size = 15, extra = {}) => {
@@ -116,6 +127,8 @@ export default function KhachHang() {
     } finally {
       setLoading(false);
     }
+    // Refresh assigned count in background
+    fetchAssignedCount();
   };
 
   const fetchMeta = async () => {
@@ -266,15 +279,22 @@ export default function KhachHang() {
         />
       );
     }},
-    { title: '', width: canManage ? 110 : 80, fixed: 'right', render: (_, record) => (
+    { title: '', width: canManage ? 110 : (isSaler ? 40 : 80), fixed: 'right', render: (_, record) => (
       <Space size={4}>
-        <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} style={{ color: '#4F46E5' }} /></Tooltip>
+        {canManage && (
+          <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} style={{ color: '#4F46E5' }} /></Tooltip>
+        )}
         {canManage && (
           <Tooltip title="Chuyển Sale"><Button type="text" size="small" icon={<SwapOutlined />} onClick={() => setTransferModal({ open: true, record, sale: record.sale })} style={{ color: '#06B6D4' }} /></Tooltip>
         )}
-        <Popconfirm title="Xác nhận xóa khách hàng?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
-          <Tooltip title="Xóa"><Button type="text" size="small" icon={<DeleteOutlined />} danger /></Tooltip>
-        </Popconfirm>
+        {canManage && (
+          <Popconfirm title="Xác nhận xóa khách hàng?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
+            <Tooltip title="Xóa"><Button type="text" size="small" icon={<DeleteOutlined />} danger /></Tooltip>
+          </Popconfirm>
+        )}
+        {isSaler && (
+          <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} style={{ color: '#4F46E5' }} /></Tooltip>
+        )}
       </Space>
     )},
   ];
@@ -392,7 +412,7 @@ export default function KhachHang() {
             },
             {
               key: 'assigned',
-              label: <span><InboxOutlined style={{ marginRight: 6, color: '#06B6D4' }} />Khách Được Phân Công</span>,
+              label: <span><InboxOutlined style={{ marginRight: 6, color: '#06B6D4' }} />Khách Được Phân Công{assignedCount > 0 ? <Badge count={assignedCount} style={{ marginLeft: 8, backgroundColor: '#06B6D4', boxShadow: 'none' }} /> : null}</span>,
             },
           ]}
           style={{ marginBottom: 0 }}
