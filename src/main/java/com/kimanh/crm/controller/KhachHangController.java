@@ -121,6 +121,9 @@ public class KhachHangController {
     @GetMapping("/assigned-count")
     public ResponseEntity<Map<String, Long>> getAssignedCount() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getAuthorities() == null) {
+            return ResponseEntity.ok(Map.of("count", 0L));
+        }
         boolean isSaler = auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
         String sale = null;

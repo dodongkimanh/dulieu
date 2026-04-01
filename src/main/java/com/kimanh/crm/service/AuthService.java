@@ -6,6 +6,7 @@ import com.kimanh.crm.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +42,7 @@ public class AuthService {
         return result;
     }
 
+    @Transactional
     public User register(String username, String password, String fullName, String role) {
         if (userRepository.existsByUsername(username)) {
             throw new RuntimeException("Tên đăng nhập đã tồn tại");
@@ -59,24 +61,19 @@ public class AuthService {
                 .active(true)
                 .build();
 
-        User saved = userRepository.save(user);
-        saved.setPassword(null);
-        return saved;
+        return userRepository.save(user);
     }
 
     public List<User> getAllUsers() {
-        List<User> users = userRepository.findAll();
-        users.forEach(u -> u.setPassword(null));
-        return users;
+        return userRepository.findAll();
     }
 
+    @Transactional
     public User toggleActive(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
         user.setActive(!user.getActive());
-        User saved = userRepository.save(user);
-        saved.setPassword(null);
-        return saved;
+        return userRepository.save(user);
     }
 
     public List<String> getSaleUserNames() {
@@ -85,6 +82,7 @@ public class AuthService {
                 .toList();
     }
 
+    @Transactional
     public User updateUser(Long id, String fullName, String password) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại (ID: " + id + ")"));
@@ -98,9 +96,7 @@ public class AuthService {
             }
             user.setPassword(passwordEncoder.encode(pw));
         }
-        User saved = userRepository.save(user);
-        saved.setPassword(null);
-        return saved;
+        return userRepository.save(user);
     }
 
     public void deleteUser(Long id) {
