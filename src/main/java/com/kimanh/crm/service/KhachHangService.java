@@ -41,7 +41,8 @@ public class KhachHangService {
     @Caching(evict = {
         @CacheEvict(value = "khachHang_pages", allEntries = true),
         @CacheEvict(value = "khachHang_sales", allEntries = true),
-        @CacheEvict(value = "khachHang_count", allEntries = true)
+        @CacheEvict(value = "khachHang_count", allEntries = true),
+        @CacheEvict(value = "mess_stats", allEntries = true)
     })
     public KhachHang create(KhachHang entity) {
         return repository.save(entity);
@@ -50,7 +51,8 @@ public class KhachHangService {
     @Caching(evict = {
         @CacheEvict(value = "khachHang", key = "#id"),
         @CacheEvict(value = "khachHang_pages", allEntries = true),
-        @CacheEvict(value = "khachHang_sales", allEntries = true)
+        @CacheEvict(value = "khachHang_sales", allEntries = true),
+        @CacheEvict(value = "mess_stats", allEntries = true)
     })
     public KhachHang update(Long id, KhachHang data) {
         KhachHang existing = findById(id);
@@ -112,7 +114,8 @@ public class KhachHangService {
         @CacheEvict(value = "khachHang", key = "#id"),
         @CacheEvict(value = "khachHang_pages", allEntries = true),
         @CacheEvict(value = "khachHang_sales", allEntries = true),
-        @CacheEvict(value = "khachHang_count", allEntries = true)
+        @CacheEvict(value = "khachHang_count", allEntries = true),
+        @CacheEvict(value = "mess_stats", allEntries = true)
     })
     public void delete(Long id) {
         repository.deleteById(id);
@@ -142,12 +145,19 @@ public class KhachHangService {
         return repository.findDistinctSales();
     }
 
+    public long countPendingAssigned(String sale) {
+        return repository.countPendingAssigned(sale);
+    }
+
     // Sale dashboard: mess stats for a specific sale
+    // Combined query: COUNT(*) + COUNT(DISTINCT sdt) in one round trip
+    @Cacheable(value = "mess_stats", key = "#sale + '_' + #fromDate + '_' + #toDate")
     public Map<String, Object> getMessStats(String sale, LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new LinkedHashMap<>();
 
-        long totalMess = repository.countMessBySale(sale, fromDate, toDate);
-        long totalPhones = repository.countDistinctSdtBySale(sale, fromDate, toDate);
+        Object[] messPhones = repository.countMessAndPhonesBySale(sale, fromDate, toDate);
+        long totalMess = messPhones != null && messPhones[0] != null ? ((Number) messPhones[0]).longValue() : 0;
+        long totalPhones = messPhones != null && messPhones[1] != null ? ((Number) messPhones[1]).longValue() : 0;
 
         result.put("totalMess", totalMess);
         result.put("totalPhones", totalPhones);

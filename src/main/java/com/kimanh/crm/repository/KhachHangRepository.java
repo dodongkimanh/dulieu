@@ -25,7 +25,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
            "AND (CAST(:fromDate AS date) IS NULL OR k.ngay_thang >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR k.ngay_thang <= CAST(:toDate AS date)) " +
            "AND (:hasSdt IS NULL OR (CAST(:hasSdt AS boolean) = true AND k.sdt IS NOT NULL AND k.sdt <> '')) " +
-           "AND (:assignedOnly IS NULL OR (CAST(:assignedOnly AS boolean) = true AND k.assigned_from IS NOT NULL AND k.assigned_from <> '')) " +
+           "AND (:assignedOnly IS NULL OR (CAST(:assignedOnly AS boolean) = true AND k.assigned_from IS NOT NULL AND k.assigned_from <> '' AND k.status = 'moi' AND k.status = 'moi')) " +
            "ORDER BY k.created_at DESC",
            countQuery = "SELECT COUNT(*) FROM public.data_dulieukhach k WHERE " +
            "(CAST(:keyword AS text) IS NULL OR LOWER(k.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
@@ -37,7 +37,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
            "AND (CAST(:fromDate AS date) IS NULL OR k.ngay_thang >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR k.ngay_thang <= CAST(:toDate AS date)) " +
            "AND (:hasSdt IS NULL OR (CAST(:hasSdt AS boolean) = true AND k.sdt IS NOT NULL AND k.sdt <> '')) " +
-           "AND (:assignedOnly IS NULL OR (CAST(:assignedOnly AS boolean) = true AND k.assigned_from IS NOT NULL AND k.assigned_from <> ''))",
+           "AND (:assignedOnly IS NULL OR (CAST(:assignedOnly AS boolean) = true AND k.assigned_from IS NOT NULL AND k.assigned_from <> '' AND k.status = 'moi'))",
            nativeQuery = true)
     Page<KhachHang> findWithFilters(
             @Param("keyword") String keyword,
@@ -65,6 +65,15 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     @Query("SELECT DISTINCT k.sale FROM KhachHang k WHERE k.sale IS NOT NULL")
     List<String> findDistinctSales();
 
+    // Sale dashboard: total mess + distinct phones in a single query
+    @Query(value = "SELECT COUNT(*), COUNT(DISTINCT CASE WHEN sdt IS NOT NULL THEN sdt END) " +
+           "FROM data_dulieukhach WHERE sale = :sale " +
+           "AND (CAST(:fromDate AS date) IS NULL OR ngay_thang >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR ngay_thang <= CAST(:toDate AS date))", nativeQuery = true)
+    Object[] countMessAndPhonesBySale(@Param("sale") String sale,
+                                      @Param("fromDate") LocalDate fromDate,
+                                      @Param("toDate") LocalDate toDate);
+
     // Sale dashboard: total mess (records) for a sale in date range
     @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE sale = :sale " +
            "AND (CAST(:fromDate AS date) IS NULL OR ngay_thang >= CAST(:fromDate AS date)) " +
@@ -91,4 +100,11 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
             @Param("sale") String sale,
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
+
+    // Count pending assigned customers (status = 'moi' and has assigned_from)
+    @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE " +
+           "assigned_from IS NOT NULL AND assigned_from <> '' AND status = 'moi' " +
+           "AND (CAST(:sale AS text) IS NULL OR sale = CAST(:sale AS text))",
+           nativeQuery = true)
+    long countPendingAssigned(@Param("sale") String sale);
 }

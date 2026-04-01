@@ -53,7 +53,8 @@ public class DonHangService {
         @CacheEvict(value = "donhang_revenue_monthly", allEntries = true),
         @CacheEvict(value = "donhang_orders_daily", allEntries = true),
         @CacheEvict(value = "donhang_order_status", allEntries = true),
-        @CacheEvict(value = "donhang_recent_orders", allEntries = true)
+        @CacheEvict(value = "donhang_recent_orders", allEntries = true),
+        @CacheEvict(value = "sale_revenue", allEntries = true)
     })
     public DonHang create(DonHang entity) {
         // Allow manual Mã Hóa Đơn; auto-generate if blank
@@ -71,7 +72,8 @@ public class DonHangService {
         @CacheEvict(value = "donhang_revenue_monthly", allEntries = true),
         @CacheEvict(value = "donhang_orders_daily", allEntries = true),
         @CacheEvict(value = "donhang_order_status", allEntries = true),
-        @CacheEvict(value = "donhang_recent_orders", allEntries = true)
+        @CacheEvict(value = "donhang_recent_orders", allEntries = true),
+        @CacheEvict(value = "sale_revenue", allEntries = true)
     })
     public DonHang update(Long id, DonHang data) {
         DonHang e = findById(id);
@@ -102,7 +104,8 @@ public class DonHangService {
         @CacheEvict(value = "donhang_revenue_monthly", allEntries = true),
         @CacheEvict(value = "donhang_orders_daily", allEntries = true),
         @CacheEvict(value = "donhang_order_status", allEntries = true),
-        @CacheEvict(value = "donhang_recent_orders", allEntries = true)
+        @CacheEvict(value = "donhang_recent_orders", allEntries = true),
+        @CacheEvict(value = "sale_revenue", allEntries = true)
     })
     public DonHang updateStatus(Long id, String tinhTrang) {
         DonHang e = findById(id);
@@ -115,7 +118,8 @@ public class DonHangService {
         @CacheEvict(value = "donhang_revenue_monthly", allEntries = true),
         @CacheEvict(value = "donhang_orders_daily", allEntries = true),
         @CacheEvict(value = "donhang_order_status", allEntries = true),
-        @CacheEvict(value = "donhang_recent_orders", allEntries = true)
+        @CacheEvict(value = "donhang_recent_orders", allEntries = true),
+        @CacheEvict(value = "sale_revenue", allEntries = true)
     })
     public void delete(Long id) {
         repository.deleteById(id);
@@ -289,32 +293,49 @@ public class DonHangService {
     }
 
     // Sale dashboard: revenue stats for a specific sale
+    // Single grouped query replaces 4 separate queries
+    @Cacheable(value = "sale_revenue", key = "#sale + '_' + #fromDate + '_' + #toDate")
     public Map<String, Object> getSaleRevenue(String sale, LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new LinkedHashMap<>();
 
-        BigDecimal totalRevenue = repository.sumRevenueBySale(sale, fromDate, toDate);
-        BigDecimal qualifiedRevenue = repository.sumQualifiedRevenueBySale(sale, fromDate, toDate);
-
-        result.put("totalRevenue", totalRevenue != null ? totalRevenue : BigDecimal.ZERO);
-        result.put("qualifiedRevenue", qualifiedRevenue != null ? qualifiedRevenue : BigDecimal.ZERO);
-        result.put("messAllocation", calculateMessAllocation(qualifiedRevenue));
-
-        BigDecimal totalProfit = repository.sumProfitBySale(sale, fromDate, toDate);
-        result.put("totalProfit", totalProfit != null ? totalProfit : BigDecimal.ZERO);
-
-        // Orders by status
+        // One query: GROUP BY tinh_trang → derive all totals in Java
         List<Object[]> byStatus = repository.ordersByStatusForSale(sale, fromDate, toDate);
-        List<Map<String, Object>> statusData = new ArrayList<>();
+
+        BigDecimal totalRevenue = BigDecimal.ZERO;
+        BigDecimal qualifiedRevenue = BigDecimal.ZERO;
+        BigDecimal totalProfit = BigDecimal.ZERO;
         long totalOrders = 0;
+
+        Set<String> qualifiedStatuses = Set.of(
+                "Đã Giao Thành Công", "Đang giao", "Đang vận chuyển",
+                "Khách Đặt Cọc", "KH Showroom", "Kho đang gọi hàng");
+
+        List<Map<String, Object>> statusData = new ArrayList<>();
         for (Object[] row : byStatus) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("tinhTrang", row[0] != null ? row[0] : "Không xác định");
+            String status = row[0] != null ? row[0].toString() : "Không xác định";
             long cnt = ((Number) row[1]).longValue();
+            BigDecimal revenue = row[2] != null ? new BigDecimal(row[2].toString()) : BigDecimal.ZERO;
+            BigDecimal profit = row[3] != null ? new BigDecimal(row[3].toString()) : BigDecimal.ZERO;
+
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("tinhTrang", status);
             item.put("count", cnt);
-            item.put("revenue", row[2]);
+            item.put("revenue", revenue);
             statusData.add(item);
+
+            totalRevenue = totalRevenue.add(revenue);
+            totalProfit = totalProfit.add(profit);
             totalOrders += cnt;
+
+            if (qualifiedStatuses.contains(status)) {
+                qualifiedRevenue = qualifiedRevenue.add(revenue);
+            }
         }
+
+        result.put("totalRevenue", totalRevenue);
+        result.put("qualifiedRevenue", qualifiedRevenue);
+        result.put("messAllocation", calculateMessAllocation(qualifiedRevenue));
+        result.put("totalProfit", totalProfit);
         result.put("ordersByStatus", statusData);
         result.put("totalOrders", totalOrders);
 

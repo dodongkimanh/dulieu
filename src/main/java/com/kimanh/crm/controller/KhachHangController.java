@@ -117,4 +117,18 @@ public class KhachHangController {
     public ResponseEntity<KhachHang> updateLoaiMess(@PathVariable Long id, @RequestBody Map<String, String> body) {
         return ResponseEntity.ok(service.updateLoaiMess(id, body.get("loaiMess")));
     }
+
+    @GetMapping("/assigned-count")
+    public ResponseEntity<Map<String, Long>> getAssignedCount() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isSaler = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
+        String sale = null;
+        if (isSaler) {
+            sale = userRepository.findByUsername(auth.getName())
+                    .map(User::getFullName)
+                    .orElse(null);
+        }
+        return ResponseEntity.ok(Map.of("count", service.countPendingAssigned(sale)));
+    }
 }

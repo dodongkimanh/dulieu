@@ -25,6 +25,8 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+import java.util.concurrent.CompletableFuture;
+
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
@@ -156,8 +158,16 @@ public class DashboardController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sale", sale);
         result.put("costPerMess", messConfigService.getCostPerMess());
-        result.putAll(donHangService.getSaleRevenue(sale, fromDate, toDate));
-        result.putAll(khachHangService.getMessStats(sale, fromDate, toDate));
+
+        // Run the two heavy queries in parallel
+        final String saleName = sale;
+        CompletableFuture<Map<String, Object>> revenueFuture =
+                CompletableFuture.supplyAsync(() -> donHangService.getSaleRevenue(saleName, fromDate, toDate));
+        CompletableFuture<Map<String, Object>> messFuture =
+                CompletableFuture.supplyAsync(() -> khachHangService.getMessStats(saleName, fromDate, toDate));
+
+        result.putAll(revenueFuture.join());
+        result.putAll(messFuture.join());
 
         return ResponseEntity.ok(result);
     }

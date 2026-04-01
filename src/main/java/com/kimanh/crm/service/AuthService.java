@@ -87,15 +87,16 @@ public class AuthService {
 
     public User updateUser(Long id, String fullName, String password) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại (ID: " + id + ")"));
         if (fullName != null && !fullName.isBlank()) {
-            user.setFullName(fullName);
+            user.setFullName(fullName.trim());
         }
         if (password != null && !password.isBlank()) {
-            if (password.length() < 6) {
+            String pw = password.trim();
+            if (pw.length() < 6) {
                 throw new RuntimeException("Mật khẩu phải có ít nhất 6 ký tự");
             }
-            user.setPassword(passwordEncoder.encode(password));
+            user.setPassword(passwordEncoder.encode(pw));
         }
         User saved = userRepository.save(user);
         saved.setPassword(null);

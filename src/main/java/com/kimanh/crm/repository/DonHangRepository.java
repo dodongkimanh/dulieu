@@ -209,8 +209,8 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 
-    // Sale dashboard: orders by status for a specific sale
-    @Query(value = "SELECT d.tinh_trang, COUNT(*), COALESCE(SUM(d.gia_thu_thuc_te), 0) " +
+    // Sale dashboard: orders by status for a specific sale (with revenue + profit per status)
+    @Query(value = "SELECT d.tinh_trang, COUNT(*), COALESCE(SUM(d.gia_thu_thuc_te), 0), COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) " +
            "FROM don_hang d WHERE d.sale = :sale " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
