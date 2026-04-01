@@ -29,6 +29,7 @@ import java.util.*;
 public class DonHangService {
 
     private final DonHangRepository repository;
+    private final MessConfigService messConfigService;
 
     private String blankToNull(String s) {
         return (s != null && !s.isBlank()) ? s : null;
@@ -320,24 +321,10 @@ public class DonHangService {
         return result;
     }
 
-    // Mess (message) allocation based on qualified revenue tiers (Ngân Sách QC 12%, 65k/Mess)
+    // Mess (message) allocation based on configurable revenue tiers
     private int calculateMessAllocation(BigDecimal revenue) {
-        if (revenue == null) return 92;
-        long rev = revenue.longValue();
-        if (rev < 50_000_000L) return 92;
-        if (rev < 75_000_000L) return 138;
-        if (rev < 100_000_000L) return 184;
-        if (rev < 125_000_000L) return 230;
-        if (rev < 150_000_000L) return 276;
-        if (rev < 175_000_000L) return 323;
-        if (rev < 200_000_000L) return 369;
-        if (rev < 250_000_000L) return 461;
-        if (rev < 300_000_000L) return 553;
-        if (rev < 350_000_000L) return 646;
-        if (rev < 400_000_000L) return 738;
-        if (rev < 450_000_000L) return 830;
-        if (rev < 500_000_000L) return 923;
-        return 984;
+        if (revenue == null) return messConfigService.calculateMessAllocation(0L);
+        return messConfigService.calculateMessAllocation(revenue.longValue());
     }
 
     // Professional Excel export with premium styling
