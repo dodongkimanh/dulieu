@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox } from 'antd';
 import {
   PlusOutlined,
@@ -59,6 +59,32 @@ export default function KhachHang() {
   const [allSaleUsers, setAllSaleUsers] = useState([]);
   const [pageChannels, setPageChannels] = useState({});
   const [form] = Form.useForm();
+  const [colWidths, setColWidths] = useState({});
+
+  const handleResizeStart = useCallback((dataIndex) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const th = e.target.closest('th');
+    if (!th) return;
+    const startWidth = th.getBoundingClientRect().width;
+    
+    const onMouseMove = (ev) => {
+      const diff = ev.clientX - startX;
+      const newWidth = Math.max(60, startWidth + diff);
+      setColWidths(prev => ({ ...prev, [dataIndex]: newWidth }));
+    };
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
 
   useEffect(() => { fetchData(); fetchMeta(); fetchChannels(); }, []);
 
@@ -183,11 +209,11 @@ export default function KhachHang() {
     } catch { message.error('Lỗi lưu ghi chú'); }
   };
 
-  const columns = [
-    { title: 'Ngày', dataIndex: 'ngayThang', width: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
-    { title: 'Khách hàng', dataIndex: 'khachHang', width: 140, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
-    { title: 'SĐT', dataIndex: 'sdt', width: 100 },
-    { title: 'Tùy Chọn', dataIndex: 'loaiMess', width: 115, render: (v, record) => (
+  const baseColumns = [
+    { title: 'Ngày', dataIndex: 'ngayThang', _defaultWidth: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
+    { title: 'Khách hàng', dataIndex: 'khachHang', _defaultWidth: 140, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
+    { title: 'SĐT', dataIndex: 'sdt', _defaultWidth: 100 },
+    { title: 'Tùy Chọn', dataIndex: 'loaiMess', _defaultWidth: 115, render: (v, record) => (
       <Select
         value={v || undefined}
         onChange={(val) => handleLoaiMessChange(record.id, val)}
@@ -204,13 +230,13 @@ export default function KhachHang() {
         ))}
       </Select>
     )},
-    { title: 'Sale', dataIndex: 'sale', width: 90, ellipsis: true },
-    { title: 'Kênh Tiếp Thị', dataIndex: 'page', width: 170, ellipsis: true, render: (v) => v ? <Tooltip title={v}><Tag style={{ background: '#F5F3FF', color: '#7C3AED', border: 'none', fontWeight: 500, borderRadius: 6, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</Tag></Tooltip> : <span style={{ color: '#CBD5E1' }}>—</span> },
+    { title: 'Sale', dataIndex: 'sale', _defaultWidth: 90, ellipsis: true },
+    { title: 'Kênh Tiếp Thị', dataIndex: 'page', _defaultWidth: 170, ellipsis: true, render: (v) => v ? <Tooltip title={v}><Tag style={{ background: '#F5F3FF', color: '#7C3AED', border: 'none', fontWeight: 500, borderRadius: 6, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</Tag></Tooltip> : <span style={{ color: '#CBD5E1' }}>—</span> },
     ...(activeTab === 'assigned' ? [{
-      title: 'Chuyển từ', dataIndex: 'assignedFrom', width: 110,
+      title: 'Chuyển từ', dataIndex: 'assignedFrom', _defaultWidth: 110,
       render: (v) => v ? <Tag color="cyan">{v}</Tag> : '—'
     }] : []),
-    { title: 'Trạng thái', dataIndex: 'status', width: 130, render: (v, record) => (
+    { title: 'Trạng thái', dataIndex: 'status', _defaultWidth: 130, render: (v, record) => (
       <Select
         value={v}
         onChange={(val) => handleStatusChange(record.id, val)}
@@ -225,7 +251,7 @@ export default function KhachHang() {
         ))}
       </Select>
     )},
-    { title: 'Ghi chú', dataIndex: 'mess', width: 180, ellipsis: true, render: (v, record) => {
+    { title: 'Ghi chú', dataIndex: 'mess', _defaultWidth: 180, ellipsis: true, render: (v, record) => {
       const val = v && v !== 'EMPTY' ? v : '';
       return (
         <Input.TextArea
@@ -252,6 +278,26 @@ export default function KhachHang() {
       </Space>
     )},
   ];
+
+  // Apply dynamic widths + resize handles
+  const columns = baseColumns.map(col => {
+    if (!col.dataIndex) return col; // action column, keep as-is
+    const w = colWidths[col.dataIndex] || col._defaultWidth;
+    return {
+      ...col,
+      width: w,
+      title: (
+        <div className="resizable-header">
+          {col.title}
+          <div
+            className="col-resize-handle"
+            onMouseDown={handleResizeStart(col.dataIndex)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      ),
+    };
+  });
 
   const expandedRowRender = (record) => (
     <div className="expand-detail-grid">

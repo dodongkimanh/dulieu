@@ -37,7 +37,7 @@ const statusColors = {
 
 const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
 
-const COLUMNS = [
+const COLUMNS_DEFAULT = [
   { key: 'stt', label: 'STT', width: 36, type: 'index' },
   { key: 'ngay', label: 'Ngày', width: 100, type: 'date' },
   { key: 'maHoaDon', label: 'Mã Hóa Đơn', width: 100, type: 'text', style: { fontWeight: 600, color: '#4F46E5' } },
@@ -78,6 +78,33 @@ export default function NhapLieu() {
   const [editForm] = Form.useForm();
   const [pageChannels, setPageChannels] = useState({});
   const tableRef = useRef(null);
+  const [colWidths, setColWidths] = useState(() =>
+    Object.fromEntries(COLUMNS_DEFAULT.map(c => [c.key, c.width]))
+  );
+
+  const handleHeaderResizeStart = useCallback((colKey) => (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = colWidths[colKey] || COLUMNS_DEFAULT.find(c => c.key === colKey)?.width || 100;
+    const onMouseMove = (ev) => {
+      const diff = ev.clientX - startX;
+      const newWidth = Math.max(40, startWidth + diff);
+      setColWidths(prev => ({ ...prev, [colKey]: newWidth }));
+    };
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [colWidths]);
+
+  const COLUMNS = COLUMNS_DEFAULT.map(c => ({ ...c, width: colWidths[c.key] || c.width }));
 
   const fetchData = useCallback(async (pg = 1, size = 50) => {
     setLoading(true);
@@ -452,8 +479,13 @@ export default function NhapLieu() {
           {/* Header */}
           <div className="nl-header-row">
             {COLUMNS.map(col => (
-              <div key={col.key} className="nl-header-cell" style={{ width: col.width, minWidth: col.width }}>
+              <div key={col.key} className="nl-header-cell" style={{ width: col.width, minWidth: col.width, position: 'relative' }}>
                 {col.label}
+                <div
+                  className="nl-resize-handle"
+                  onMouseDown={handleHeaderResizeStart(col.key)}
+                  onClick={(e) => e.stopPropagation()}
+                />
               </div>
             ))}
             <div className="nl-header-cell nl-action-col" style={{ width: 90 }}>Thao tác</div>

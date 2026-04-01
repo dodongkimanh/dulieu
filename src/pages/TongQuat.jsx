@@ -108,14 +108,18 @@ export default function TongQuat() {
   });
   const chartData = Object.values(saleMap).sort((a, b) => b.total - a.total);
   const activeStatuses = [...new Set(bySaleStatus.map(i => i.tinhTrang))].filter(s => selectedStatuses.includes(s));
-  const lastActiveStatus = activeStatuses.length > 0 ? activeStatuses[activeStatuses.length - 1] : null;
 
-  // Custom label renderer for total at end of stacked bar
-  const renderTotalLabel = (props) => {
+  // Custom label renderer — shows total at end of each stacked bar
+  // Only renders from the rightmost segment that has data for each row
+  const renderTotalLabel = (statusKey) => (props) => {
     const { x, y, width, height, index } = props;
     if (!chartData[index]) return null;
-    const total = chartData[index].total;
+    const entry = chartData[index];
+    const total = entry.total;
     if (!total) return null;
+    // Only render from the last status that has data for this specific entry
+    const lastStatusWithData = [...activeStatuses].reverse().find(s => (entry[s] || 0) > 0);
+    if (statusKey !== lastStatusWithData) return null;
     return (
       <text
         x={x + width + 8}
@@ -235,9 +239,7 @@ export default function TongQuat() {
               <Legend wrapperStyle={{ fontSize: 11 }} />
               {activeStatuses.map(status => (
                 <Bar key={status} dataKey={status} stackId="a" fill={STATUS_COLORS[status] || '#94A3B8'} name={status}>
-                  {status === lastActiveStatus && (
-                    <LabelList content={renderTotalLabel} />
-                  )}
+                  <LabelList content={renderTotalLabel(status)} />
                 </Bar>
               ))}
             </BarChart>
