@@ -21,26 +21,50 @@ public class AuthService {
     private final JwtUtil jwtUtil;
 
     public Map<String, Object> login(String username, String password) {
-        // Support login by either username or fullName
-        User user = userRepository.findByUsername(username)
-                .or(() -> userRepository.findByFullName(username))
-                .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại"));
-
-        if (!user.getActive()) {
-            throw new RuntimeException("Tài khoản đã bị khóa");
+        if (username == null || username.isBlank()) {
+            throw new RuntimeException("Vui lòng nhập tài khoản");
+        }
+        if (password == null || password.isBlank()) {
+            throw new RuntimeException("Vui lòng nhập mật khẩu");
         }
 
-        if (user.getPassword() == null || !passwordEncoder.matches(password, user.getPassword())) {
+        String loginInput = username.trim();
+
+        // Search by username OR fullName in a single query (safe with duplicates)
+        List<User> candidates = userRepository.findByUsernameOrFullName(loginInput);
+        if (candidates.isEmpty()) {
+            throw new RuntimeException("Tài khoản không tồn tại");
+        }
+
+        // Try to find the first active user whose password matches
+        User matchedUser = null;
+        boolean hasInactive = false;
+        for (User candidate : candidates) {
+            if (!candidate.getActive()) {
+                hasInactive = true;
+                continue;
+            }
+            if (candidate.getPassword() != null && passwordEncoder.matches(password, candidate.getPassword())) {
+                matchedUser = candidate;
+                break;
+            }
+        }
+
+        if (matchedUser == null) {
+            // All candidates were inactive
+            if (hasInactive && candidates.stream().noneMatch(User::getActive)) {
+                throw new RuntimeException("Tài khoản đã bị khóa");
+            }
             throw new RuntimeException("Mật khẩu không chính xác");
         }
 
-        String token = jwtUtil.generateToken(user.getUsername(), user.getRole());
+        String token = jwtUtil.generateToken(matchedUser.getUsername(), matchedUser.getRole());
 
         Map<String, Object> result = new HashMap<>();
         result.put("token", token);
-        result.put("username", user.getUsername());
-        result.put("fullName", user.getFullName());
-        result.put("role", user.getRole());
+        result.put("username", matchedUser.getUsername());
+        result.put("fullName", matchedUser.getFullName());
+        result.put("role", matchedUser.getRole());
         return result;
     }
 
