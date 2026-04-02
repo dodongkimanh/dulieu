@@ -157,6 +157,39 @@ export default function TongQuat() {
     loiNhuan: Number(d.sumLoiNhuan || 0),
   }));
 
+  // Channel chart data: stacked by status (like sale chart), showing Giá Thu Thực Tế
+  const byPageStatus = analytics?.byPageStatus || [];
+  const pageMap = {};
+  byPageStatus.forEach(item => {
+    const page = item.page || 'Không xác định';
+    if (!selectedStatuses.includes(item.tinhTrang)) return;
+    if (!pageMap[page]) pageMap[page] = { page, total: 0, totalLoiNhuan: 0 };
+    pageMap[page][item.tinhTrang] = Number(item.sumGiaThu || 0);
+    pageMap[page].total += Number(item.sumGiaThu || 0);
+    pageMap[page].totalLoiNhuan += Number(item.sumLoiNhuan || 0);
+  });
+  const channelChartData = Object.values(pageMap).sort((a, b) => b.total - a.total).map(d => ({ ...d, _lbl: 0.001 }));
+  const channelActiveStatuses = [...new Set(byPageStatus.map(i => i.tinhTrang))].filter(s => selectedStatuses.includes(s));
+
+  // Channel chart label renderer
+  const renderChannelLabel = (props) => {
+    const { x, y, width, height, index } = props;
+    const entry = channelChartData[index];
+    if (!entry?.total) return null;
+    return (
+      <text
+        x={(x || 0) + (width || 0) + 8}
+        y={(y || 0) + (height || 0) / 2}
+        fill="#374151"
+        fontSize={10}
+        fontWeight={700}
+        dominantBaseline="middle"
+      >
+        {vnd(entry.total)} đ
+      </text>
+    );
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="tongquat-page">
       {/* Filter Bar */}
@@ -282,59 +315,52 @@ export default function TongQuat() {
         </motion.div>
       )}
 
-      {/* Channel Revenue Chart - Multi-metric with rich tooltip */}
-      {(analytics?.byPage || []).length > 0 && (
+      {/* Channel Revenue Chart - Stacked by status (like sale chart), showing Giá Thu Thực Tế */}
+      {channelChartData.length > 0 && (
         <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <div className="sg-card-title">
-            <AppstoreOutlined style={{ color: '#4F46E5' }} /> Doanh số theo Kênh Tiếp Thị
+            <AppstoreOutlined style={{ color: '#4F46E5' }} /> Giá Thu Thực Tế theo Kênh Tiếp Thị & Tình Trạng
           </div>
           <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 12, paddingLeft: 22 }}>
-            Di chuột vào cột để xem chi tiết Giá Bán, Giá Thu Thực Tế và Lợi Nhuận từng kênh
+            Lọc theo tình trạng giao hàng ở bộ lọc phía trên. Di chuột để xem Giá Thu và Lợi Nhuận từng kênh.
           </div>
-          <ResponsiveContainer width="100%" height={Math.max(320, (analytics.byPage || []).length * 80)}>
-            <BarChart data={analytics.byPage} layout="vertical" margin={{ top: 5, right: 120, left: 140, bottom: 5 }}>
+          <ResponsiveContainer width="100%" height={Math.max(300, channelChartData.length * 50)}>
+            <BarChart data={channelChartData} layout="vertical" margin={{ top: 5, right: 160, left: 120, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
-              <YAxis type="category" dataKey="page" tick={{ fontSize: 11, fill: '#374151', fontWeight: 500 }} width={140} />
+              <YAxis type="category" dataKey="page" tick={{ fontSize: 11, fill: '#374151', fontWeight: 500 }} width={120} />
               <Tooltip
                 cursor={{ fill: 'rgba(79, 70, 229, 0.04)' }}
                 contentStyle={{
                   borderRadius: 12,
                   border: 'none',
-                  fontSize: 13,
+                  fontSize: 12,
                   boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
-                  padding: '16px 20px',
+                  padding: '14px 18px',
                   minWidth: 280,
                   background: '#fff',
                 }}
-                labelStyle={{ fontWeight: 700, fontSize: 14, color: '#1F2937', marginBottom: 10, paddingBottom: 10, borderBottom: '2px solid #F1F5F9' }}
-                labelFormatter={(label) => label}
-                formatter={(value, name) => {
-                  const colorMap = {
-                    'Giá Bán Lên Đơn': '#4F46E5',
-                    'Giá Thu Thực Tế': '#10B981',
-                    'Lợi Nhuận': '#F59E0B',
-                  };
-                  return [
-                    <span style={{ fontWeight: 700, color: colorMap[name] || '#374151' }}>{vndFull(value)}</span>,
-                    <span style={{ color: colorMap[name] || '#64748B', fontWeight: 600 }}>{name}</span>
-                  ];
+                labelStyle={{ fontWeight: 700, fontSize: 13, color: '#1F2937', marginBottom: 8, paddingBottom: 8, borderBottom: '2px solid #F1F5F9' }}
+                formatter={(v, name) => {
+                  if (name === '_lbl' || name === '') return null;
+                  return [vndFull(v), name];
                 }}
-                itemStyle={{ padding: '4px 0' }}
+                labelFormatter={(label, payload) => {
+                  const entry = payload?.[0]?.payload;
+                  if (!entry) return label;
+                  return `${label}\n\nGiá Thu: ${vndFull(entry.total)} | LN: ${vndFull(entry.totalLoiNhuan)}`;
+                }}
               />
               <Legend
-                wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
-                payload={[
-                  { value: 'Giá Bán Lên Đơn', type: 'rect', color: '#4F46E5' },
-                  { value: 'Giá Thu Thực Tế', type: 'rect', color: '#10B981' },
-                  { value: 'Lợi Nhuận', type: 'rect', color: '#F59E0B' },
-                ]}
+                payload={channelActiveStatuses.map(s => ({ value: s, type: 'rect', color: STATUS_COLORS[s] || '#94A3B8' }))}
+                wrapperStyle={{ fontSize: 11 }}
               />
-              <Bar dataKey="sumGiaBan" fill="#4F46E5" name="Giá Bán Lên Đơn" radius={[0, 4, 4, 0]} barSize={18}>
-                <LabelList position="right" formatter={(v) => vnd(v) + ' đ'} style={{ fontSize: 10, fontWeight: 700, fill: '#4F46E5' }} />
+              {channelActiveStatuses.map(status => (
+                <Bar key={status} dataKey={status} stackId="a" fill={STATUS_COLORS[status] || '#94A3B8'} name={status} />
+              ))}
+              <Bar dataKey="_lbl" stackId="a" fill="transparent" isAnimationActive={false} legendType="none">
+                <LabelList content={renderChannelLabel} />
               </Bar>
-              <Bar dataKey="sumGiaThu" fill="#10B981" name="Giá Thu Thực Tế" radius={[0, 4, 4, 0]} barSize={18} />
-              <Bar dataKey="sumLoiNhuan" fill="#F59E0B" name="Lợi Nhuận" radius={[0, 4, 4, 0]} barSize={18} />
             </BarChart>
           </ResponsiveContainer>
         </motion.div>
