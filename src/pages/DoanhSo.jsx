@@ -286,6 +286,8 @@ export default function DoanhSo() {
   const messTiers = buildMessTiers(messTierConfig, apiCostPerMess);
   const saleName = data?.sale || user?.fullName || '';
   const totalMessCost = totalMess * apiCostPerMess;
+  const hasMessError = !!data?.messError;
+  const hasRevenueError = !!data?.revenueError;
 
   // Filter orders by status
   const filteredOrders = ordersByStatus.filter(o => selectedStatuses.includes(o.tinhTrang));
@@ -337,6 +339,18 @@ export default function DoanhSo() {
           <div className="ds-sale-name" style={{ marginLeft: 24, fontSize: 15, fontWeight: 600, color: '#4F46E5' }}>{saleName}</div>
         </div>
       </div>
+
+      {/* Error alerts from backend */}
+      {hasRevenueError && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '8px 16px', marginBottom: 12, color: '#991B1B', fontSize: 13 }}>
+          <WarningOutlined style={{ marginRight: 6 }} />Lỗi tải doanh số: {data.revenueError}
+        </div>
+      )}
+      {hasMessError && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '8px 16px', marginBottom: 12, color: '#991B1B', fontSize: 13 }}>
+          <WarningOutlined style={{ marginRight: 6 }} />Lỗi tải mess: {data.messError}
+        </div>
+      )}
 
       {/* Revenue KPI Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
