@@ -274,11 +274,14 @@ export default function TongQuat() {
         </motion.div>
       )}
 
-      {/* Channel Revenue Chart - Single total bar per channel */}
+      {/* Channel Revenue Chart - Multi-metric with rich tooltip */}
       {(analytics?.byPage || []).length > 0 && (
         <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <div className="sg-card-title">
             <AppstoreOutlined style={{ color: '#4F46E5' }} /> Doanh số theo Kênh Tiếp Thị
+          </div>
+          <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 12, paddingLeft: 22 }}>
+            Click vào cột để xem chi tiết Giá Thu Thực Tế và Lợi Nhuận
           </div>
           <ResponsiveContainer width="100%" height={Math.max(280, (analytics.byPage || []).length * 44)}>
             <BarChart data={analytics.byPage} layout="vertical" margin={{ top: 5, right: 160, left: 120, bottom: 5 }}>
@@ -286,13 +289,36 @@ export default function TongQuat() {
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
               <YAxis type="category" dataKey="page" tick={{ fontSize: 11, fill: '#374151' }} width={120} />
               <Tooltip
-                formatter={(v) => [vndFull(v), 'Tổng Giá Bán']}
-                contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }}
-                labelFormatter={(label) => `Kênh: ${label}`}
+                cursor={{ fill: 'rgba(79, 70, 229, 0.06)' }}
+                contentStyle={{
+                  borderRadius: 12,
+                  border: '1px solid #E2E8F0',
+                  fontSize: 12,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                  padding: '12px 16px',
+                  minWidth: 260,
+                }}
+                labelStyle={{ fontWeight: 700, fontSize: 13, color: '#1F2937', marginBottom: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}
+                labelFormatter={(label) => `📊 ${label}`}
+                formatter={(value, name) => {
+                  const colorMap = {
+                    'Giá Bán Lên Đơn': '#4F46E5',
+                    'Giá Thu Thực Tế': '#10B981',
+                    'Lợi Nhuận': '#F59E0B',
+                  };
+                  return [
+                    <span style={{ fontWeight: 600, color: colorMap[name] || '#374151' }}>{vndFull(value)}</span>,
+                    <span style={{ color: '#64748B' }}>{name}</span>
+                  ];
+                }}
+                itemStyle={{ padding: '3px 0' }}
               />
-              <Bar dataKey="sumGiaBan" fill="#4F46E5" name="Tổng Giá Bán Lên Đơn" radius={[0, 6, 6, 0]} barSize={28}>
-                <LabelList position="right" formatter={(v) => vnd(v) + ' đ'} style={{ fontSize: 11, fontWeight: 700, fill: '#374151' }} />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+              <Bar dataKey="sumGiaBan" fill="#4F46E5" name="Giá Bán Lên Đơn" radius={[0, 6, 6, 0]} barSize={24}>
+                <LabelList position="right" formatter={(v) => vnd(v) + ' đ'} style={{ fontSize: 10, fontWeight: 700, fill: '#374151' }} />
               </Bar>
+              <Bar dataKey="sumGiaThu" fill="#10B981" name="Giá Thu Thực Tế" radius={[0, 6, 6, 0]} barSize={24} />
+              <Bar dataKey="sumLoiNhuan" fill="#F59E0B" name="Lợi Nhuận" radius={[0, 6, 6, 0]} barSize={24} />
             </BarChart>
           </ResponsiveContainer>
         </motion.div>
