@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Row, Col, DatePicker, Select, Spin, Checkbox, message, Button, Tag, InputNumber, Modal, Input } from 'antd';
+import { Row, Col, DatePicker, Spin, Checkbox, message, Button, Tag, InputNumber, Modal, Input } from 'antd';
 import {
   DollarOutlined,
   MessageOutlined,
@@ -307,38 +307,53 @@ export default function DoanhSo() {
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="doanhso-page">
       {/* Filter Bar */}
       <div className="ds-filter-bar">
-        <div className="ds-filter-left">
-          {(isAdmin || isKeToan) && (
+        {/* Row 1: Sale chip bar (Admin / KeToan only) */}
+        {(isAdmin || isKeToan) && salesList.length > 0 && (
+          <div className="ds-filter-section">
+            <span className="ds-filter-label">Sale</span>
+            <div className="ds-sale-chips">
+              {salesList.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`ds-sale-chip${selectedSale === s ? ' active' : ''}`}
+                  onClick={() => handleSaleChange(s)}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Row 2: Controls */}
+        <div className="ds-filter-controls">
+          <div className="ds-filter-left">
             <div className="ds-filter-group">
-              <div className="ds-filter-label">Sale</div>
-              <Select
-                value={selectedSale}
-                onChange={handleSaleChange}
-                style={{ width: 200 }}
-                placeholder="Chọn Sale"
-                options={salesList.map(s => ({ value: s, label: s }))}
+              <span className="ds-filter-label">Tháng</span>
+              <DatePicker
+                picker="month"
+                value={selectedMonth}
+                onChange={handleMonthChange}
+                format="MM/YYYY"
+                size="middle"
+                allowClear={false}
+                style={{ width: 140 }}
               />
             </div>
-          )}
-          <div className="ds-filter-group">
-            <div className="ds-filter-label">Tháng</div>
-            <DatePicker
-              picker="month"
-              value={selectedMonth}
-              onChange={handleMonthChange}
-              format="MM/YYYY"
-              size="middle"
-              allowClear={false}
-              style={{ width: 140 }}
-            />
+            {saleName && (
+              <div className="ds-sale-name-badge">
+                <span className="ds-sale-name-dot" />
+                {saleName}
+              </div>
+            )}
           </div>
-        </div>
-        <div className="ds-filter-right">
-          <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={!data} style={{ background: '#10B981', borderColor: '#10B981', color: '#fff' }}>Tải xuống</Button>
-          {isAdmin && (
-            <Button icon={<SettingOutlined />} onClick={handleOpenConfig} style={{ color: '#4F46E5' }}>Cấu hình Mess</Button>
-          )}
-          <div className="ds-sale-name" style={{ marginLeft: 24, fontSize: 15, fontWeight: 600, color: '#4F46E5' }}>{saleName}</div>
+          <div className="ds-filter-right" style={{ gap: 8, display: 'flex', alignItems: 'center' }}>
+            <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={!data} style={{ background: '#10B981', borderColor: '#10B981', color: '#fff' }}>Tải xuống</Button>
+            {isAdmin && (
+              <Button icon={<SettingOutlined />} onClick={handleOpenConfig} style={{ color: '#4F46E5' }}>Cấu hình Mess</Button>
+            )}
+          </div>
         </div>
       </div>
 

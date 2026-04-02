@@ -1864,25 +1864,72 @@ textarea.ant-input { min-height: 80px !important; }
 
 .ds-filter-bar {
   display: flex;
-  gap: 24px;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 24px;
   padding: 16px 20px;
   background: #fff;
   border-radius: var(--card-radius);
   box-shadow: var(--card-shadow);
+}
+
+/* Sale chip row */
+.ds-filter-section {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   flex-wrap: wrap;
+}
+.ds-sale-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ds-sale-chip {
+  padding: 5px 14px;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 20px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--gray-600);
+  cursor: pointer;
+  background: #fff;
+  transition: all 0.18s;
+  user-select: none;
+  outline: none;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.ds-sale-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: #EEF2FF;
+}
+.ds-sale-chip.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.28);
+}
+
+/* Controls row */
+.ds-filter-controls {
+  display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 .ds-filter-left {
   display: flex;
   gap: 16px;
-  align-items: flex-end;
+  align-items: center;
   flex-wrap: wrap;
 }
 .ds-filter-right {
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 .ds-filter-group {
   display: flex;
@@ -1895,6 +1942,27 @@ textarea.ant-input { min-height: 80px !important; }
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--gray-400);
+  white-space: nowrap;
+}
+
+/* Selected sale badge */
+.ds-sale-name-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: #EEF2FF;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.ds-sale-name-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
 }
 .ds-sale-name {
   font-size: 18px;
@@ -2129,7 +2197,8 @@ textarea.ant-input { min-height: 80px !important; }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .ds-filter-bar { flex-direction: column; }
+  .ds-filter-bar { gap: 10px; padding: 12px 14px; }
+  .ds-filter-controls { flex-direction: column; align-items: flex-start; }
   .ds-filter-left { flex-direction: column; }
   .ds-kpi-value { font-size: 20px; }
   .ds-status-grid { grid-template-columns: 1fr 1fr; }
