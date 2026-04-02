@@ -173,7 +173,13 @@ export default function UserManagement() {
           columns={columns}
           rowKey="id"
           loading={loading}
-          pagination={false}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50'],
+            showTotal: (total) => `Tổng ${total} tài khoản`,
+            size: 'small',
+          }}
           size="middle"
         />
       </motion.div>
@@ -190,8 +196,12 @@ export default function UserManagement() {
         className="premium-modal"
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="username" label="Tên đăng nhập" rules={[{ required: true, message: 'Nhập tên đăng nhập' }]}>
-            <Input prefix={<UserOutlined />} placeholder="Tên đăng nhập" />
+          <Form.Item name="username" label="Tên đăng nhập" rules={[
+            { required: true, message: 'Nhập tên đăng nhập' },
+            { pattern: /^[a-zA-Z0-9._@]+$/, message: 'Chỉ cho phép chữ cái không dấu, số, dấu chấm, @ và gạch dưới' },
+            { min: 3, message: 'Tối thiểu 3 ký tự' },
+          ]}>
+            <Input prefix={<UserOutlined />} placeholder="vd: hieu@dodong hoặc hieu_sale" />
           </Form.Item>
           <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: 'Nhập mật khẩu' }, { min: 6, message: 'Tối thiểu 6 ký tự' }]}>
             <Input.Password prefix={<LockOutlined />} placeholder="Mật khẩu" />

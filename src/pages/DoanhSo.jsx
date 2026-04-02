@@ -291,6 +291,7 @@ export default function DoanhSo() {
   const filteredOrders = ordersByStatus.filter(o => selectedStatuses.includes(o.tinhTrang));
   const filteredOrderCount = filteredOrders.reduce((s, o) => s + Number(o.count || 0), 0);
   const filteredRevenue = filteredOrders.reduce((s, o) => s + Number(o.revenue || 0), 0);
+  const filteredProfit = filteredOrders.reduce((s, o) => s + Number(o.profit || 0), 0);
 
   // Mess by day chart
   const messDayChart = messByDay.map(d => ({
@@ -384,7 +385,7 @@ export default function DoanhSo() {
             <motion.div className="ds-kpi-card" whileHover={{ y: -3 }} style={{ background: 'linear-gradient(135deg, #FEF3C7, #FDE68A)', border: '1px solid #F59E0B' }}>
               <div className="ds-kpi-icon" style={{ background: '#F59E0B20', color: '#D97706' }}><WalletOutlined /></div>
               <div className="ds-kpi-content">
-                <div className="ds-kpi-value" style={{ color: '#92400E' }}>{vnd(totalProfit)} đ</div>
+                <div className="ds-kpi-value" style={{ color: '#92400E' }}>{vnd(filteredProfit)} đ</div>
                 <div className="ds-kpi-label" style={{ color: '#A16207' }}>Lợi Nhuận Ước Tính của Sale</div>
               </div>
             </motion.div>

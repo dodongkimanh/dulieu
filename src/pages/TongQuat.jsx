@@ -157,37 +157,21 @@ export default function TongQuat() {
     loiNhuan: Number(d.sumLoiNhuan || 0),
   }));
 
-  // Channel chart data: stacked by status (like sale chart), showing Giá Thu Thực Tế
+  // Channel chart data: side-by-side Lợi Nhuận vs Giá Thu Thực Tế
   const byPageStatus = analytics?.byPageStatus || [];
   const pageMap = {};
   byPageStatus.forEach(item => {
     const page = item.page || 'Không xác định';
     if (!selectedStatuses.includes(item.tinhTrang)) return;
-    if (!pageMap[page]) pageMap[page] = { page, total: 0, totalLoiNhuan: 0 };
-    pageMap[page][item.tinhTrang] = Number(item.sumGiaThu || 0);
-    pageMap[page].total += Number(item.sumGiaThu || 0);
-    pageMap[page].totalLoiNhuan += Number(item.sumLoiNhuan || 0);
+    if (!pageMap[page]) pageMap[page] = { page, giaThu: 0, loiNhuan: 0 };
+    pageMap[page].giaThu += Number(item.sumGiaThu || 0);
+    pageMap[page].loiNhuan += Number(item.sumLoiNhuan || 0);
   });
-  const channelChartData = Object.values(pageMap).sort((a, b) => b.total - a.total).map(d => ({ ...d, _lbl: 0.001 }));
-  const channelActiveStatuses = [...new Set(byPageStatus.map(i => i.tinhTrang))].filter(s => selectedStatuses.includes(s));
+  const channelChartData = Object.values(pageMap).sort((a, b) => b.giaThu - a.giaThu);
 
-  // Channel chart label renderer
-  const renderChannelLabel = (props) => {
-    const { x, y, width, height, index } = props;
-    const entry = channelChartData[index];
-    if (!entry?.total) return null;
-    return (
-      <text
-        x={(x || 0) + (width || 0) + 8}
-        y={(y || 0) + (height || 0) / 2}
-        fill="#374151"
-        fontSize={10}
-        fontWeight={700}
-        dominantBaseline="middle"
-      >
-        {vnd(entry.total)} đ
-      </text>
-    );
+  // Channel chart custom tooltip
+  const channelTooltipFormatter = (value, name) => {
+    return [vndFull(value), name];
   };
 
   return (
@@ -315,16 +299,16 @@ export default function TongQuat() {
         </motion.div>
       )}
 
-      {/* Channel Revenue Chart - Stacked by status (like sale chart), showing Giá Thu Thực Tế */}
+      {/* Channel Revenue Chart - Side-by-side Lợi Nhuận vs Giá Thu Thực Tế */}
       {channelChartData.length > 0 && (
         <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <div className="sg-card-title">
-            <AppstoreOutlined style={{ color: '#4F46E5' }} /> Giá Thu Thực Tế theo Kênh Tiếp Thị & Tình Trạng
+            <AppstoreOutlined style={{ color: '#4F46E5' }} /> Lợi Nhuận & Giá Thu Thực Tế theo Kênh Tiếp Thị
           </div>
           <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 12, paddingLeft: 22 }}>
             Lọc theo tình trạng giao hàng ở bộ lọc phía trên. Di chuột để xem Giá Thu và Lợi Nhuận từng kênh.
           </div>
-          <ResponsiveContainer width="100%" height={Math.max(300, channelChartData.length * 50)}>
+          <ResponsiveContainer width="100%" height={Math.max(300, channelChartData.length * 60)}>
             <BarChart data={channelChartData} layout="vertical" margin={{ top: 5, right: 160, left: 120, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
@@ -341,25 +325,24 @@ export default function TongQuat() {
                   background: '#fff',
                 }}
                 labelStyle={{ fontWeight: 700, fontSize: 13, color: '#1F2937', marginBottom: 8, paddingBottom: 8, borderBottom: '2px solid #F1F5F9' }}
-                formatter={(v, name) => {
-                  if (name === '_lbl' || name === '') return null;
-                  return [vndFull(v), name];
-                }}
-                labelFormatter={(label, payload) => {
-                  const entry = payload?.[0]?.payload;
-                  if (!entry) return label;
-                  return `${label}\n\nGiá Thu: ${vndFull(entry.total)} | LN: ${vndFull(entry.totalLoiNhuan)}`;
-                }}
+                formatter={channelTooltipFormatter}
               />
-              <Legend
-                payload={channelActiveStatuses.map(s => ({ value: s, type: 'rect', color: STATUS_COLORS[s] || '#94A3B8' }))}
-                wrapperStyle={{ fontSize: 11 }}
-              />
-              {channelActiveStatuses.map(status => (
-                <Bar key={status} dataKey={status} stackId="a" fill={STATUS_COLORS[status] || '#94A3B8'} name={status} />
-              ))}
-              <Bar dataKey="_lbl" stackId="a" fill="transparent" isAnimationActive={false} legendType="none">
-                <LabelList content={renderChannelLabel} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="loiNhuan" fill="#F59E0B" name="Lợi Nhuận" radius={[0, 4, 4, 0]} barSize={18}>
+                <LabelList
+                  dataKey="loiNhuan"
+                  position="right"
+                  formatter={(v) => vnd(v) + ' đ'}
+                  style={{ fontSize: 10, fontWeight: 700, fill: '#92400E' }}
+                />
+              </Bar>
+              <Bar dataKey="giaThu" fill="#06B6D4" name="Giá Thu Thực Tế" radius={[0, 4, 4, 0]} barSize={18}>
+                <LabelList
+                  dataKey="giaThu"
+                  position="right"
+                  formatter={(v) => vnd(v) + ' đ'}
+                  style={{ fontSize: 10, fontWeight: 700, fill: '#0E7490' }}
+                />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -369,27 +352,27 @@ export default function TongQuat() {
               <thead>
                 <tr style={{ borderBottom: '2px solid #E2E8F0' }}>
                   <th style={{ textAlign: 'left', padding: '8px 12px', color: '#64748B', fontWeight: 600 }}>Kênh Tiếp Thị</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', color: '#10B981', fontWeight: 600 }}>Giá Thu Thực Tế</th>
                   <th style={{ textAlign: 'right', padding: '8px 12px', color: '#F59E0B', fontWeight: 600 }}>Lợi Nhuận</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', color: '#06B6D4', fontWeight: 600 }}>Giá Thu Thực Tế</th>
                 </tr>
               </thead>
               <tbody>
                 {channelChartData.map((ch, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid #F1F5F9' }}>
                     <td style={{ padding: '8px 12px', fontWeight: 500, color: '#374151' }}>{ch.page}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#10B981' }}>{vndFull(ch.total)}</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#F59E0B' }}>{vndFull(ch.totalLoiNhuan)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#F59E0B' }}>{vndFull(ch.loiNhuan)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#06B6D4' }}>{vndFull(ch.giaThu)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr style={{ borderTop: '2px solid #E2E8F0' }}>
                   <td style={{ padding: '10px 12px', fontWeight: 700, color: '#1F2937' }}>TỔNG CỘNG</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#10B981', fontSize: 14 }}>
-                    {vndFull(channelChartData.reduce((s, c) => s + c.total, 0))}
-                  </td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#F59E0B', fontSize: 14 }}>
-                    {vndFull(channelChartData.reduce((s, c) => s + c.totalLoiNhuan, 0))}
+                    {vndFull(channelChartData.reduce((s, c) => s + c.loiNhuan, 0))}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#06B6D4', fontSize: 14 }}>
+                    {vndFull(channelChartData.reduce((s, c) => s + c.giaThu, 0))}
                   </td>
                 </tr>
               </tfoot>
