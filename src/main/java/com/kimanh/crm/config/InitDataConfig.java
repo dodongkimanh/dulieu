@@ -33,10 +33,19 @@ public class InitDataConfig {
     @Bean
     public CommandLineRunner initAdmin() {
         return args -> {
-            // 1. Create/update admin account
+            try {
+                doInit();
+            } catch (Exception e) {
+                log.error("InitDataConfig failed (app will continue): {}", e.getMessage(), e);
+            }
+        };
+    }
+
+    private void doInit() {
+        // 1. Create/update admin account
+        try {
             User admin = userRepository.findByUsername(ADMIN_USERNAME).orElse(null);
             if (admin == null) {
-                // Check if old "admin" username exists → migrate it
                 User oldAdmin = userRepository.findByUsername("admin").orElse(null);
                 if (oldAdmin != null) {
                     oldAdmin.setUsername(ADMIN_USERNAME);
@@ -62,56 +71,58 @@ public class InitDataConfig {
                 admin.setActive(true);
                 userRepository.save(admin);
             }
+        } catch (Exception e) {
+            log.warn("Could not init admin account: {}", e.getMessage());
+        }
 
-            // 2. Migrate existing SALER usernames to @crm.com format
-            try {
-                List<User> allExisting = userRepository.findAll();
-                for (User u : allExisting) {
-                    if ("SALER".equals(u.getRole()) && u.getFullName() != null
-                            && !u.getUsername().endsWith("@crm.com")) {
-                        String newUsername = toAsciiUsername(u.getFullName());
-                        if (newUsername != null && !userRepository.existsByUsername(newUsername)) {
-                            String oldUn = u.getUsername();
-                            u.setUsername(newUsername);
-                            userRepository.save(u);
-                            log.info("Migrated SALER username: '{}' → '{}'", oldUn, newUsername);
-                        }
+        // 2. Migrate existing SALER usernames to @crm.com format
+        try {
+            List<User> allExisting = userRepository.findAll();
+            for (User u : allExisting) {
+                if ("SALER".equals(u.getRole()) && u.getFullName() != null
+                        && !u.getUsername().endsWith("@crm.com")) {
+                    String newUsername = toAsciiUsername(u.getFullName());
+                    if (newUsername != null && !userRepository.existsByUsername(newUsername)) {
+                        String oldUn = u.getUsername();
+                        u.setUsername(newUsername);
+                        userRepository.save(u);
+                        log.info("Migrated SALER username: '{}' → '{}'", oldUn, newUsername);
                     }
                 }
-            } catch (Exception e) {
-                log.warn("Could not migrate SALER usernames: {}", e.getMessage());
             }
+        } catch (Exception e) {
+            log.warn("Could not migrate SALER usernames: {}", e.getMessage());
+        }
 
-            // 3. Seed SALER accounts from data_dulieukhach distinct Sale names
-            try {
-                List<String> saleNames = khachHangRepository.findDistinctSales();
-                Set<String> existingFullNames = userRepository.findAll().stream()
-                        .map(User::getFullName)
-                        .filter(fn -> fn != null)
-                        .map(String::trim)
-                        .collect(Collectors.toSet());
+        // 3. Seed SALER accounts from data_dulieukhach distinct Sale names
+        try {
+            List<String> saleNames = khachHangRepository.findDistinctSales();
+            Set<String> existingFullNames = userRepository.findAll().stream()
+                    .map(User::getFullName)
+                    .filter(fn -> fn != null)
+                    .map(String::trim)
+                    .collect(Collectors.toSet());
 
-                for (String rawName : saleNames) {
-                    if (rawName == null || rawName.isBlank()) continue;
-                    String trimmedName = rawName.trim();
-                    // Skip non-sale entries
-                    if (trimmedName.equalsIgnoreCase("No Sale") || trimmedName.isEmpty()) continue;
+            for (String rawName : saleNames) {
+                if (rawName == null || rawName.isBlank()) continue;
+                String trimmedName = rawName.trim();
+                if (trimmedName.equalsIgnoreCase("No Sale") || trimmedName.isEmpty()) continue;
 
-                    // Handle multi-sale entries like "Nga Đồ Đồng, Hiền Đồ Đồng"
-                    if (trimmedName.contains(",")) {
-                        for (String part : trimmedName.split(",")) {
-                            seedSaleAccount(part.trim(), existingFullNames);
-                        }
-                        continue;
+                if (trimmedName.contains(",")) {
+                    for (String part : trimmedName.split(",")) {
+                        seedSaleAccount(part.trim(), existingFullNames);
                     }
-                    seedSaleAccount(trimmedName, existingFullNames);
+                    continue;
                 }
-                log.info("SALER account seeding completed. Total users: {}", userRepository.count());
-            } catch (Exception e) {
-                log.warn("Could not seed SALER accounts from data_dulieukhach: {}", e.getMessage());
+                seedSaleAccount(trimmedName, existingFullNames);
             }
+            log.info("SALER account seeding completed. Total users: {}", userRepository.count());
+        } catch (Exception e) {
+            log.warn("Could not seed SALER accounts from data_dulieukhach: {}", e.getMessage());
+        }
 
-            // 4. Repair any users with null/corrupted passwords
+        // 4. Repair any users with null/corrupted passwords
+        try {
             List<User> allUsers = userRepository.findAll();
             for (User user : allUsers) {
                 if (user.getPassword() == null || user.getPassword().isBlank()) {
@@ -121,10 +132,16 @@ public class InitDataConfig {
                             user.getUsername(), user.getFullName());
                 }
             }
+        } catch (Exception e) {
+            log.warn("Could not repair passwords: {}", e.getMessage());
+        }
 
-            // 5. Seed default marketing channels
+        // 5. Seed default marketing channels
+        try {
             kenhTiepThiService.seedDefaults();
-        };
+        } catch (Exception e) {
+            log.warn("Could not seed marketing channels: {}", e.getMessage());
+        }
     }
 
     private void seedSaleAccount(String fullName, Set<String> existingFullNames) {
