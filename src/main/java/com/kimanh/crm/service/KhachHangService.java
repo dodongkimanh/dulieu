@@ -170,9 +170,20 @@ public class KhachHangService {
         List<Object[]> messByDay = repository.countMessByDayForSale(sale, fromDate, toDate);
         List<Map<String, Object>> dayData = new ArrayList<>();
         for (Object[] row : messByDay) {
+            // Hibernate 6 compatibility: native queries may wrap each row in an extra Object[]
+            // e.g. row = Object[]{ Object[]{day_val, count_val} } instead of Object[]{day_val, count_val}
+            Object col0, col1;
+            if (row.length == 1 && row[0] instanceof Object[]) {
+                Object[] inner = (Object[]) row[0];
+                col0 = inner.length > 0 ? inner[0] : null;
+                col1 = inner.length > 1 ? inner[1] : null;
+            } else {
+                col0 = row.length > 0 ? row[0] : null;
+                col1 = row.length > 1 ? row[1] : null;
+            }
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("day", ((Number) row[0]).intValue());
-            item.put("count", ((Number) row[1]).longValue());
+            item.put("day", col0 != null ? Integer.parseInt(col0.toString()) : 0);
+            item.put("count", col1 != null ? Long.parseLong(col1.toString()) : 0L);
             dayData.add(item);
         }
         result.put("messByDay", dayData);

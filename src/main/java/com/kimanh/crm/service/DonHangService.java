@@ -312,6 +312,7 @@ public class DonHangService {
         BigDecimal totalRevenue = BigDecimal.ZERO;
         BigDecimal qualifiedRevenue = BigDecimal.ZERO;
         BigDecimal totalProfit = BigDecimal.ZERO;
+        BigDecimal qualifiedProfit = BigDecimal.ZERO;
         long totalOrders = 0;
 
         Set<String> qualifiedStatuses = Set.of(
@@ -338,6 +339,8 @@ public class DonHangService {
 
             if (qualifiedStatuses.contains(status)) {
                 qualifiedRevenue = qualifiedRevenue.add(revenue);
+                // Lợi nhuận ước tính chỉ tính các trạng thái đủ điều kiện (không tính "Đang Chờ", "Hoàn hàng", "HỦY ĐƠN")
+                qualifiedProfit = qualifiedProfit.add(profit);
             }
         }
 
@@ -345,6 +348,7 @@ public class DonHangService {
         result.put("qualifiedRevenue", qualifiedRevenue);
         result.put("messAllocation", calculateMessAllocation(qualifiedRevenue));
         result.put("totalProfit", totalProfit);
+        result.put("qualifiedProfit", qualifiedProfit);
         result.put("ordersByStatus", statusData);
         result.put("totalOrders", totalOrders);
 

@@ -16,8 +16,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.springframework.jdbc.core.JdbcTemplate;
-
 @Configuration
 @RequiredArgsConstructor
 @Slf4j
@@ -27,7 +25,6 @@ public class InitDataConfig {
     private final KhachHangRepository khachHangRepository;
     private final PasswordEncoder passwordEncoder;
     private final KenhTiepThiService kenhTiepThiService;
-    private final JdbcTemplate jdbcTemplate;
 
     private static final String ADMIN_USERNAME = "dangducky@kimanh.com";
     private static final String ADMIN_PASSWORD = "Admin@123";
@@ -49,55 +46,21 @@ public class InitDataConfig {
         try {
             User admin = userRepository.findByUsername(ADMIN_USERNAME).orElse(null);
             if (admin == null) {
-                User oldAdmin = userRepository.findByUsername("admin").orElse(null);
-                if (oldAdmin != null) {
-                    oldAdmin.setUsername(ADMIN_USERNAME);
-                    oldAdmin.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
-                    oldAdmin.setFullName("Dang Duc Ky");
-                    oldAdmin.setRole("ADMIN");
-                    oldAdmin.setActive(true);
-                    userRepository.save(oldAdmin);
-                    log.info("Migrated old admin → {}", ADMIN_USERNAME);
-                } else {
-                    admin = User.builder()
-                            .username(ADMIN_USERNAME)
-                            .password(passwordEncoder.encode(ADMIN_PASSWORD))
-                            .fullName("Dang Duc Ky")
-                            .role("ADMIN")
-                            .active(true)
-                            .build();
-                    userRepository.save(admin);
-                    log.info("Created admin: {}", ADMIN_USERNAME);
-                }
-            } else {
-                admin.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
-                admin.setActive(true);
+                admin = User.builder()
+                        .username(ADMIN_USERNAME)
+                        .password(passwordEncoder.encode(ADMIN_PASSWORD))
+                        .fullName("Dang Duc Ky")
+                        .role("ADMIN")
+                        .active(true)
+                        .build();
                 userRepository.save(admin);
+                log.info("Created admin: {}", ADMIN_USERNAME);
             }
         } catch (Exception e) {
             log.warn("Could not init admin account: {}", e.getMessage());
         }
 
-        // 2. Migrate existing SALER usernames to @kimanh.com format
-        try {
-            List<User> allExisting = userRepository.findAll();
-            for (User u : allExisting) {
-                if ("SALER".equals(u.getRole()) && u.getFullName() != null
-                        && !u.getUsername().endsWith("@kimanh.com")) {
-                    String newUsername = toAsciiUsername(u.getFullName());
-                    if (newUsername != null && !userRepository.existsByUsername(newUsername)) {
-                        String oldUn = u.getUsername();
-                        u.setUsername(newUsername);
-                        userRepository.save(u);
-                        log.info("Migrated SALER username: '{}' → '{}'", oldUn, newUsername);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Could not migrate SALER usernames: {}", e.getMessage());
-        }
-
-        // 3. Seed SALER accounts from data_dulieukhach distinct Sale names
+        // 2. Seed SALER accounts from data_dulieukhach distinct Sale names
         try {
             List<String> saleNames = khachHangRepository.findDistinctSales();
             Set<String> existingFullNames = userRepository.findAll().stream()
@@ -124,7 +87,7 @@ public class InitDataConfig {
             log.warn("Could not seed SALER accounts from data_dulieukhach: {}", e.getMessage());
         }
 
-        // 4. Repair any users with null/corrupted passwords
+        // 3. Repair any users with null/corrupted passwords
         try {
             List<User> allUsers = userRepository.findAll();
             for (User user : allUsers) {
@@ -139,51 +102,11 @@ public class InitDataConfig {
             log.warn("Could not repair passwords: {}", e.getMessage());
         }
 
-        // 5. Seed default marketing channels
+        // 4. Seed default marketing channels
         try {
             kenhTiepThiService.seedDefaults();
         } catch (Exception e) {
             log.warn("Could not seed marketing channels: {}", e.getMessage());
-        }
-
-        // 6. Migrate Mess column values to loai_mess (one-time data fix)
-        try {
-            int updated = jdbcTemplate.update(
-                "UPDATE data_dulieukhach SET loai_mess = 'mess_moi' " +
-                "WHERE loai_mess IS NULL AND \"Mess\" IS NOT NULL AND LOWER(TRIM(\"Mess\")) IN ('mes mới', 'mess mới', 'mes moi', 'mess moi')"
-            );
-            int updatedCu = jdbcTemplate.update(
-                "UPDATE data_dulieukhach SET loai_mess = 'mess_cu' " +
-                "WHERE loai_mess IS NULL AND \"Mess\" IS NOT NULL AND LOWER(TRIM(\"Mess\")) IN ('mes cũ', 'mess cũ', 'mes cu', 'mess cu')"
-            );
-            int updatedSpam = jdbcTemplate.update(
-                "UPDATE data_dulieukhach SET loai_mess = 'mess_spam' " +
-                "WHERE loai_mess IS NULL AND \"Mess\" IS NOT NULL AND LOWER(TRIM(\"Mess\")) IN ('mes spam', 'mess spam')"
-            );
-            if (updated + updatedCu + updatedSpam > 0) {
-                log.info("Migrated loai_mess: {} mới, {} cũ, {} spam", updated, updatedCu, updatedSpam);
-            }
-        } catch (Exception e) {
-            log.warn("Could not migrate loai_mess: {}", e.getMessage());
-        }
-
-        // 7. Migrate admin username from @crm.com to @kimanh.com
-        try {
-            User oldCrmAdmin = userRepository.findByUsername("dangducky@crm.com").orElse(null);
-            if (oldCrmAdmin != null) {
-                if (!userRepository.existsByUsername(ADMIN_USERNAME)) {
-                    oldCrmAdmin.setUsername(ADMIN_USERNAME);
-                    userRepository.save(oldCrmAdmin);
-                    log.info("Migrated admin username: dangducky@crm.com → {}", ADMIN_USERNAME);
-                } else {
-                    // New admin already exists, deactivate old one
-                    oldCrmAdmin.setActive(false);
-                    userRepository.save(oldCrmAdmin);
-                    log.info("Deactivated old admin: dangducky@crm.com");
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Could not migrate admin username: {}", e.getMessage());
         }
     }
 

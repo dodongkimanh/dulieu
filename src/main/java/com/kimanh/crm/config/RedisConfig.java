@@ -6,6 +6,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CachingConfigurer;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.cache.interceptor.SimpleCacheErrorHandler;
 import org.springframework.context.annotation.Bean;
@@ -24,26 +25,35 @@ public class RedisConfig implements CachingConfigurer {
 
     @Bean
     public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
-        ObjectMapper om = new ObjectMapper();
-        om.registerModule(new JavaTimeModule());
-        om.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        om.activateDefaultTyping(
-                om.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.NON_FINAL
-        );
+        try {
+            // Test Redis connection before building cache manager
+            connectionFactory.getConnection().close();
 
-        RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(10))
-                .serializeValuesWith(
-                        RedisSerializationContext.SerializationPair.fromSerializer(
-                                new GenericJackson2JsonRedisSerializer(om)
-                        )
-                )
-                .disableCachingNullValues();
+            ObjectMapper om = new ObjectMapper();
+            om.registerModule(new JavaTimeModule());
+            om.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+            om.activateDefaultTyping(
+                    om.getPolymorphicTypeValidator(),
+                    ObjectMapper.DefaultTyping.NON_FINAL
+            );
 
-        return RedisCacheManager.builder(connectionFactory)
-                .cacheDefaults(config)
-                .build();
+            RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
+                    .entryTtl(Duration.ofMinutes(10))
+                    .serializeValuesWith(
+                            RedisSerializationContext.SerializationPair.fromSerializer(
+                                    new GenericJackson2JsonRedisSerializer(om)
+                            )
+                    )
+                    .disableCachingNullValues();
+
+            log.info("Redis connection OK — using RedisCacheManager");
+            return RedisCacheManager.builder(connectionFactory)
+                    .cacheDefaults(config)
+                    .build();
+        } catch (Exception e) {
+            log.warn("Redis unavailable ({}), falling back to in-memory cache", e.getMessage());
+            return new ConcurrentMapCacheManager();
+        }
     }
 
     /** Make Redis cache failures non-fatal - app continues without caching */
