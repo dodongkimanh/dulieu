@@ -108,6 +108,19 @@ public class AuthService {
 
     @Transactional
     public User register(String username, String password, String fullName, String role) {
+        if (username == null || username.isBlank()) {
+            throw new RuntimeException("Tên đăng nhập không được để trống");
+        }
+        if (password == null || password.isBlank() || password.trim().length() < 6) {
+            throw new RuntimeException("Mật khẩu phải có ít nhất 6 ký tự");
+        }
+        // Validate: username must be ASCII-only (no Vietnamese/Unicode) to avoid UTF-8 DB issues
+        if (!username.matches("^[a-zA-Z0-9._@]+$")) {
+            throw new RuntimeException("Tên đăng nhập chỉ cho phép chữ cái không dấu, số, dấu chấm, @ và gạch dưới");
+        }
+        if (username.length() < 3) {
+            throw new RuntimeException("Tên đăng nhập phải có ít nhất 3 ký tự");
+        }
         if (userRepository.existsByUsername(username)) {
             throw new RuntimeException("Tên đăng nhập đã tồn tại");
         }

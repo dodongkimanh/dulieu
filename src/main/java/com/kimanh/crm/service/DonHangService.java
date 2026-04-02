@@ -57,13 +57,7 @@ public class DonHangService {
         @CacheEvict(value = "sale_revenue", allEntries = true)
     })
     public DonHang create(DonHang entity) {
-        // Allow manual Mã Hóa Đơn; auto-generate if blank
-        if (entity.getMaHoaDon() == null || entity.getMaHoaDon().isBlank()) {
-            String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String prefix = "HD-" + datePart + "-";
-            int maxSeq = repository.findMaxInvoiceSeq(prefix);
-            entity.setMaHoaDon(String.format("%s%03d", prefix, maxSeq + 1));
-        }
+        // Mã Hóa Đơn: user inputs manually, no auto-generation
         return repository.save(entity);
     }
 
@@ -335,6 +329,7 @@ public class DonHangService {
             item.put("tinhTrang", status);
             item.put("count", cnt);
             item.put("revenue", revenue);
+            item.put("profit", profit);
             statusData.add(item);
 
             totalRevenue = totalRevenue.add(revenue);
