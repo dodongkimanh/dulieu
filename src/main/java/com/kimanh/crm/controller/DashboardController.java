@@ -25,8 +25,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-import java.util.concurrent.CompletableFuture;
-
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
@@ -161,15 +159,18 @@ public class DashboardController {
         result.put("sale", sale);
         result.put("costPerMess", messConfigService.getCostPerMess());
 
-        // Run the two heavy queries in parallel
+        // Sequential calls (CompletableFuture causes Spring AOP/cache proxy issues in production)
         final String saleName = sale;
-        CompletableFuture<Map<String, Object>> revenueFuture =
-                CompletableFuture.supplyAsync(() -> donHangService.getSaleRevenue(saleName, fromDate, toDate));
-        CompletableFuture<Map<String, Object>> messFuture =
-                CompletableFuture.supplyAsync(() -> khachHangService.getMessStats(saleName, fromDate, toDate));
-
-        result.putAll(revenueFuture.join());
-        result.putAll(messFuture.join());
+        try {
+            result.putAll(donHangService.getSaleRevenue(saleName, fromDate, toDate));
+        } catch (Exception e) {
+            result.put("revenueError", e.getMessage());
+        }
+        try {
+            result.putAll(khachHangService.getMessStats(saleName, fromDate, toDate));
+        } catch (Exception e) {
+            result.put("messError", e.getMessage());
+        }
 
         return ResponseEntity.ok(result);
     }

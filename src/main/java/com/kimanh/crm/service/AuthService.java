@@ -10,9 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -23,6 +25,12 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
+    /** Normalize Vietnamese Unicode to NFC to avoid NFC/NFD mismatch */
+    private String normalizeUnicode(String s) {
+        if (s == null) return "";
+        return Normalizer.normalize(s.trim(), Normalizer.Form.NFC);
+    }
+
     public Map<String, Object> login(String username, String password) {
         if (username == null || username.isBlank()) {
             throw new RuntimeException("Vui lòng nhập tài khoản");
@@ -31,20 +39,39 @@ public class AuthService {
             throw new RuntimeException("Vui lòng nhập mật khẩu");
         }
 
-        String loginInput = username.trim();
-        log.info("Login attempt for: '{}'", loginInput);
+        String loginInput = normalizeUnicode(username);
+        log.info("Login attempt for: '{}' (length={})", loginInput, loginInput.length());
 
-        // Search by username OR fullName in a single query (safe with duplicates)
+        // Step 1: Try direct DB query (fast path)
         List<User> candidates = userRepository.findByUsernameOrFullName(loginInput);
-        log.info("Found {} candidates for login '{}'", candidates.size(), loginInput);
+        log.info("DB query found {} candidates", candidates.size());
+
+        // Step 2: If not found, fallback to Unicode-normalized comparison against ALL users
+        // This handles NFC/NFD mismatch between browser input and database storage
         if (candidates.isEmpty()) {
-            // Debug: log all users to diagnose
+            log.warn("Direct query found nothing. Trying Unicode-normalized fallback...");
             List<User> allUsers = userRepository.findAll();
-            for (User u : allUsers) {
-                log.warn("DB user: id={}, username='{}', fullName='{}', active={}",
-                        u.getId(), u.getUsername(), u.getFullName(), u.getActive());
+            candidates = allUsers.stream()
+                    .filter(u -> {
+                        String uname = normalizeUnicode(u.getUsername());
+                        String fname = normalizeUnicode(u.getFullName());
+                        return uname.equals(loginInput) || fname.equals(loginInput);
+                    })
+                    .collect(Collectors.toList());
+            log.info("Unicode fallback found {} candidates", candidates.size());
+
+            if (candidates.isEmpty()) {
+                // Still not found - log all users for diagnosis
+                for (User u : allUsers) {
+                    log.warn("DB user: id={}, username='{}' (len={}), fullName='{}' (len={}), active={}",
+                            u.getId(), u.getUsername(),
+                            u.getUsername() != null ? u.getUsername().length() : 0,
+                            u.getFullName(),
+                            u.getFullName() != null ? u.getFullName().length() : 0,
+                            u.getActive());
+                }
+                throw new RuntimeException("Tài khoản không tồn tại");
             }
-            throw new RuntimeException("Tài khoản không tồn tại: " + loginInput);
         }
 
         // Try to find the first active user whose password matches
@@ -62,13 +89,13 @@ public class AuthService {
         }
 
         if (matchedUser == null) {
-            // All candidates were inactive
             if (hasInactive && candidates.stream().noneMatch(User::getActive)) {
                 throw new RuntimeException("Tài khoản đã bị khóa");
             }
             throw new RuntimeException("Mật khẩu không chính xác");
         }
 
+        log.info("Login success for user: {} ({})", matchedUser.getUsername(), matchedUser.getFullName());
         String token = jwtUtil.generateToken(matchedUser.getUsername(), matchedUser.getRole());
 
         Map<String, Object> result = new HashMap<>();
