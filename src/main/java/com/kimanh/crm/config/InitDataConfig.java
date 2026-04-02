@@ -26,7 +26,7 @@ public class InitDataConfig {
     private final PasswordEncoder passwordEncoder;
     private final KenhTiepThiService kenhTiepThiService;
 
-    private static final String ADMIN_USERNAME = "dangducky@crm.com";
+    private static final String ADMIN_USERNAME = "dangducky@kimanh.com";
     private static final String ADMIN_PASSWORD = "Admin@123";
     private static final String DEFAULT_SALER_PASSWORD = "111111";
 
@@ -75,12 +75,12 @@ public class InitDataConfig {
             log.warn("Could not init admin account: {}", e.getMessage());
         }
 
-        // 2. Migrate existing SALER usernames to @crm.com format
+        // 2. Migrate existing SALER usernames to @kimanh.com format
         try {
             List<User> allExisting = userRepository.findAll();
             for (User u : allExisting) {
                 if ("SALER".equals(u.getRole()) && u.getFullName() != null
-                        && !u.getUsername().endsWith("@crm.com")) {
+                        && !u.getUsername().endsWith("@kimanh.com")) {
                     String newUsername = toAsciiUsername(u.getFullName());
                     if (newUsername != null && !userRepository.existsByUsername(newUsername)) {
                         String oldUn = u.getUsername();
@@ -154,12 +154,12 @@ public class InitDataConfig {
             return;
         }
 
-        // Ensure unique username (append suffix before @crm.com if collision)
-        String basePart = username.replace("@crm.com", "");
+        // Ensure unique username (append suffix before @kimanh.com if collision)
+        String basePart = username.replace("@kimanh.com", "");
         String finalUsername = username;
         int suffix = 2;
         while (userRepository.existsByUsername(finalUsername)) {
-            finalUsername = basePart + suffix + "@crm.com";
+            finalUsername = basePart + suffix + "@kimanh.com";
             suffix++;
         }
 
@@ -176,10 +176,10 @@ public class InitDataConfig {
     }
 
     /**
-     * Convert Vietnamese full name to ASCII-only username with @crm.com suffix.
-     * "Kiên Đồ Đồng" → "kiendodong@crm.com"
-     * "Quỳnh Đồ Đồng" → "quynhdodong@crm.com"
-     * "Kiều Đúc Đồng Nam.Định" → "kieuducdongnamdinh@crm.com"
+     * Convert Vietnamese full name to ASCII-only username with @kimanh.com suffix.
+     * "Kiên Đồ Đồng" → "kiendodong@kimanh.com"
+     * "Quỳnh Đồ Đồng" → "quynhdodong@kimanh.com"
+     * "Kiều Đúc Đồng Nam.Định" → "kieuducdongnamdinh@kimanh.com"
      */
     private String toAsciiUsername(String fullName) {
         if (fullName == null || fullName.isBlank()) return null;
@@ -188,6 +188,6 @@ public class InitDataConfig {
         s = s.replace("đ", "d").replace("Đ", "d");
         s = s.toLowerCase().replaceAll("[^a-z0-9]", "");
         if (s.isEmpty()) return null;
-        return s + "@crm.com";
+        return s + "@kimanh.com";
     }
 }
