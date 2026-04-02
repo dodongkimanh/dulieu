@@ -363,6 +363,38 @@ export default function TongQuat() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          {/* Summary table below chart */}
+          <div style={{ padding: '16px 22px 8px', borderTop: '1px solid #F1F5F9' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #E2E8F0' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', color: '#64748B', fontWeight: 600 }}>Kênh Tiếp Thị</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', color: '#10B981', fontWeight: 600 }}>Giá Thu Thực Tế</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', color: '#F59E0B', fontWeight: 600 }}>Lợi Nhuận</th>
+                </tr>
+              </thead>
+              <tbody>
+                {channelChartData.map((ch, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 500, color: '#374151' }}>{ch.page}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#10B981' }}>{vndFull(ch.total)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#F59E0B' }}>{vndFull(ch.totalLoiNhuan)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ borderTop: '2px solid #E2E8F0' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#1F2937' }}>TỔNG CỘNG</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#10B981', fontSize: 14 }}>
+                    {vndFull(channelChartData.reduce((s, c) => s + c.total, 0))}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#F59E0B', fontSize: 14 }}>
+                    {vndFull(channelChartData.reduce((s, c) => s + c.totalLoiNhuan, 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </motion.div>
       )}
 
