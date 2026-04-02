@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.jdbc.core.JdbcTemplate;
+
 @Configuration
 @RequiredArgsConstructor
 @Slf4j
@@ -25,6 +27,7 @@ public class InitDataConfig {
     private final KhachHangRepository khachHangRepository;
     private final PasswordEncoder passwordEncoder;
     private final KenhTiepThiService kenhTiepThiService;
+    private final JdbcTemplate jdbcTemplate;
 
     private static final String ADMIN_USERNAME = "dangducky@kimanh.com";
     private static final String ADMIN_PASSWORD = "Admin@123";
@@ -141,6 +144,46 @@ public class InitDataConfig {
             kenhTiepThiService.seedDefaults();
         } catch (Exception e) {
             log.warn("Could not seed marketing channels: {}", e.getMessage());
+        }
+
+        // 6. Migrate Mess column values to loai_mess (one-time data fix)
+        try {
+            int updated = jdbcTemplate.update(
+                "UPDATE data_dulieukhach SET loai_mess = 'mess_moi' " +
+                "WHERE loai_mess IS NULL AND \"Mess\" IS NOT NULL AND LOWER(TRIM(\"Mess\")) IN ('mes mới', 'mess mới', 'mes moi', 'mess moi')"
+            );
+            int updatedCu = jdbcTemplate.update(
+                "UPDATE data_dulieukhach SET loai_mess = 'mess_cu' " +
+                "WHERE loai_mess IS NULL AND \"Mess\" IS NOT NULL AND LOWER(TRIM(\"Mess\")) IN ('mes cũ', 'mess cũ', 'mes cu', 'mess cu')"
+            );
+            int updatedSpam = jdbcTemplate.update(
+                "UPDATE data_dulieukhach SET loai_mess = 'mess_spam' " +
+                "WHERE loai_mess IS NULL AND \"Mess\" IS NOT NULL AND LOWER(TRIM(\"Mess\")) IN ('mes spam', 'mess spam')"
+            );
+            if (updated + updatedCu + updatedSpam > 0) {
+                log.info("Migrated loai_mess: {} mới, {} cũ, {} spam", updated, updatedCu, updatedSpam);
+            }
+        } catch (Exception e) {
+            log.warn("Could not migrate loai_mess: {}", e.getMessage());
+        }
+
+        // 7. Migrate admin username from @crm.com to @kimanh.com
+        try {
+            User oldCrmAdmin = userRepository.findByUsername("dangducky@crm.com").orElse(null);
+            if (oldCrmAdmin != null) {
+                if (!userRepository.existsByUsername(ADMIN_USERNAME)) {
+                    oldCrmAdmin.setUsername(ADMIN_USERNAME);
+                    userRepository.save(oldCrmAdmin);
+                    log.info("Migrated admin username: dangducky@crm.com → {}", ADMIN_USERNAME);
+                } else {
+                    // New admin already exists, deactivate old one
+                    oldCrmAdmin.setActive(false);
+                    userRepository.save(oldCrmAdmin);
+                    log.info("Deactivated old admin: dangducky@crm.com");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not migrate admin username: {}", e.getMessage());
         }
     }
 
