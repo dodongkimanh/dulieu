@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
 import { motion } from 'framer-motion';
-import { dashboardApi, donHangApi } from '../api';
+import { dashboardApi, donHangApi, authApi } from '../api';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
@@ -54,7 +54,15 @@ export default function TongQuat() {
   }, []);
 
   const fetchSales = async () => {
-    try { const res = await donHangApi.getSales(); setSalesList(res.data || []); } catch {}
+    try {
+      // Merge sales from orders + active sale users to get ALL sales
+      const [orderSalesRes, userSalesRes] = await Promise.all([
+        donHangApi.getSales().catch(() => ({ data: [] })),
+        authApi.getSaleUsers().catch(() => ({ data: [] })),
+      ]);
+      const merged = [...new Set([...(orderSalesRes.data || []), ...(userSalesRes.data || [])])].filter(Boolean).sort();
+      setSalesList(merged);
+    } catch {}
   };
 
   const fetchAnalytics = useCallback(async (from, to) => {
@@ -199,15 +207,15 @@ export default function TongQuat() {
           </motion.div>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <motion.div className="tq-kpi-card kpi-purple" whileHover={{ y: -3 }}>
-            <div className="tq-kpi-value">{vnd(filteredTotal.sumLoiNhuan)} đ</div>
-            <div className="tq-kpi-label">Lợi Nhuận Ước Tính</div>
-          </motion.div>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
           <motion.div className="tq-kpi-card kpi-blue" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaThu)} đ</div>
             <div className="tq-kpi-label">Giá Thu Thực Tế</div>
+          </motion.div>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <motion.div className="tq-kpi-card kpi-purple" whileHover={{ y: -3 }}>
+            <div className="tq-kpi-value">{vnd(filteredTotal.sumLoiNhuan)} đ</div>
+            <div className="tq-kpi-label">Lợi Nhuận Ước Tính</div>
           </motion.div>
         </Col>
         <Col xs={24} sm={12} md={6}>
@@ -281,25 +289,26 @@ export default function TongQuat() {
             <AppstoreOutlined style={{ color: '#4F46E5' }} /> Doanh số theo Kênh Tiếp Thị
           </div>
           <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 12, paddingLeft: 22 }}>
-            Click vào cột để xem chi tiết Giá Thu Thực Tế và Lợi Nhuận
+            Di chuột vào cột để xem chi tiết Giá Bán, Giá Thu Thực Tế và Lợi Nhuận từng kênh
           </div>
-          <ResponsiveContainer width="100%" height={Math.max(280, (analytics.byPage || []).length * 44)}>
-            <BarChart data={analytics.byPage} layout="vertical" margin={{ top: 5, right: 160, left: 120, bottom: 5 }}>
+          <ResponsiveContainer width="100%" height={Math.max(320, (analytics.byPage || []).length * 80)}>
+            <BarChart data={analytics.byPage} layout="vertical" margin={{ top: 5, right: 120, left: 140, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
-              <YAxis type="category" dataKey="page" tick={{ fontSize: 11, fill: '#374151' }} width={120} />
+              <YAxis type="category" dataKey="page" tick={{ fontSize: 11, fill: '#374151', fontWeight: 500 }} width={140} />
               <Tooltip
-                cursor={{ fill: 'rgba(79, 70, 229, 0.06)' }}
+                cursor={{ fill: 'rgba(79, 70, 229, 0.04)' }}
                 contentStyle={{
                   borderRadius: 12,
-                  border: '1px solid #E2E8F0',
-                  fontSize: 12,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                  padding: '12px 16px',
-                  minWidth: 260,
+                  border: 'none',
+                  fontSize: 13,
+                  boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+                  padding: '16px 20px',
+                  minWidth: 280,
+                  background: '#fff',
                 }}
-                labelStyle={{ fontWeight: 700, fontSize: 13, color: '#1F2937', marginBottom: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 8 }}
-                labelFormatter={(label) => `📊 ${label}`}
+                labelStyle={{ fontWeight: 700, fontSize: 14, color: '#1F2937', marginBottom: 10, paddingBottom: 10, borderBottom: '2px solid #F1F5F9' }}
+                labelFormatter={(label) => label}
                 formatter={(value, name) => {
                   const colorMap = {
                     'Giá Bán Lên Đơn': '#4F46E5',
@@ -307,18 +316,25 @@ export default function TongQuat() {
                     'Lợi Nhuận': '#F59E0B',
                   };
                   return [
-                    <span style={{ fontWeight: 600, color: colorMap[name] || '#374151' }}>{vndFull(value)}</span>,
-                    <span style={{ color: '#64748B' }}>{name}</span>
+                    <span style={{ fontWeight: 700, color: colorMap[name] || '#374151' }}>{vndFull(value)}</span>,
+                    <span style={{ color: colorMap[name] || '#64748B', fontWeight: 600 }}>{name}</span>
                   ];
                 }}
-                itemStyle={{ padding: '3px 0' }}
+                itemStyle={{ padding: '4px 0' }}
               />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-              <Bar dataKey="sumGiaBan" fill="#4F46E5" name="Giá Bán Lên Đơn" radius={[0, 6, 6, 0]} barSize={24}>
-                <LabelList position="right" formatter={(v) => vnd(v) + ' đ'} style={{ fontSize: 10, fontWeight: 700, fill: '#374151' }} />
+              <Legend
+                wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
+                payload={[
+                  { value: 'Giá Bán Lên Đơn', type: 'rect', color: '#4F46E5' },
+                  { value: 'Giá Thu Thực Tế', type: 'rect', color: '#10B981' },
+                  { value: 'Lợi Nhuận', type: 'rect', color: '#F59E0B' },
+                ]}
+              />
+              <Bar dataKey="sumGiaBan" fill="#4F46E5" name="Giá Bán Lên Đơn" radius={[0, 4, 4, 0]} barSize={18}>
+                <LabelList position="right" formatter={(v) => vnd(v) + ' đ'} style={{ fontSize: 10, fontWeight: 700, fill: '#4F46E5' }} />
               </Bar>
-              <Bar dataKey="sumGiaThu" fill="#10B981" name="Giá Thu Thực Tế" radius={[0, 6, 6, 0]} barSize={24} />
-              <Bar dataKey="sumLoiNhuan" fill="#F59E0B" name="Lợi Nhuận" radius={[0, 6, 6, 0]} barSize={24} />
+              <Bar dataKey="sumGiaThu" fill="#10B981" name="Giá Thu Thực Tế" radius={[0, 4, 4, 0]} barSize={18} />
+              <Bar dataKey="sumLoiNhuan" fill="#F59E0B" name="Lợi Nhuận" radius={[0, 4, 4, 0]} barSize={18} />
             </BarChart>
           </ResponsiveContainer>
         </motion.div>
