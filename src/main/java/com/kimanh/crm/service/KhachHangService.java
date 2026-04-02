@@ -3,6 +3,7 @@ package com.kimanh.crm.service;
 import com.kimanh.crm.entity.KhachHang;
 import com.kimanh.crm.repository.KhachHangRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -15,6 +16,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class KhachHangService {
@@ -150,14 +152,16 @@ public class KhachHangService {
     }
 
     // Sale dashboard: mess stats for a specific sale
-    // Combined query: COUNT(*) + COUNT(DISTINCT sdt) in one round trip
+    // Use individual queries (long return type) to avoid Object[] parsing issues across Hibernate versions
     @Cacheable(value = "mess_stats", key = "#sale + '_' + #fromDate + '_' + #toDate")
     public Map<String, Object> getMessStats(String sale, LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new LinkedHashMap<>();
 
-        Object[] messPhones = repository.countMessAndPhonesBySale(sale, fromDate, toDate);
-        long totalMess = messPhones != null && messPhones[0] != null ? ((Number) messPhones[0]).longValue() : 0;
-        long totalPhones = messPhones != null && messPhones[1] != null ? ((Number) messPhones[1]).longValue() : 0;
+        long totalMess = repository.countMessBySale(sale, fromDate, toDate);
+        long totalPhones = repository.countDistinctSdtBySale(sale, fromDate, toDate);
+
+        log.info("getMessStats: sale='{}', from={}, to={} → totalMess={}, totalPhones={}",
+                sale, fromDate, toDate, totalMess, totalPhones);
 
         result.put("totalMess", totalMess);
         result.put("totalPhones", totalPhones);

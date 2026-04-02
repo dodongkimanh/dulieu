@@ -5,6 +5,7 @@ import com.kimanh.crm.repository.UserRepository;
 import com.kimanh.crm.service.DonHangService;
 import com.kimanh.crm.service.KhachHangService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.*;
@@ -25,6 +26,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
@@ -159,16 +161,26 @@ public class DashboardController {
         result.put("sale", sale);
         result.put("costPerMess", messConfigService.getCostPerMess());
 
+        log.info("sale-dashboard: sale='{}', fromDate={}, toDate={}", sale, fromDate, toDate);
+
         // Sequential calls (CompletableFuture causes Spring AOP/cache proxy issues in production)
         final String saleName = sale;
         try {
-            result.putAll(donHangService.getSaleRevenue(saleName, fromDate, toDate));
+            Map<String, Object> revenueData = donHangService.getSaleRevenue(saleName, fromDate, toDate);
+            log.info("sale-dashboard revenue: totalRevenue={}, qualifiedRevenue={}, totalOrders={}",
+                    revenueData.get("totalRevenue"), revenueData.get("qualifiedRevenue"), revenueData.get("totalOrders"));
+            result.putAll(revenueData);
         } catch (Exception e) {
+            log.error("sale-dashboard revenueError for sale='{}': {}", saleName, e.getMessage(), e);
             result.put("revenueError", e.getMessage());
         }
         try {
-            result.putAll(khachHangService.getMessStats(saleName, fromDate, toDate));
+            Map<String, Object> messData = khachHangService.getMessStats(saleName, fromDate, toDate);
+            log.info("sale-dashboard mess: totalMess={}, totalPhones={}",
+                    messData.get("totalMess"), messData.get("totalPhones"));
+            result.putAll(messData);
         } catch (Exception e) {
+            log.error("sale-dashboard messError for sale='{}': {}", saleName, e.getMessage(), e);
             result.put("messError", e.getMessage());
         }
 
