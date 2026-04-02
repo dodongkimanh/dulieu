@@ -236,4 +236,18 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
     List<Object[]> aggregateByPage(
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
+
+    // Analytics: aggregate by page AND status (for channel chart with status filter)
+    @Query(value = "SELECT d.page, d.tinh_trang, " +
+           "COUNT(*) as cnt, " +
+           "COALESCE(SUM(d.gia_thu_thuc_te), 0) as sum_gia_thu, " +
+           "COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) as sum_loi_nhuan " +
+           "FROM don_hang d WHERE d.page IS NOT NULL AND d.page <> '' " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "GROUP BY d.page, d.tinh_trang " +
+           "ORDER BY d.page, d.tinh_trang", nativeQuery = true)
+    List<Object[]> aggregateByPageAndStatus(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
 }

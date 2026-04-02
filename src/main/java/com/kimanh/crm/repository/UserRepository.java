@@ -15,7 +15,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByUsername(String username);
     List<User> findByRoleAndActiveTrue(String role);
 
-    // Login: find by username OR fullName (single query, safe with duplicates)
-    @Query("SELECT u FROM User u WHERE u.username = :login OR u.fullName = :login ORDER BY u.id ASC")
+    // Login: find by username OR fullName (single query, safe with duplicates, TRIM for safety)
+    @Query("SELECT u FROM User u WHERE TRIM(u.username) = TRIM(:login) OR TRIM(u.fullName) = TRIM(:login) ORDER BY u.id ASC")
     List<User> findByUsernameOrFullName(@Param("login") String login);
 }

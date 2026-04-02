@@ -143,12 +143,14 @@ public class DashboardController {
 
         // If SALER, force to their own fullName
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        boolean isSaler = auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
-        if (isSaler) {
-            sale = userRepository.findByUsername(auth.getName())
-                    .map(User::getFullName)
-                    .orElse(null);
+        if (auth != null) {
+            boolean isSaler = auth.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
+            if (isSaler) {
+                sale = userRepository.findByUsername(auth.getName())
+                        .map(User::getFullName)
+                        .orElse(null);
+            }
         }
 
         if (sale == null || sale.isBlank()) {
@@ -179,13 +181,15 @@ public class DashboardController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) throws IOException {
 
         // If SALER, force to their own fullName
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        boolean isSaler = auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
-        if (isSaler) {
-            sale = userRepository.findByUsername(auth.getName())
-                    .map(User::getFullName)
-                    .orElse(null);
+        Authentication auth2 = SecurityContextHolder.getContext().getAuthentication();
+        if (auth2 != null) {
+            boolean isSaler = auth2.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
+            if (isSaler) {
+                sale = userRepository.findByUsername(auth2.getName())
+                        .map(User::getFullName)
+                        .orElse(null);
+            }
         }
 
         if (sale == null || sale.isBlank()) {

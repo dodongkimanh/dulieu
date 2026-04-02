@@ -289,6 +289,20 @@ public class DonHangService {
         }
         result.put("byPage", pageData);
 
+        // By page AND status (for channel chart with status filter)
+        List<Object[]> byPageStatus = repository.aggregateByPageAndStatus(fromDate, toDate);
+        List<Map<String, Object>> pageStatusData = new ArrayList<>();
+        for (Object[] row : byPageStatus) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("page", row[0] != null ? row[0] : "Không xác định");
+            item.put("tinhTrang", row[1] != null ? row[1] : "Không xác định");
+            item.put("count", ((Number) row[2]).longValue());
+            item.put("sumGiaThu", row[3]);
+            item.put("sumLoiNhuan", row[4]);
+            pageStatusData.add(item);
+        }
+        result.put("byPageStatus", pageStatusData);
+
         return result;
     }
 

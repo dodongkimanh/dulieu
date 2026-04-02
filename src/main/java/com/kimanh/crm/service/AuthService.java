@@ -8,10 +8,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -29,11 +32,19 @@ public class AuthService {
         }
 
         String loginInput = username.trim();
+        log.info("Login attempt for: '{}'", loginInput);
 
         // Search by username OR fullName in a single query (safe with duplicates)
         List<User> candidates = userRepository.findByUsernameOrFullName(loginInput);
+        log.info("Found {} candidates for login '{}'", candidates.size(), loginInput);
         if (candidates.isEmpty()) {
-            throw new RuntimeException("Tài khoản không tồn tại");
+            // Debug: log all users to diagnose
+            List<User> allUsers = userRepository.findAll();
+            for (User u : allUsers) {
+                log.warn("DB user: id={}, username='{}', fullName='{}', active={}",
+                        u.getId(), u.getUsername(), u.getFullName(), u.getActive());
+            }
+            throw new RuntimeException("Tài khoản không tồn tại: " + loginInput);
         }
 
         // Try to find the first active user whose password matches

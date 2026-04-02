@@ -15,7 +15,8 @@ public class HealthController {
         return ResponseEntity.ok(Map.of(
                 "status", "UP",
                 "timestamp", Instant.now().toString(),
-                "service", "CRM Kim Anh Backend"
+                "service", "CRM Kim Anh Backend",
+                "version", "2.1.0-login-fix"
         ));
     }
 }
