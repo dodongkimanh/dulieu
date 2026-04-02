@@ -19,31 +19,31 @@ public class KhachHang implements Serializable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "\"Ngay_thang\"")
+    @Column(name = "`Ngay_thang`")
     private LocalDate ngayThang;
 
-    @Column(name = "\"Khach_hang\"")
+    @Column(name = "`Khach_hang`")
     private String khachHang;
 
-    @Column(name = "\"Sdt\"")
+    @Column(name = "`Sdt`")
     private String sdt;
 
-    @Column(name = "\"Sale\"")
+    @Column(name = "`Sale`")
     private String sale;
 
-    @Column(name = "\"Mess\"")
+    @Column(name = "`Mess`")
     private String mess;
 
-    @Column(name = "\"Uid\"")
+    @Column(name = "`Uid`")
     private String uid;
 
     @Column(name = "ad_id")
     private String adId;
 
-    @Column(name = "\"ID Trang\"")
+    @Column(name = "`ID Trang`")
     private String idTrang;
 
-    @Column(name = "\"Page\"")
+    @Column(name = "`Page`")
     private String page;
 
     @Column(name = "loai_mess")
