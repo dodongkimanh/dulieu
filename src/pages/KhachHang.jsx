@@ -265,7 +265,7 @@ export default function KhachHang() {
       </Select>
     )},
     { title: 'Ghi chú', dataIndex: 'mess', _defaultWidth: 180, ellipsis: true, render: (v, record) => {
-      const val = v && v !== 'EMPTY' ? v : '';
+      const val = v && v !== 'EMPTY' && v !== 'Mes Mới' ? v : '';
       return (
         <Input.TextArea
           defaultValue={val}
@@ -339,7 +339,7 @@ export default function KhachHang() {
         <div className="expand-items">
           <div className="expand-item"><span className="expand-label">Page</span><span className="expand-value">{record.page || '—'}</span></div>
           <div className="expand-item"><span className="expand-label">Trạng thái</span><span className="expand-value" style={{ color: statusColors[record.status]?.color, fontWeight: 700 }}>{statusColors[record.status]?.label || record.status || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">Ghi chú</span><span className="expand-value">{(record.mess && record.mess !== 'EMPTY') ? record.mess : '—'}</span></div>
+          <div className="expand-item"><span className="expand-label">Ghi chú</span><span className="expand-value">{(record.mess && record.mess !== 'EMPTY' && record.mess !== 'Mes Mới') ? record.mess : '—'}</span></div>
         </div>
       </div>
       <div className="expand-section">

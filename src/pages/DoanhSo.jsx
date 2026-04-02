@@ -277,6 +277,8 @@ export default function DoanhSo() {
   const totalPhones = Number(data?.totalPhones || 0);
   const totalOrders = Number(data?.totalOrders || 0);
   const totalProfit = Number(data?.totalProfit || 0);
+  // qualifiedProfit: lợi nhuận chỉ tính các trạng thái hoàn thành (không tính Đang Chờ, Hoàn hàng, HỦY ĐƠN)
+  const qualifiedProfit = Number(data?.qualifiedProfit ?? data?.totalProfit ?? 0);
   const ordersByStatus = data?.ordersByStatus || [];
   const messByDay = data?.messByDay || [];
   const messRemaining = Math.max(0, messAllocation - totalMess);
@@ -399,7 +401,7 @@ export default function DoanhSo() {
             <motion.div className="ds-kpi-card" whileHover={{ y: -3 }} style={{ background: 'linear-gradient(135deg, #FEF3C7, #FDE68A)', border: '1px solid #F59E0B' }}>
               <div className="ds-kpi-icon" style={{ background: '#F59E0B20', color: '#D97706' }}><WalletOutlined /></div>
               <div className="ds-kpi-content">
-                <div className="ds-kpi-value" style={{ color: '#92400E' }}>{vnd(filteredProfit)} đ</div>
+                <div className="ds-kpi-value" style={{ color: '#92400E' }}>{vnd(qualifiedProfit)} đ</div>
                 <div className="ds-kpi-label" style={{ color: '#A16207' }}>Lợi Nhuận Ước Tính của Sale</div>
               </div>
             </motion.div>
