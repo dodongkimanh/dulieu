@@ -354,7 +354,10 @@ public class DonHangService {
 
         List<Map<String, Object>> statusData = new ArrayList<>();
         for (Object[] row : byStatus) {
-            String status = row[0] != null ? row[0].toString() : "Không xác định";
+            // Normalize status to NFC to handle Unicode mismatch (NFD vs NFC) in database
+            String status = row[0] != null
+                    ? Normalizer.normalize(row[0].toString().trim(), Normalizer.Form.NFC)
+                    : "Không xác định";
             long cnt = ((Number) row[1]).longValue();
             BigDecimal revenue = row[2] != null ? new BigDecimal(row[2].toString()) : BigDecimal.ZERO;
             BigDecimal profit = row[3] != null ? new BigDecimal(row[3].toString()) : BigDecimal.ZERO;

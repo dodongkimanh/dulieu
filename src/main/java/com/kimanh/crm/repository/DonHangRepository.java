@@ -252,6 +252,17 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 
+    // Batch: revenue grouped by sale + status (no hardcoded status filter — handles Unicode NFC/NFD mismatch)
+    @Query(value = "SELECT TRIM(d.sale) as sale_name, d.tinh_trang, COALESCE(SUM(d.gia_thu_thuc_te), 0) as revenue " +
+           "FROM don_hang d " +
+           "WHERE d.sale IS NOT NULL AND TRIM(d.sale) <> '' " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "GROUP BY TRIM(d.sale), d.tinh_trang", nativeQuery = true)
+    List<Object[]> sumRevenueGroupedBySaleAndStatus(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
     // Analytics: aggregate by page (marketing channel)
     @Query(value = "SELECT d.page, " +
            "COUNT(*) as cnt, " +

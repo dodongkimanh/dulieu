@@ -220,12 +220,20 @@ public class DashboardController {
             messCountMap.merge(saleName, count, Long::sum);
         }
 
-        // Batch query 2: qualified revenue grouped by TRIM(sale)
+        // Batch query 2: revenue grouped by TRIM(sale) + status (normalize status in Java for Unicode safety)
+        Set<String> qualifiedStatuses = Set.of(
+                "Đã Giao Thành Công", "Đang giao", "Đang vận chuyển",
+                "Khách Đặt Cọc", "KH Showroom", "Kho đang gọi hàng");
+
         Map<String, BigDecimal> revenueMap = new HashMap<>();
-        for (Object[] row : donHangRepository.sumQualifiedRevenueGroupedBySale(fromDate, toDate)) {
+        for (Object[] row : donHangRepository.sumRevenueGroupedBySaleAndStatus(fromDate, toDate)) {
             String saleName = row[0] != null ? Normalizer.normalize(row[0].toString().trim().replaceAll("\\s+", " "), Normalizer.Form.NFC) : "";
-            BigDecimal revenue = row[1] != null ? new BigDecimal(row[1].toString()) : BigDecimal.ZERO;
-            revenueMap.merge(saleName, revenue, BigDecimal::add);
+            String status = row[1] != null ? Normalizer.normalize(row[1].toString().trim(), Normalizer.Form.NFC) : "";
+            BigDecimal revenue = row[2] != null ? new BigDecimal(row[2].toString()) : BigDecimal.ZERO;
+            // Only count qualified statuses for mess allocation
+            if (qualifiedStatuses.contains(status)) {
+                revenueMap.merge(saleName, revenue, BigDecimal::add);
+            }
         }
 
         // Get cost per mess for tier calculation
