@@ -153,8 +153,8 @@ export default function DoanhSo() {
         if (uniqueNames.length > 0) {
           setSelectedSale(uniqueNames[0]);
           const { from, to } = getMonthRange(dayjs());
+          // Load sale data and mess overview in parallel
           fetchData(uniqueNames[0], from, to);
-          // Fetch mess overview for all sales (for chip coloring)
           fetchSalesMessOverview(from, to);
         } else {
           setLoading(false);

@@ -140,7 +140,7 @@ export default function KhachHang() {
     try {
       const res = await authApi.getSaleUsers();
       const names = (res.data || []).filter(Boolean);
-      setAllSaleUsers(names);
+      setAllSaleUsers([...new Set(names)]);
     } catch {}
   };
 
@@ -377,7 +377,7 @@ export default function KhachHang() {
           </Select>
           {!isSaler && (
             <Select placeholder="Sale" value={filters.sale} onChange={(v) => setFilters({ ...filters, sale: v })} allowClear style={{ width: 130 }}>
-              {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
+              {allSaleUsers.map(s => <Option key={s} value={s}>{s}</Option>)}
             </Select>
           )}
           <RangePicker

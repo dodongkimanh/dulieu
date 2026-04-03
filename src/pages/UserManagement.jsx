@@ -30,19 +30,35 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const [roleFilter, setRoleFilter] = useState(null);
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
+
+  const ROLE_ORDER = { ADMIN: 0, KE_TOAN: 1, SALER: 2 };
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const res = await authApi.getUsers();
-      setUsers(res.data);
+      // Sort by role priority: ADMIN → KE_TOAN → SALER
+      const sorted = [...(res.data || [])].sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9));
+      setUsers(sorted);
     } catch { message.error('Không thể tải danh sách tài khoản'); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { fetchUsers(); }, []);
+
+  // Filtered users based on search + role filter
+  const filteredUsers = users.filter(u => {
+    if (roleFilter && u.role !== roleFilter) return false;
+    if (searchText) {
+      const s = searchText.toLowerCase();
+      return (u.username || '').toLowerCase().includes(s) || (u.fullName || '').toLowerCase().includes(s);
+    }
+    return true;
+  });
 
   const handleCreate = () => {
     form.resetFields();
@@ -160,6 +176,27 @@ export default function UserManagement() {
             <span className="page-header-title-text">Quản lý tài khoản</span>
           </div>
         </div>
+        <div className="page-header-right" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Input
+            placeholder="Tìm tài khoản / họ tên..."
+            prefix={<UserOutlined style={{ color: '#94A3B8' }} />}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            allowClear
+            style={{ width: 220 }}
+          />
+          <Select
+            placeholder="Vai trò"
+            value={roleFilter}
+            onChange={(v) => setRoleFilter(v)}
+            allowClear
+            style={{ width: 170 }}
+          >
+            <Option value="ADMIN"><Tag style={{ background: '#EDE9FE', color: '#7C3AED', border: 'none', fontWeight: 600 }}>Quản trị viên</Tag></Option>
+            <Option value="KE_TOAN"><Tag style={{ background: '#DBEAFE', color: '#2563EB', border: 'none', fontWeight: 600 }}>Kế toán</Tag></Option>
+            <Option value="SALER"><Tag style={{ background: '#D1FAE5', color: '#059669', border: 'none', fontWeight: 600 }}>Nhân viên Sale</Tag></Option>
+          </Select>
+        </div>
       </div>
 
       <div className="user-mgmt-desc">
@@ -169,7 +206,7 @@ export default function UserManagement() {
 
       <motion.div className="sg-card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.4 }}>
         <Table
-          dataSource={users}
+          dataSource={filteredUsers}
           columns={columns}
           rowKey="id"
           loading={loading}
