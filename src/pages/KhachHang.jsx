@@ -166,7 +166,7 @@ export default function KhachHang() {
     } catch { message.error('Lỗi cập nhật loại mess'); }
   };
 
-  const handleCreate = () => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ ngayThang: dayjs(), status: 'moi' }); setModalOpen(true); };
+  const handleCreate = () => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ ngayThang: dayjs(), status: 'moi', loaiMess: 'mess_moi' }); setModalOpen(true); };
   const handleEdit = (record) => { setEditingRecord(record); form.setFieldsValue({ ...record, ngayThang: record.ngayThang ? dayjs(record.ngayThang) : dayjs() }); setModalOpen(true); };
 
   const handleSubmit = async () => {
