@@ -40,18 +40,50 @@ const vndShort = (v) => {
   return n.toLocaleString('vi-VN');
 };
 
+const STORAGE_KEY = 'tq_filters';
+
+function loadSavedFilters() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function saveFilters(filters) {
+  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters)); } catch {}
+}
+
 export default function TongQuat() {
+  const saved = loadSavedFilters();
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState(null);
-  const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
+  const [dateRange, setDateRange] = useState(() => {
+    if (saved?.dateFrom && saved?.dateTo) {
+      return [dayjs(saved.dateFrom), dayjs(saved.dateTo)];
+    }
+    return [dayjs().startOf('month'), dayjs().endOf('month')];
+  });
   const [salesList, setSalesList] = useState([]);
-  const [selectedSales, setSelectedSales] = useState([]);
-  const [selectedStatuses, setSelectedStatuses] = useState([...STATUS_OPTIONS]);
+  const [selectedSales, setSelectedSales] = useState(saved?.selectedSales || []);
+  const [selectedStatuses, setSelectedStatuses] = useState(saved?.selectedStatuses || [...STATUS_OPTIONS]);
 
   useEffect(() => {
     fetchSales();
-    fetchAnalytics(dayjs().startOf('month').format('YYYY-MM-DD'), dayjs().endOf('month').format('YYYY-MM-DD'));
+    const from = dateRange[0]?.format('YYYY-MM-DD') || dayjs().startOf('month').format('YYYY-MM-DD');
+    const to = dateRange[1]?.format('YYYY-MM-DD') || dayjs().endOf('month').format('YYYY-MM-DD');
+    fetchAnalytics(from, to);
   }, []);
+
+  // Persist filters to sessionStorage whenever they change
+  useEffect(() => {
+    saveFilters({
+      selectedSales,
+      selectedStatuses,
+      dateFrom: dateRange[0]?.format('YYYY-MM-DD') || null,
+      dateTo: dateRange[1]?.format('YYYY-MM-DD') || null,
+    });
+  }, [selectedSales, selectedStatuses, dateRange]);
 
   const fetchSales = async () => {
     try {
@@ -60,7 +92,11 @@ export default function TongQuat() {
         donHangApi.getSales().catch(() => ({ data: [] })),
         authApi.getSaleUsers().catch(() => ({ data: [] })),
       ]);
-      const merged = [...new Set([...(orderSalesRes.data || []), ...(userSalesRes.data || [])])].filter(Boolean).sort();
+      const normalize = (s) => s?.trim().replace(/\s+/g, ' ') || '';
+      const merged = [...new Set([
+        ...(orderSalesRes.data || []).map(normalize),
+        ...(userSalesRes.data || []).map(normalize),
+      ])].filter(Boolean).sort();
       setSalesList(merged);
     } catch {}
   };
