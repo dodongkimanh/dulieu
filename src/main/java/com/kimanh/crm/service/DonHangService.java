@@ -203,7 +203,12 @@ public class DonHangService {
     }
 
     public List<String> getDistinctSales() {
-        return repository.findDistinctSales();
+        return repository.findDistinctSales().stream()
+                .map(s -> s != null ? s.trim().replaceAll("\\s+", " ") : s)
+                .filter(s -> s != null && !s.isBlank())
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     public List<String> getDistinctPages() {
@@ -244,7 +249,8 @@ public class DonHangService {
         List<Map<String, Object>> saleStatusData = new ArrayList<>();
         for (Object[] row : bySaleStatus) {
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("sale", row[0] != null ? row[0] : "Không xác định");
+            String saleName = row[0] != null ? row[0].toString().trim().replaceAll("\\s+", " ") : "Không xác định";
+            item.put("sale", saleName);
             item.put("tinhTrang", row[1] != null ? row[1] : "Không xác định");
             item.put("count", ((Number) row[2]).longValue());
             item.put("sumGiaBan", row[3]);

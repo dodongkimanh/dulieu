@@ -208,14 +208,14 @@ public class DashboardController {
         List<String> saleNames = userRepository.findByRoleAndActiveTrue("SALER").stream()
                 .map(User::getFullName)
                 .filter(n -> n != null && !n.isBlank())
-                .map(n -> Normalizer.normalize(n.trim(), Normalizer.Form.NFC))
+                .map(n -> Normalizer.normalize(n.trim().replaceAll("\\s+", " "), Normalizer.Form.NFC))
                 .distinct()
                 .toList();
 
         // Batch query 1: mess counts grouped by TRIM(Sale)
         Map<String, Long> messCountMap = new HashMap<>();
         for (Object[] row : khachHangRepository.countMessGroupedBySale(fromDate, toDate)) {
-            String saleName = row[0] != null ? Normalizer.normalize(row[0].toString().trim(), Normalizer.Form.NFC) : "";
+            String saleName = row[0] != null ? Normalizer.normalize(row[0].toString().trim().replaceAll("\\s+", " "), Normalizer.Form.NFC) : "";
             long count = row[1] != null ? ((Number) row[1]).longValue() : 0L;
             messCountMap.merge(saleName, count, Long::sum);
         }
@@ -223,7 +223,7 @@ public class DashboardController {
         // Batch query 2: qualified revenue grouped by TRIM(sale)
         Map<String, BigDecimal> revenueMap = new HashMap<>();
         for (Object[] row : donHangRepository.sumQualifiedRevenueGroupedBySale(fromDate, toDate)) {
-            String saleName = row[0] != null ? Normalizer.normalize(row[0].toString().trim(), Normalizer.Form.NFC) : "";
+            String saleName = row[0] != null ? Normalizer.normalize(row[0].toString().trim().replaceAll("\\s+", " "), Normalizer.Form.NFC) : "";
             BigDecimal revenue = row[1] != null ? new BigDecimal(row[1].toString()) : BigDecimal.ZERO;
             revenueMap.merge(saleName, revenue, BigDecimal::add);
         }
