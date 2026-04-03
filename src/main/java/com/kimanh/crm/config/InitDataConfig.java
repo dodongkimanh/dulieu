@@ -63,20 +63,21 @@ public class InitDataConfig {
         // 2. Seed SALER accounts from data_dulieukhach distinct Sale names
         try {
             List<String> saleNames = khachHangRepository.findDistinctSales();
+            // Normalize existing fullNames (collapse whitespace + NFC) to prevent Unicode/space duplicates
             Set<String> existingFullNames = userRepository.findAll().stream()
                     .map(User::getFullName)
                     .filter(fn -> fn != null)
-                    .map(String::trim)
+                    .map(fn -> normalizeName(fn))
                     .collect(Collectors.toSet());
 
             for (String rawName : saleNames) {
                 if (rawName == null || rawName.isBlank()) continue;
-                String trimmedName = rawName.trim();
+                String trimmedName = normalizeName(rawName);
                 if (trimmedName.equalsIgnoreCase("No Sale") || trimmedName.isEmpty()) continue;
 
                 if (trimmedName.contains(",")) {
                     for (String part : trimmedName.split(",")) {
-                        seedSaleAccount(part.trim(), existingFullNames);
+                        seedSaleAccount(normalizeName(part), existingFullNames);
                     }
                     continue;
                 }
@@ -110,9 +111,10 @@ public class InitDataConfig {
         }
     }
 
-    private void seedSaleAccount(String fullName, Set<String> existingFullNames) {
+    private void seedSaleAccount(String fullName, Set<String> existingNormalizedNames) {
         if (fullName == null || fullName.isBlank()) return;
-        if (existingFullNames.contains(fullName)) return;
+        String normalized = normalizeName(fullName);
+        if (existingNormalizedNames.contains(normalized)) return;
 
         String username = toAsciiUsername(fullName);
         if (username == null) {
@@ -137,8 +139,18 @@ public class InitDataConfig {
                 .active(true)
                 .build();
         userRepository.save(saler);
-        existingFullNames.add(fullName);
+        existingNormalizedNames.add(normalized);
         log.info("Created SALER: username='{}', fullName='{}'", finalUsername, fullName);
+    }
+
+    /**
+     * Normalize a name for dedup comparison: NFC unicode + collapse whitespace + trim.
+     * "Hiếu  Đồ Đồng" → "Hiếu Đồ Đồng"
+     */
+    private String normalizeName(String name) {
+        if (name == null) return "";
+        String s = name.trim().replaceAll("\\s+", " ");
+        return Normalizer.normalize(s, Normalizer.Form.NFC);
     }
 
     /**
