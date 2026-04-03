@@ -57,12 +57,29 @@ public class DonHangController {
 
         // SALER can only see their own orders
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (isSaler(auth)) {
+        boolean currentUserIsSaler = isSaler(auth);
+        if (currentUserIsSaler) {
             sale = getSalerFullName(auth);
         }
 
         PageRequest pageable = PageRequest.of(pageNum, size);
-        return ResponseEntity.ok(service.findAll(keyword, tinhTrang, sale, page, maIdQuangCao, fromDate, toDate, pageable));
+        Page<DonHang> result = service.findAll(keyword, tinhTrang, sale, page, maIdQuangCao, fromDate, toDate, pageable);
+
+        // SALER must NOT see cost/profit fields — null them out
+        if (currentUserIsSaler) {
+            result.getContent().forEach(dh -> {
+                dh.setGiaVon(null);
+                dh.setLoiNhuanUocTinh(null);
+                dh.setLoiNhuanSauTru(null);
+                dh.setChiPhiVanChuyen(null);
+                dh.setDsVanChuyen(null);
+                dh.setDatCoc(null);
+                dh.setThuBanTrucTiep(null);
+                dh.setTongThuKhach(null);
+            });
+        }
+
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}")

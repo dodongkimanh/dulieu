@@ -147,8 +147,9 @@ public class DashboardController {
 
         // If SALER, force to their own fullName
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isSaler = false;
         if (auth != null) {
-            boolean isSaler = auth.getAuthorities().stream()
+            isSaler = auth.getAuthorities().stream()
                     .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
             if (isSaler) {
                 sale = userRepository.findByUsername(auth.getName())
@@ -189,6 +190,21 @@ public class DashboardController {
         } catch (Exception e) {
             log.error("sale-dashboard messError for sale='{}': {}", saleName, e.getMessage(), e);
             result.put("messError", e.getMessage());
+        }
+
+        // SALER must NOT see profit data — strip all profit-related fields
+        if (isSaler) {
+            result.remove("totalProfit");
+            result.remove("qualifiedProfit");
+            // Strip profit from each status item in ordersByStatus
+            Object ordersByStatusObj = result.get("ordersByStatus");
+            if (ordersByStatusObj instanceof List<?> statusList) {
+                for (Object item : statusList) {
+                    if (item instanceof Map<?, ?> map) {
+                        ((Map<String, Object>) map).remove("profit");
+                    }
+                }
+            }
         }
 
         return ResponseEntity.ok(result);
@@ -292,10 +308,11 @@ public class DashboardController {
 
         // If SALER, force to their own fullName
         Authentication auth2 = SecurityContextHolder.getContext().getAuthentication();
+        boolean isSalerExport = false;
         if (auth2 != null) {
-            boolean isSaler = auth2.getAuthorities().stream()
+            isSalerExport = auth2.getAuthorities().stream()
                     .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
-            if (isSaler) {
+            if (isSalerExport) {
                 sale = userRepository.findByUsername(auth2.getName())
                         .map(User::getFullName)
                         .orElse(null);
@@ -310,6 +327,20 @@ public class DashboardController {
         Map<String, Object> data = new LinkedHashMap<>();
         data.putAll(donHangService.getSaleRevenue(sale, fromDate, toDate));
         data.putAll(khachHangService.getMessStats(sale, fromDate, toDate));
+
+        // SALER must NOT see profit data in export — strip profit fields
+        if (isSalerExport) {
+            data.remove("totalProfit");
+            data.remove("qualifiedProfit");
+            Object ordersByStatusObj = data.get("ordersByStatus");
+            if (ordersByStatusObj instanceof List<?> statusList) {
+                for (Object item : statusList) {
+                    if (item instanceof Map<?, ?> map) {
+                        ((Map<String, Object>) map).remove("profit");
+                    }
+                }
+            }
+        }
 
         byte[] excelFile = createDoanhSoExcel(sale, fromDate, toDate, data);
 
