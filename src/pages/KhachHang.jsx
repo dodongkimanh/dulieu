@@ -14,6 +14,7 @@ import {
   PhoneOutlined,
   CalendarOutlined,
   InboxOutlined,
+  CheckSquareOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { khachHangApi, authApi, kenhTiepThiApi } from '../api';
@@ -56,6 +57,8 @@ export default function KhachHang() {
   const [salesList, setSalesList] = useState([]);
   const [pagesList, setPagesList] = useState([]);
   const [transferModal, setTransferModal] = useState({ open: false, record: null, sale: null });
+  const [bulkTransferModal, setBulkTransferModal] = useState({ open: false, sale: null });
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [allSaleUsers, setAllSaleUsers] = useState([]);
   const [pageChannels, setPageChannels] = useState({});
   const [assignedCount, setAssignedCount] = useState(0);
@@ -214,6 +217,17 @@ export default function KhachHang() {
     } catch { message.error('Lỗi chuyển khách hàng'); }
   };
 
+  const handleBulkTransfer = async () => {
+    if (!selectedRowKeys.length || !bulkTransferModal.sale) return;
+    try {
+      const res = await khachHangApi.bulkTransferSale(selectedRowKeys, bulkTransferModal.sale);
+      message.success(`Chuyển thành công ${res.data?.count || selectedRowKeys.length} khách hàng`);
+      setBulkTransferModal({ open: false, sale: null });
+      setSelectedRowKeys([]);
+      fetchData(pagination.current, pagination.pageSize);
+    } catch { message.error('Lỗi chuyển khách hàng hàng loạt'); }
+  };
+
   const handleNoteSave = async (id, notes) => {
     try {
       await khachHangApi.updateNotes(id, notes);
@@ -228,12 +242,11 @@ export default function KhachHang() {
     { title: 'SĐT', dataIndex: 'sdt', _defaultWidth: 100 },
     { title: 'Tùy Chọn', dataIndex: 'loaiMess', _defaultWidth: 115, render: (v, record) => (
       <Select
-        value={v || undefined}
-        onChange={(val) => handleLoaiMessChange(record.id, val)}
+        value={v || 'mess_moi'}
+        onChange={(val) => handleLoaiMessChange(record.id, val || 'mess_moi')}
         size="small"
         style={{ width: '100%' }}
-        placeholder="Chọn..."
-        allowClear
+        placeholder="Mess Mới"
         popupMatchSelectWidth={false}
       >
         {LOAI_MESS_OPTIONS.map(opt => (
@@ -327,7 +340,7 @@ export default function KhachHang() {
           <div className="expand-item"><span className="expand-label">Khách hàng</span><span className="expand-value">{record.khachHang || '—'}</span></div>
           <div className="expand-item"><span className="expand-label">SĐT</span><span className="expand-value">{record.sdt || '—'}</span></div>
           <div className="expand-item"><span className="expand-label">Sale</span><span className="expand-value">{record.sale || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">Loại Mess</span><span className="expand-value">{LOAI_MESS_OPTIONS.find(o => o.value === record.loaiMess)?.label || '—'}</span></div>
+          <div className="expand-item"><span className="expand-label">Loại Mess</span><span className="expand-value">{LOAI_MESS_OPTIONS.find(o => o.value === (record.loaiMess || 'mess_moi'))?.label || 'Mess Mới'}</span></div>
           {record.assignedFrom && <div className="expand-item"><span className="expand-label">Chuyển từ</span><span className="expand-value" style={{ color: '#06B6D4', fontWeight: 600 }}>{record.assignedFrom}</span></div>}
           <div className="expand-item"><span className="expand-label">UID</span><span className="expand-value">{record.uid || '—'}</span></div>
           <div className="expand-item"><span className="expand-label">Ad ID</span><span className="expand-value">{record.adId || '—'}</span></div>
@@ -417,11 +430,52 @@ export default function KhachHang() {
           ]}
           style={{ marginBottom: 0 }}
         />
+        {canManage && selectedRowKeys.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)',
+            border: '1px solid #C7D2FE',
+            borderRadius: 10,
+            padding: '10px 18px',
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            animation: 'fadeIn 0.3s ease'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Badge count={selectedRowKeys.length} style={{ backgroundColor: '#4F46E5', boxShadow: 'none', fontWeight: 700 }} />
+              <span style={{ fontWeight: 600, color: '#3730A3', fontSize: 14 }}>khách hàng đã chọn</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button
+                type="primary"
+                icon={<SwapOutlined />}
+                onClick={() => setBulkTransferModal({ open: true, sale: null })}
+                style={{ background: '#06B6D4', borderColor: '#06B6D4', fontWeight: 600, borderRadius: 8 }}
+              >
+                Chuyển Sale ({selectedRowKeys.length})
+              </Button>
+              <Button
+                onClick={() => setSelectedRowKeys([])}
+                style={{ borderRadius: 8, fontWeight: 500 }}
+              >
+                Bỏ chọn
+              </Button>
+            </div>
+          </div>
+        )}
         <Table
           dataSource={data}
           columns={columns}
           rowKey="id"
           loading={loading}
+          rowSelection={canManage ? {
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+            columnWidth: 42,
+            fixed: true,
+            getCheckboxProps: () => ({ style: { transform: 'scale(1.15)' } }),
+          } : undefined}
           pagination={{ ...pagination, showSizeChanger: true, showTotal: (t) => `Tổng ${t} khách hàng` }}
           onChange={handleTableChange}
           scroll={{ x: 1200 }}
@@ -566,6 +620,78 @@ export default function KhachHang() {
               padding: '10px 14px', marginTop: 12, fontSize: 13, color: '#166534'
             }}>
               ✅ Khách hàng <strong>{transferModal.record?.khachHang}</strong> sẽ được chuyển từ <strong>{transferModal.record?.sale || '(trống)'}</strong> sang <strong>{transferModal.sale}</strong>
+              <br /><span style={{ color: '#0891B2', fontSize: 12 }}>Trạng thái sẽ được đặt lại thành <strong>"Mới"</strong> và hiển thị trong mục <strong>"Khách Được Phân Công"</strong> của sale mới.</span>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Bulk Transfer Sale Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SwapOutlined style={{ color: '#06B6D4', fontSize: 18 }} />
+            <span>Chuyển {selectedRowKeys.length} khách hàng cho Sale khác</span>
+          </div>
+        }
+        open={bulkTransferModal.open}
+        onCancel={() => setBulkTransferModal({ open: false, sale: null })}
+        onOk={handleBulkTransfer}
+        okText={`Xác nhận chuyển ${selectedRowKeys.length} khách hàng`}
+        cancelText="Hủy"
+        okButtonProps={{
+          disabled: !bulkTransferModal.sale,
+          style: { background: '#06B6D4', borderColor: '#06B6D4' }
+        }}
+        width={500}
+        className="premium-modal"
+      >
+        <div style={{ padding: '8px 0' }}>
+          <div style={{ background: '#F8FAFC', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <Badge count={selectedRowKeys.length} style={{ backgroundColor: '#4F46E5', boxShadow: 'none', fontWeight: 700, fontSize: 14 }} />
+              <span style={{ fontWeight: 600, color: '#1F2937', fontSize: 14 }}>khách hàng được chọn</span>
+            </div>
+            <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8, padding: 8, background: '#fff' }}>
+              {data.filter(d => selectedRowKeys.includes(d.id)).map((kh, i) => (
+                <div key={kh.id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '6px 8px', borderBottom: i < selectedRowKeys.length - 1 ? '1px solid #F1F5F9' : 'none',
+                  fontSize: 13
+                }}>
+                  <span style={{ fontWeight: 600, color: '#1F2937' }}>{kh.khachHang}</span>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <span style={{ color: '#64748B' }}>{kh.sdt || '—'}</span>
+                    <span style={{ color: '#EF4444', fontWeight: 500, minWidth: 80, textAlign: 'right' }}>{kh.sale || '—'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <Divider style={{ margin: '12px 0' }} />
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ fontWeight: 600, fontSize: 13, color: '#374151', display: 'block', marginBottom: 8 }}>
+              <SwapOutlined style={{ marginRight: 6, color: '#06B6D4' }} />
+              Chuyển tất cả cho Sale mới:
+            </label>
+            <Select
+              value={bulkTransferModal.sale}
+              onChange={(v) => setBulkTransferModal(prev => ({ ...prev, sale: v }))}
+              style={{ width: '100%' }}
+              placeholder="Chọn Sale mới..."
+              size="large"
+              showSearch
+              optionFilterProp="children"
+            >
+              {allSaleUsers.map(s => <Option key={s} value={s}>{s}</Option>)}
+            </Select>
+          </div>
+          {bulkTransferModal.sale && (
+            <div style={{
+              background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8,
+              padding: '10px 14px', marginTop: 12, fontSize: 13, color: '#166534'
+            }}>
+              ✅ <strong>{selectedRowKeys.length}</strong> khách hàng sẽ được chuyển sang <strong>{bulkTransferModal.sale}</strong>
               <br /><span style={{ color: '#0891B2', fontSize: 12 }}>Trạng thái sẽ được đặt lại thành <strong>"Mới"</strong> và hiển thị trong mục <strong>"Khách Được Phân Công"</strong> của sale mới.</span>
             </div>
           )}

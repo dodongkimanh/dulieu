@@ -81,6 +81,7 @@ export const khachHangApi = {
   getPages: () => api.get('/khach-hang/pages'),
   getSales: () => api.get('/khach-hang/sales'),
   transferSale: (id, sale) => api.patch(`/khach-hang/${id}/transfer`, { sale }),
+  bulkTransferSale: (ids, sale) => api.patch('/khach-hang/bulk-transfer', { ids, sale }),
   updateNotes: (id, notes) => api.patch(`/khach-hang/${id}/notes`, { notes }),
   updateLoaiMess: (id, loaiMess) => api.patch(`/khach-hang/${id}/loai-mess`, { loaiMess }),
   getAssignedCount: () => api.get('/khach-hang/assigned-count'),
