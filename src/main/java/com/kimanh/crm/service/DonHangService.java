@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -306,8 +307,29 @@ public class DonHangService {
     public Map<String, Object> getSaleRevenue(String sale, LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new LinkedHashMap<>();
 
+        // Normalize Unicode to NFC to handle NFC/NFD mismatch
+        String normalizedSale = sale != null ? Normalizer.normalize(sale.trim(), Normalizer.Form.NFC) : sale;
+
         // One query: GROUP BY tinh_trang → derive all totals in Java
-        List<Object[]> byStatus = repository.ordersByStatusForSale(sale, fromDate, toDate);
+        List<Object[]> byStatus = repository.ordersByStatusForSale(normalizedSale, fromDate, toDate);
+
+        // If NFC returns nothing, try NFD
+        if (byStatus.isEmpty() && sale != null) {
+            String nfdSale = Normalizer.normalize(sale.trim(), Normalizer.Form.NFD);
+            if (!nfdSale.equals(normalizedSale)) {
+                List<Object[]> nfdResult = repository.ordersByStatusForSale(nfdSale, fromDate, toDate);
+                if (!nfdResult.isEmpty()) {
+                    byStatus = nfdResult;
+                }
+            }
+        }
+        // Fallback: TRIM-based
+        if (byStatus.isEmpty() && sale != null) {
+            List<Object[]> trimResult = repository.ordersByStatusForSaleTrimmed(sale.trim(), fromDate, toDate);
+            if (!trimResult.isEmpty()) {
+                byStatus = trimResult;
+            }
+        }
 
         BigDecimal totalRevenue = BigDecimal.ZERO;
         BigDecimal qualifiedRevenue = BigDecimal.ZERO;

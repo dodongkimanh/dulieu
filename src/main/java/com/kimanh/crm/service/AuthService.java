@@ -11,9 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 import java.text.Normalizer;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -156,6 +154,9 @@ public class AuthService {
     public List<String> getSaleUserNames() {
         return userRepository.findByRoleAndActiveTrue("SALER").stream()
                 .map(User::getFullName)
+                .filter(Objects::nonNull)
+                .map(name -> Normalizer.normalize(name.trim(), Normalizer.Form.NFC))
+                .distinct()
                 .toList();
     }
 

@@ -221,6 +221,18 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 
+    // TRIM-based fallback for Unicode/spaces mismatch
+    @Query(value = "SELECT d.tinh_trang, COUNT(*), COALESCE(SUM(d.gia_thu_thuc_te), 0), COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) " +
+           "FROM don_hang d WHERE TRIM(d.sale) = TRIM(CAST(:sale AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "GROUP BY d.tinh_trang ORDER BY d.tinh_trang",
+           nativeQuery = true)
+    List<Object[]> ordersByStatusForSaleTrimmed(
+            @Param("sale") String sale,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
     // Analytics: aggregate by page (marketing channel)
     @Query(value = "SELECT d.page, " +
            "COUNT(*) as cnt, " +

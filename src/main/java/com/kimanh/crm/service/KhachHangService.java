@@ -12,6 +12,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -157,8 +158,35 @@ public class KhachHangService {
     public Map<String, Object> getMessStats(String sale, LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new LinkedHashMap<>();
 
-        long totalMess = repository.countMessBySale(sale, fromDate, toDate);
-        long totalPhones = repository.countDistinctSdtBySale(sale, fromDate, toDate);
+        // Normalize sale name to NFC to handle Unicode mismatch between crm_users and data_dulieukhach
+        String normalizedSale = sale != null ? Normalizer.normalize(sale.trim(), Normalizer.Form.NFC) : sale;
+
+        long totalMess = repository.countMessBySale(normalizedSale, fromDate, toDate);
+        long totalPhones = repository.countDistinctSdtBySale(normalizedSale, fromDate, toDate);
+
+        // If NFC-normalized query returns 0, try NFD form (data might be stored in NFD)
+        if (totalMess == 0 && sale != null) {
+            String nfdSale = Normalizer.normalize(sale.trim(), Normalizer.Form.NFD);
+            if (!nfdSale.equals(normalizedSale)) {
+                long nfdMess = repository.countMessBySale(nfdSale, fromDate, toDate);
+                if (nfdMess > 0) {
+                    log.warn("Unicode mismatch detected for sale='{}': NFC returned 0 but NFD returned {}. Using NFD form.", sale, nfdMess);
+                    totalMess = nfdMess;
+                    totalPhones = repository.countDistinctSdtBySale(nfdSale, fromDate, toDate);
+                    normalizedSale = nfdSale;
+                }
+            }
+        }
+
+        // If still 0, try TRIM-based fuzzy match via LIKE
+        if (totalMess == 0 && sale != null) {
+            long trimMess = repository.countMessBySaleTrimmed(sale.trim(), fromDate, toDate);
+            if (trimMess > 0) {
+                log.warn("Exact match returned 0 for sale='{}' but TRIM match returned {}. Possible trailing spaces or invisible chars.", sale, trimMess);
+                totalMess = trimMess;
+                totalPhones = repository.countDistinctSdtBySaleTrimmed(sale.trim(), fromDate, toDate);
+            }
+        }
 
         log.info("getMessStats: sale='{}', from={}, to={} → totalMess={}, totalPhones={}",
                 sale, fromDate, toDate, totalMess, totalPhones);

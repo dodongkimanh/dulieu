@@ -84,6 +84,15 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
                          @Param("fromDate") LocalDate fromDate,
                          @Param("toDate") LocalDate toDate);
 
+    // TRIM-based fallback: handles invisible chars, trailing spaces, Unicode mismatches
+    @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE TRIM(\"Sale\") = TRIM(CAST(:sale AS text)) " +
+           "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
+    long countMessBySaleTrimmed(@Param("sale") String sale,
+                                @Param("fromDate") LocalDate fromDate,
+                                @Param("toDate") LocalDate toDate);
+
     // Sale dashboard: distinct phone numbers for a sale in date range (excludes assigned/transferred customers)
     @Query(value = "SELECT COUNT(DISTINCT \"Sdt\") FROM data_dulieukhach WHERE \"Sale\" = :sale AND \"Sdt\" IS NOT NULL AND \"Sdt\" <> '' " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
@@ -92,6 +101,15 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     long countDistinctSdtBySale(@Param("sale") String sale,
                                 @Param("fromDate") LocalDate fromDate,
                                 @Param("toDate") LocalDate toDate);
+
+    // TRIM-based fallback for phones
+    @Query(value = "SELECT COUNT(DISTINCT \"Sdt\") FROM data_dulieukhach WHERE TRIM(\"Sale\") = TRIM(CAST(:sale AS text)) AND \"Sdt\" IS NOT NULL AND \"Sdt\" <> '' " +
+           "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
+    long countDistinctSdtBySaleTrimmed(@Param("sale") String sale,
+                                       @Param("fromDate") LocalDate fromDate,
+                                       @Param("toDate") LocalDate toDate);
 
     // Sale dashboard: mess count by day for a sale (excludes assigned/transferred customers)
     @Query(value = "SELECT CAST(TO_CHAR(\"Ngay_thang\", 'DD') AS integer) as day_num, COUNT(*) as cnt " +

@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -157,6 +158,9 @@ public class DashboardController {
             return ResponseEntity.ok(Map.of("error", "Sale không xác định"));
         }
 
+        // Normalize Unicode to NFC to handle NFC/NFD mismatch between crm_users and data tables
+        sale = Normalizer.normalize(sale.trim(), Normalizer.Form.NFC);
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sale", sale);
         result.put("costPerMess", messConfigService.getCostPerMess());
@@ -185,6 +189,52 @@ public class DashboardController {
         }
 
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Overview of mess status for ALL active sales (for coloring sale chips green/red).
+     * Returns: [ { sale, totalMess, messAllocation, isOverflow }, ... ]
+     */
+    @GetMapping("/sales-mess-overview")
+    @PreAuthorize("hasAnyRole('ADMIN', 'KE_TOAN')")
+    public ResponseEntity<List<Map<String, Object>>> getSalesMessOverview(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+
+        List<String> saleNames = userRepository.findByRoleAndActiveTrue("SALER").stream()
+                .map(User::getFullName)
+                .filter(n -> n != null && !n.isBlank())
+                .map(n -> Normalizer.normalize(n.trim(), Normalizer.Form.NFC))
+                .distinct()
+                .toList();
+
+        List<Map<String, Object>> overview = new ArrayList<>();
+        for (String saleName : saleNames) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("sale", saleName);
+            try {
+                Map<String, Object> messData = khachHangService.getMessStats(saleName, fromDate, toDate);
+                long totalMess = ((Number) messData.getOrDefault("totalMess", 0L)).longValue();
+
+                // Get revenue to determine mess allocation tier
+                Map<String, Object> revenueData = donHangService.getSaleRevenue(saleName, fromDate, toDate);
+                int messAllocation = 0;
+                if (revenueData.containsKey("messAllocation")) {
+                    messAllocation = ((Number) revenueData.get("messAllocation")).intValue();
+                }
+
+                item.put("totalMess", totalMess);
+                item.put("messAllocation", messAllocation);
+                item.put("isOverflow", totalMess > messAllocation);
+            } catch (Exception e) {
+                log.error("Failed to get mess overview for sale='{}': {}", saleName, e.getMessage());
+                item.put("totalMess", 0L);
+                item.put("messAllocation", 0);
+                item.put("isOverflow", false);
+            }
+            overview.add(item);
+        }
+        return ResponseEntity.ok(overview);
     }
 
     @GetMapping("/export-doanhso")
