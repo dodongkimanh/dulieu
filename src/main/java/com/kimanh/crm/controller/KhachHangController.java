@@ -109,6 +109,17 @@ public class KhachHangController {
         return ResponseEntity.ok(service.transferSale(id, body.get("sale")));
     }
 
+    @PatchMapping("/bulk-transfer")
+    @PreAuthorize("hasAnyRole('ADMIN', 'KE_TOAN')")
+    public ResponseEntity<Map<String, Object>> bulkTransferSale(@RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Integer> rawIds = (List<Integer>) body.get("ids");
+        List<Long> ids = rawIds.stream().map(Integer::longValue).toList();
+        String sale = (String) body.get("sale");
+        int count = service.bulkTransferSale(ids, sale);
+        return ResponseEntity.ok(Map.of("success", true, "count", count));
+    }
+
     @PatchMapping("/{id}/notes")
     public ResponseEntity<KhachHang> updateNotes(@PathVariable Long id, @RequestBody Map<String, String> body) {
         return ResponseEntity.ok(service.updateNotes(id, body.get("notes")));

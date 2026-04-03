@@ -96,6 +96,23 @@ public class KhachHangService {
     }
 
     @Caching(evict = {
+        @CacheEvict(value = "khachHang_sales", allEntries = true),
+        @CacheEvict(value = "khachHang_count", allEntries = true),
+        @CacheEvict(value = "mess_stats", allEntries = true)
+    })
+    public int bulkTransferSale(List<Long> ids, String newSale) {
+        List<KhachHang> customers = repository.findAllById(ids);
+        for (KhachHang kh : customers) {
+            String oldSale = kh.getSale();
+            kh.setAssignedFrom(oldSale);
+            kh.setSale(newSale);
+            kh.setStatus("moi");
+        }
+        repository.saveAll(customers);
+        return customers.size();
+    }
+
+    @Caching(evict = {
         @CacheEvict(value = "khachHang", key = "#id")
     })
     public KhachHang updateNotes(Long id, String notes) {
