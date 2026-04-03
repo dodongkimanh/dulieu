@@ -413,7 +413,7 @@ export default function DoanhSo() {
             <div className="ds-kpi-icon"><DollarOutlined /></div>
             <div className="ds-kpi-content">
               <div className="ds-kpi-value">{vnd(totalRevenue)} đ</div>
-              <div className="ds-kpi-label">Doanh Số</div>
+              <div className="ds-kpi-label">Doanh Số <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 400 }}>(trừ HỦY & Hoàn)</span></div>
             </div>
           </motion.div>
         </Col>
@@ -477,7 +477,7 @@ export default function DoanhSo() {
         </div>
         <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 12, paddingLeft: 22 }}>
           <CheckCircleOutlined style={{ color: '#10B981', marginRight: 4 }} />
-          Tích xanh = Tính vào doanh số &amp; mốc mess. Đang Chờ, Hoàn hàng, HỦY ĐƠN không được tính.
+          Tích xanh = Tính vào doanh số &amp; mốc mess. <span style={{ color: '#EF4444', fontWeight: 600 }}>HỦY ĐƠN</span> và <span style={{ color: '#EF4444', fontWeight: 600 }}>Hoàn hàng</span> không tính vào bất kỳ doanh số / lợi nhuận nào.
         </div>
         <div className="ds-status-checks" style={{ marginBottom: 16 }}>
           <Checkbox
