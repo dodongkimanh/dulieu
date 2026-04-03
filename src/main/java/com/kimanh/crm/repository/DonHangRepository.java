@@ -22,7 +22,7 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
            "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
            "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
            "AND (CAST(:tinhTrang AS text) IS NULL OR d.tinh_trang = CAST(:tinhTrang AS text)) " +
-           "AND (CAST(:sale AS text) IS NULL OR d.sale = CAST(:sale AS text)) " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
            "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
            "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
@@ -35,7 +35,7 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
            "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
            "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
            "AND (CAST(:tinhTrang AS text) IS NULL OR d.tinh_trang = CAST(:tinhTrang AS text)) " +
-           "AND (CAST(:sale AS text) IS NULL OR d.sale = CAST(:sale AS text)) " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
            "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
            "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
@@ -59,7 +59,7 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
            "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
            "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
            "AND (CAST(:tinhTrang AS text) IS NULL OR d.tinh_trang = CAST(:tinhTrang AS text)) " +
-           "AND (CAST(:sale AS text) IS NULL OR d.sale = CAST(:sale AS text)) " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
            "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
            "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +

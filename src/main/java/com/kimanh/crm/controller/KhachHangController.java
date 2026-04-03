@@ -52,6 +52,7 @@ public class KhachHangController {
         if (isSaler) {
             sale = userRepository.findByUsername(auth.getName())
                     .map(User::getFullName)
+                    .map(n -> n.trim().replaceAll("\\s+", " "))
                     .orElse("");
         }
 

@@ -39,6 +39,7 @@ public class DonHangController {
         if (auth == null) return null;
         return userRepository.findByUsername(auth.getName())
                 .map(User::getFullName)
+                .map(n -> n.trim().replaceAll("\\s+", " "))
                 .orElse(null);
     }
 

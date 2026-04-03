@@ -61,6 +61,7 @@ public class KhachHang implements Serializable {
     @PrePersist
     public void prePersist() {
         if (status == null) status = "moi";
+        if (loaiMess == null) loaiMess = "mess_moi";
         if (createdAt == null) createdAt = OffsetDateTime.now();
     }
 }

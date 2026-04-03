@@ -21,7 +21,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
            "OR LOWER(k.\"Uid\") LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
            "AND (CAST(:status AS text) IS NULL OR k.status = CAST(:status AS text)) " +
            "AND (CAST(:page AS text) IS NULL OR k.\"Page\" = CAST(:page AS text)) " +
-           "AND (CAST(:sale AS text) IS NULL OR k.\"Sale\" = CAST(:sale AS text)) " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(k.\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
            "AND (CAST(:fromDate AS date) IS NULL OR k.\"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR k.\"Ngay_thang\" <= CAST(:toDate AS date)) " +
            "AND (:hasSdt IS NULL OR (CAST(:hasSdt AS boolean) = true AND k.\"Sdt\" IS NOT NULL AND k.\"Sdt\" <> '')) " +
@@ -33,7 +33,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
            "OR LOWER(k.\"Uid\") LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
            "AND (CAST(:status AS text) IS NULL OR k.status = CAST(:status AS text)) " +
            "AND (CAST(:page AS text) IS NULL OR k.\"Page\" = CAST(:page AS text)) " +
-           "AND (CAST(:sale AS text) IS NULL OR k.\"Sale\" = CAST(:sale AS text)) " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(k.\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
            "AND (CAST(:fromDate AS date) IS NULL OR k.\"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR k.\"Ngay_thang\" <= CAST(:toDate AS date)) " +
            "AND (:hasSdt IS NULL OR (CAST(:hasSdt AS boolean) = true AND k.\"Sdt\" IS NOT NULL AND k.\"Sdt\" <> '')) " +
@@ -67,7 +67,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
 
     // Sale dashboard: total mess + distinct phones in a single query (excludes assigned/transferred customers)
     @Query(value = "SELECT COUNT(*), COUNT(DISTINCT CASE WHEN \"Sdt\" IS NOT NULL AND \"Sdt\" <> '' THEN \"Sdt\" END) " +
-           "FROM data_dulieukhach WHERE \"Sale\" = :sale " +
+           "FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
@@ -76,7 +76,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
                                       @Param("toDate") LocalDate toDate);
 
     // Sale dashboard: total mess (records) for a sale in date range (excludes assigned/transferred customers)
-    @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE \"Sale\" = :sale " +
+    @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
@@ -84,8 +84,8 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
                          @Param("fromDate") LocalDate fromDate,
                          @Param("toDate") LocalDate toDate);
 
-    // TRIM-based fallback: handles invisible chars, trailing spaces, Unicode mismatches
-    @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE TRIM(\"Sale\") = TRIM(CAST(:sale AS text)) " +
+    // Fallback: handles invisible chars, trailing/internal whitespace, Unicode mismatches
+    @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = REGEXP_REPLACE(TRIM(CAST(:sale AS text)), '\\s+', ' ', 'g') " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
@@ -94,7 +94,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
                                 @Param("toDate") LocalDate toDate);
 
     // Sale dashboard: distinct phone numbers for a sale in date range (excludes assigned/transferred customers)
-    @Query(value = "SELECT COUNT(DISTINCT \"Sdt\") FROM data_dulieukhach WHERE \"Sale\" = :sale AND \"Sdt\" IS NOT NULL AND \"Sdt\" <> '' " +
+    @Query(value = "SELECT COUNT(DISTINCT \"Sdt\") FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text) AND \"Sdt\" IS NOT NULL AND \"Sdt\" <> '' " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
@@ -102,8 +102,8 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
                                 @Param("fromDate") LocalDate fromDate,
                                 @Param("toDate") LocalDate toDate);
 
-    // TRIM-based fallback for phones
-    @Query(value = "SELECT COUNT(DISTINCT \"Sdt\") FROM data_dulieukhach WHERE TRIM(\"Sale\") = TRIM(CAST(:sale AS text)) AND \"Sdt\" IS NOT NULL AND \"Sdt\" <> '' " +
+    // Fallback for phones with whitespace normalization
+    @Query(value = "SELECT COUNT(DISTINCT \"Sdt\") FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = REGEXP_REPLACE(TRIM(CAST(:sale AS text)), '\\s+', ' ', 'g') AND \"Sdt\" IS NOT NULL AND \"Sdt\" <> '' " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
@@ -113,7 +113,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
 
     // Sale dashboard: mess count by day for a sale (excludes assigned/transferred customers)
     @Query(value = "SELECT CAST(TO_CHAR(\"Ngay_thang\", 'DD') AS integer) as day_num, COUNT(*) as cnt " +
-           "FROM data_dulieukhach WHERE \"Sale\" = :sale " +
+           "FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date)) " +
@@ -123,9 +123,9 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 
-    // TRIM-based fallback for mess by day
+    // Fallback for mess by day with whitespace normalization
     @Query(value = "SELECT CAST(TO_CHAR(\"Ngay_thang\", 'DD') AS integer) as day_num, COUNT(*) as cnt " +
-           "FROM data_dulieukhach WHERE TRIM(\"Sale\") = TRIM(CAST(:sale AS text)) " +
+           "FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = REGEXP_REPLACE(TRIM(CAST(:sale AS text)), '\\s+', ' ', 'g') " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date)) " +
@@ -138,7 +138,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     // Count pending assigned customers (status = 'moi' and has assigned_from)
     @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE " +
            "assigned_from IS NOT NULL AND assigned_from <> '' AND status = 'moi' " +
-           "AND (CAST(:sale AS text) IS NULL OR \"Sale\" = CAST(:sale AS text))",
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text))",
            nativeQuery = true)
     long countPendingAssigned(@Param("sale") String sale);
 
