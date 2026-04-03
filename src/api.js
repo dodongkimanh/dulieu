@@ -9,7 +9,7 @@ const api = axios.create({
 
 // Attach JWT token to every request
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('crm_token');
+  const token = sessionStorage.getItem('crm_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -21,8 +21,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 || error.response?.status === 403) {
-      localStorage.removeItem('crm_token');
-      localStorage.removeItem('crm_user');
+      sessionStorage.removeItem('crm_token');
+      sessionStorage.removeItem('crm_user');
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -49,6 +49,7 @@ export const dashboardApi = {
   getRecentOrders: () => api.get('/dashboard/recent-orders'),
   getAnalytics: (params) => api.get('/dashboard/analytics', { params }),
   getSaleDashboard: (params) => api.get('/dashboard/sale-dashboard', { params }),
+  getSalesMessOverview: (params) => api.get('/dashboard/sales-mess-overview', { params }),
   exportDoanhSo: (params) => api.get('/dashboard/export-doanhso', { 
     params,
     responseType: 'blob'

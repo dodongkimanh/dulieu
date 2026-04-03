@@ -135,6 +135,7 @@ export default function DoanhSo() {
   const [editCost, setEditCost] = useState(65000);
   const [messTierConfig, setMessTierConfig] = useState(DEFAULT_TIERS);
   const [editTiers, setEditTiers] = useState([]);
+  const [salesMessOverview, setSalesMessOverview] = useState({});
 
   const getMonthRange = (m) => {
     const from = m.startOf('month').format('YYYY-MM-DD');
@@ -146,11 +147,15 @@ export default function DoanhSo() {
     if (isAdmin || isKeToan) {
       authApi.getSaleUsers().then(res => {
         const names = (res.data || []).filter(Boolean);
-        setSalesList(names);
-        if (names.length > 0) {
-          setSelectedSale(names[0]);
+        // Deduplicate names from frontend side too
+        const uniqueNames = [...new Set(names)];
+        setSalesList(uniqueNames);
+        if (uniqueNames.length > 0) {
+          setSelectedSale(uniqueNames[0]);
           const { from, to } = getMonthRange(dayjs());
-          fetchData(names[0], from, to);
+          fetchData(uniqueNames[0], from, to);
+          // Fetch mess overview for all sales (for chip coloring)
+          fetchSalesMessOverview(from, to);
         } else {
           setLoading(false);
         }
@@ -190,6 +195,23 @@ export default function DoanhSo() {
     }
   }, []);
 
+  const fetchSalesMessOverview = useCallback(async (from, to) => {
+    if (!isAdmin && !isKeToan) return;
+    try {
+      const params = {};
+      if (from) params.fromDate = from;
+      if (to) params.toDate = to;
+      const res = await dashboardApi.getSalesMessOverview(params);
+      const map = {};
+      (res.data || []).forEach(item => {
+        map[item.sale] = item;
+      });
+      setSalesMessOverview(map);
+    } catch (err) {
+      console.error('Sales mess overview failed:', err);
+    }
+  }, [isAdmin, isKeToan]);
+
   const handleSaleChange = (val) => {
     setSelectedSale(val);
     const { from, to } = getMonthRange(selectedMonth);
@@ -201,6 +223,7 @@ export default function DoanhSo() {
     setSelectedMonth(month);
     const { from, to } = getMonthRange(month);
     fetchData(selectedSale, from, to);
+    fetchSalesMessOverview(from, to);
   };
 
   const handleExport = async () => {
@@ -239,6 +262,7 @@ export default function DoanhSo() {
       message.success('Cập nhật cấu hình mess thành công');
       const { from, to } = getMonthRange(selectedMonth);
       fetchData(selectedSale, from, to);
+      fetchSalesMessOverview(from, to);
     } catch {
       message.error('Lỗi khi cập nhật cấu hình');
     }
@@ -312,16 +336,29 @@ export default function DoanhSo() {
           <div className="ds-filter-section">
             <span className="ds-filter-label">Sale</span>
             <div className="ds-sale-chips">
-              {salesList.map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  className={`ds-sale-chip${selectedSale === s ? ' active' : ''}`}
-                  onClick={() => handleSaleChange(s)}
-                >
-                  {s}
-                </button>
-              ))}
+              {salesList.map(s => {
+                const overview = salesMessOverview[s];
+                const isOverflow = overview?.isOverflow;
+                const chipClass = `ds-sale-chip${selectedSale === s ? ' active' : ''}${isOverflow ? ' overflow' : overview ? ' ok' : ''}`;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    className={chipClass}
+                    onClick={() => handleSaleChange(s)}
+                    title={overview ? `Mess: ${overview.totalMess}/${overview.messAllocation}` : s}
+                  >
+                    {isOverflow && <WarningOutlined style={{ marginRight: 4, fontSize: 11 }} />}
+                    {!isOverflow && overview && <CheckCircleOutlined style={{ marginRight: 4, fontSize: 11 }} />}
+                    {s}
+                    {overview && (
+                      <span className="ds-chip-badge">
+                        {overview.totalMess}/{overview.messAllocation}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

@@ -8,31 +8,35 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('crm_token');
-    const savedUser = localStorage.getItem('crm_user');
+    // Use sessionStorage: forces re-login on browser/tab close to avoid stale data
+    const token = sessionStorage.getItem('crm_token');
+    const savedUser = sessionStorage.getItem('crm_user');
     if (token && savedUser) {
       try {
         setUser(JSON.parse(savedUser));
       } catch {
-        localStorage.removeItem('crm_token');
-        localStorage.removeItem('crm_user');
+        sessionStorage.removeItem('crm_token');
+        sessionStorage.removeItem('crm_user');
       }
     }
+    // Clean up any old localStorage data
+    localStorage.removeItem('crm_token');
+    localStorage.removeItem('crm_user');
     setLoading(false);
   }, []);
 
   const login = async (username, password) => {
     const res = await api.post('/auth/login', { username, password });
     const { token, ...userData } = res.data;
-    localStorage.setItem('crm_token', token);
-    localStorage.setItem('crm_user', JSON.stringify(userData));
+    sessionStorage.setItem('crm_token', token);
+    sessionStorage.setItem('crm_user', JSON.stringify(userData));
     setUser(userData);
     return userData;
   };
 
   const logout = () => {
-    localStorage.removeItem('crm_token');
-    localStorage.removeItem('crm_user');
+    sessionStorage.removeItem('crm_token');
+    sessionStorage.removeItem('crm_user');
     setUser(null);
   };
 
