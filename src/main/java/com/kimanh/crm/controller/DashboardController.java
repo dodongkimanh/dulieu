@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
@@ -37,6 +38,8 @@ public class DashboardController {
     private final KhachHangService khachHangService;
     private final UserRepository userRepository;
     private final com.kimanh.crm.service.MessConfigService messConfigService;
+    private final com.kimanh.crm.repository.KhachHangRepository khachHangRepository;
+    private final com.kimanh.crm.repository.DonHangRepository donHangRepository;
 
     private LocalDate[] getDateRangeFromFilter(String filter) {
         LocalDate end = LocalDate.now();
@@ -193,6 +196,7 @@ public class DashboardController {
 
     /**
      * Overview of mess status for ALL active sales (for coloring sale chips green/red).
+     * Uses batch queries (2 total) instead of N+1 per sale.
      * Returns: [ { sale, totalMess, messAllocation, isOverflow }, ... ]
      */
     @GetMapping("/sales-mess-overview")
@@ -208,33 +212,68 @@ public class DashboardController {
                 .distinct()
                 .toList();
 
+        // Batch query 1: mess counts grouped by TRIM(Sale)
+        Map<String, Long> messCountMap = new HashMap<>();
+        for (Object[] row : khachHangRepository.countMessGroupedBySale(fromDate, toDate)) {
+            String saleName = row[0] != null ? Normalizer.normalize(row[0].toString().trim(), Normalizer.Form.NFC) : "";
+            long count = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+            messCountMap.merge(saleName, count, Long::sum);
+        }
+
+        // Batch query 2: qualified revenue grouped by TRIM(sale)
+        Map<String, BigDecimal> revenueMap = new HashMap<>();
+        for (Object[] row : donHangRepository.sumQualifiedRevenueGroupedBySale(fromDate, toDate)) {
+            String saleName = row[0] != null ? Normalizer.normalize(row[0].toString().trim(), Normalizer.Form.NFC) : "";
+            BigDecimal revenue = row[1] != null ? new BigDecimal(row[1].toString()) : BigDecimal.ZERO;
+            revenueMap.merge(saleName, revenue, BigDecimal::add);
+        }
+
+        // Get cost per mess for tier calculation
+        long costPerMess = messConfigService.getCostPerMess();
+        List<Map<String, Object>> tiers = messConfigService.getMessTiers();
+
         List<Map<String, Object>> overview = new ArrayList<>();
         for (String saleName : saleNames) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("sale", saleName);
-            try {
-                Map<String, Object> messData = khachHangService.getMessStats(saleName, fromDate, toDate);
-                long totalMess = ((Number) messData.getOrDefault("totalMess", 0L)).longValue();
 
-                // Get revenue to determine mess allocation tier
-                Map<String, Object> revenueData = donHangService.getSaleRevenue(saleName, fromDate, toDate);
-                int messAllocation = 0;
-                if (revenueData.containsKey("messAllocation")) {
-                    messAllocation = ((Number) revenueData.get("messAllocation")).intValue();
-                }
-
-                item.put("totalMess", totalMess);
-                item.put("messAllocation", messAllocation);
-                item.put("isOverflow", totalMess > messAllocation);
-            } catch (Exception e) {
-                log.error("Failed to get mess overview for sale='{}': {}", saleName, e.getMessage());
-                item.put("totalMess", 0L);
-                item.put("messAllocation", 0);
-                item.put("isOverflow", false);
+            long totalMess = messCountMap.getOrDefault(saleName, 0L);
+            // Also try NFD form for matching
+            if (totalMess == 0) {
+                String nfdName = Normalizer.normalize(saleName, Normalizer.Form.NFD);
+                totalMess = messCountMap.getOrDefault(nfdName, 0L);
             }
+
+            BigDecimal qualifiedRevenue = revenueMap.getOrDefault(saleName, BigDecimal.ZERO);
+            if (qualifiedRevenue.compareTo(BigDecimal.ZERO) == 0) {
+                String nfdName = Normalizer.normalize(saleName, Normalizer.Form.NFD);
+                qualifiedRevenue = revenueMap.getOrDefault(nfdName, BigDecimal.ZERO);
+            }
+
+            // Calculate mess allocation from tier config
+            int messAllocation = calculateMessAllocation(qualifiedRevenue.longValue(), tiers, costPerMess);
+
+            item.put("totalMess", totalMess);
+            item.put("messAllocation", messAllocation);
+            item.put("isOverflow", totalMess > messAllocation);
             overview.add(item);
         }
         return ResponseEntity.ok(overview);
+    }
+
+    private int calculateMessAllocation(long revenue, List<Map<String, Object>> tiers, long costPerMess) {
+        if (tiers == null || tiers.isEmpty() || costPerMess <= 0) return 0;
+        for (Map<String, Object> tier : tiers) {
+            long max = ((Number) tier.getOrDefault("max", 0)).longValue();
+            if (revenue <= max) {
+                long budget = ((Number) tier.getOrDefault("budget", 0)).longValue();
+                return (int) (budget / costPerMess);
+            }
+        }
+        // Last tier
+        Map<String, Object> lastTier = tiers.get(tiers.size() - 1);
+        long budget = ((Number) lastTier.getOrDefault("budget", 0)).longValue();
+        return (int) (budget / costPerMess);
     }
 
     @GetMapping("/export-doanhso")

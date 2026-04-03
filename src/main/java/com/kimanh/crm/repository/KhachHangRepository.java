@@ -123,10 +123,33 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 
+    // TRIM-based fallback for mess by day
+    @Query(value = "SELECT CAST(TO_CHAR(\"Ngay_thang\", 'DD') AS integer) as day_num, COUNT(*) as cnt " +
+           "FROM data_dulieukhach WHERE TRIM(\"Sale\") = TRIM(CAST(:sale AS text)) " +
+           "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date)) " +
+           "GROUP BY CAST(TO_CHAR(\"Ngay_thang\", 'DD') AS integer) ORDER BY day_num", nativeQuery = true)
+    List<Object[]> countMessByDayForSaleTrimmed(
+            @Param("sale") String sale,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
     // Count pending assigned customers (status = 'moi' and has assigned_from)
     @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE " +
            "assigned_from IS NOT NULL AND assigned_from <> '' AND status = 'moi' " +
            "AND (CAST(:sale AS text) IS NULL OR \"Sale\" = CAST(:sale AS text))",
            nativeQuery = true)
     long countPendingAssigned(@Param("sale") String sale);
+
+    // Batch: mess counts grouped by sale name (for sales-mess-overview, avoids N+1)
+    @Query(value = "SELECT TRIM(\"Sale\") as sale_name, COUNT(*) as mess_count " +
+           "FROM data_dulieukhach " +
+           "WHERE (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date)) " +
+           "AND \"Sale\" IS NOT NULL AND TRIM(\"Sale\") <> '' " +
+           "GROUP BY TRIM(\"Sale\")", nativeQuery = true)
+    List<Object[]> countMessGroupedBySale(@Param("fromDate") LocalDate fromDate,
+                                          @Param("toDate") LocalDate toDate);
 }

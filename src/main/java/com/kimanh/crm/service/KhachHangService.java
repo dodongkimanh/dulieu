@@ -194,8 +194,12 @@ public class KhachHangService {
         result.put("totalMess", totalMess);
         result.put("totalPhones", totalPhones);
 
-        // Mess by day
-        List<Object[]> messByDay = repository.countMessByDayForSale(sale, fromDate, toDate);
+        // Mess by day — use normalizedSale (resolved via NFC/NFD/TRIM fallback), NOT raw sale
+        List<Object[]> messByDay = repository.countMessByDayForSale(normalizedSale, fromDate, toDate);
+        // If empty, also try TRIM variant
+        if (messByDay.isEmpty() && sale != null) {
+            messByDay = repository.countMessByDayForSaleTrimmed(sale.trim(), fromDate, toDate);
+        }
         List<Map<String, Object>> dayData = new ArrayList<>();
         for (Object[] row : messByDay) {
             // Hibernate 6 compatibility: native queries may wrap each row in an extra Object[]
