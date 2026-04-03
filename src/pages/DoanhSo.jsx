@@ -124,7 +124,7 @@ const STATUS_COLORS = {
 };
 
 export default function DoanhSo() {
-  const { user, isAdmin, isKeToan } = useAuth();
+  const { user, isAdmin, isKeToan, isSaler } = useAuth();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [salesList, setSalesList] = useState([]);
@@ -409,7 +409,7 @@ export default function DoanhSo() {
         </div>
         <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 12, paddingLeft: 22 }}>
           <CheckCircleOutlined style={{ color: '#10B981', marginRight: 4 }} />
-          Tích xanh = Tính vào doanh số &amp; mốc mess. <span style={{ color: '#EF4444', fontWeight: 600 }}>HỦY ĐƠN</span> và <span style={{ color: '#EF4444', fontWeight: 600 }}>Hoàn hàng</span> không tính vào bất kỳ doanh số / lợi nhuận nào.
+          Tích xanh = Tính vào doanh số &amp; mốc mess. <span style={{ color: '#EF4444', fontWeight: 600 }}>HỦY ĐƠN</span> và <span style={{ color: '#EF4444', fontWeight: 600 }}>Hoàn hàng</span> không tính vào bất kỳ doanh số{!isSaler && ' / lợi nhuận'} nào.
         </div>
         <div className="ds-status-checks" style={{ marginBottom: 12 }}>
           <Checkbox
@@ -440,11 +440,13 @@ export default function DoanhSo() {
             <span className="ds-summary-label">Doanh thu</span>
             <span className="ds-summary-value" style={{ color: '#2563EB' }}>{vndFull(filteredRevenue)}</span>
           </div>
+          {!isSaler && (<>
           <div className="ds-summary-divider" />
           <div className="ds-summary-item">
             <span className="ds-summary-label">Lợi nhuận</span>
             <span className="ds-summary-value" style={{ color: filteredProfit >= 0 ? '#059669' : '#DC2626' }}>{vndFull(filteredProfit)}</span>
           </div>
+          </>)}
           {selectedStatuses.length < STATUS_OPTIONS.length && (
             <Tag color="blue" style={{ marginLeft: 'auto', fontSize: 11, borderRadius: 12 }}>
               <FilterOutlined style={{ marginRight: 3 }} />Đang lọc {selectedStatuses.length}/{STATUS_OPTIONS.length}
@@ -533,7 +535,7 @@ export default function DoanhSo() {
                 <div className="ds-status-name">{o.tinhTrang}</div>
                 <div className="ds-status-count">{o.count} đơn</div>
                 <div className="ds-status-rev">{vndShort(o.revenue)}</div>
-                <div style={{ fontSize: 11, color: Number(o.profit || 0) >= 0 ? '#059669' : '#DC2626', fontWeight: 600, marginTop: 2, fontFamily: "'Inter', monospace" }}>LN: {vndShort(o.profit)}</div>
+                {!isSaler && <div style={{ fontSize: 11, color: Number(o.profit || 0) >= 0 ? '#059669' : '#DC2626', fontWeight: 600, marginTop: 2, fontFamily: "'Inter', monospace" }}>LN: {vndShort(o.profit)}</div>}
               </div>
             ))}
           </div>
