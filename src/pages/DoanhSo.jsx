@@ -130,7 +130,7 @@ export default function DoanhSo() {
   const [salesList, setSalesList] = useState([]);
   const [selectedSale, setSelectedSale] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(dayjs());
-  const [selectedStatuses, setSelectedStatuses] = useState([...QUALIFIED_STATUSES]);
+  const [selectedStatuses, setSelectedStatuses] = useState([...QUALIFIED_STATUSES, 'Đang Chờ']);
   const [costPerMess, setCostPerMess] = useState(65000);
   const [configModal, setConfigModal] = useState(false);
   const [editCost, setEditCost] = useState(65000);
