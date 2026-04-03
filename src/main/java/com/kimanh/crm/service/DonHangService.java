@@ -131,7 +131,8 @@ public class DonHangService {
         long total = repository.countByDateRange(fromDate, toDate);
         long completed = repository.countCompletedByDateRange(fromDate, toDate);
         stats.put("tongDonHang", total);
-        stats.put("tongDoanhThu", repository.sumTotalRevenueByDateRange(fromDate, toDate));
+        // Revenue excludes HỦY ĐƠN and Hoàn hàng
+        stats.put("tongDoanhThu", repository.sumActiveRevenueByDateRange(fromDate, toDate));
         // FIXED: donMoiHomNay tuân theo dateRange, không hardcode LocalDate.now()
         stats.put("donMoiHomNay", repository.countByDateRange(LocalDate.now(), LocalDate.now()));
         stats.put("donHoanThanh", completed);
@@ -337,9 +338,13 @@ public class DonHangService {
         BigDecimal qualifiedProfit = BigDecimal.ZERO;
         long totalOrders = 0;
 
+        // Statuses that count for qualified revenue & mess allocation
         Set<String> qualifiedStatuses = Set.of(
                 "Đã Giao Thành Công", "Đang giao", "Đang vận chuyển",
                 "Khách Đặt Cọc", "KH Showroom", "Kho đang gọi hàng");
+
+        // Statuses that are dead orders — excluded from ALL revenue/profit totals
+        Set<String> excludedStatuses = Set.of("HỦY ĐƠN", "Hoàn hàng");
 
         List<Map<String, Object>> statusData = new ArrayList<>();
         for (Object[] row : byStatus) {
@@ -355,13 +360,16 @@ public class DonHangService {
             item.put("profit", profit);
             statusData.add(item);
 
-            totalRevenue = totalRevenue.add(revenue);
-            totalProfit = totalProfit.add(profit);
             totalOrders += cnt;
+
+            // HỦY ĐƠN & Hoàn hàng: không tính vào bất kỳ tổng doanh số / lợi nhuận nào
+            if (!excludedStatuses.contains(status)) {
+                totalRevenue = totalRevenue.add(revenue);
+                totalProfit = totalProfit.add(profit);
+            }
 
             if (qualifiedStatuses.contains(status)) {
                 qualifiedRevenue = qualifiedRevenue.add(revenue);
-                // Lợi nhuận ước tính chỉ tính các trạng thái đủ điều kiện (không tính "Đang Chờ", "Hoàn hàng", "HỦY ĐƠN")
                 qualifiedProfit = qualifiedProfit.add(profit);
             }
         }

@@ -155,7 +155,7 @@ public class AuthService {
         return userRepository.findByRoleAndActiveTrue("SALER").stream()
                 .map(User::getFullName)
                 .filter(Objects::nonNull)
-                .map(name -> Normalizer.normalize(name.trim(), Normalizer.Form.NFC))
+                .map(name -> Normalizer.normalize(name.trim().replaceAll("\\s+", " "), Normalizer.Form.NFC))
                 .distinct()
                 .toList();
     }

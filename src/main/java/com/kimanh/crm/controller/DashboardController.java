@@ -161,8 +161,8 @@ public class DashboardController {
             return ResponseEntity.ok(Map.of("error", "Sale không xác định"));
         }
 
-        // Normalize Unicode to NFC to handle NFC/NFD mismatch between crm_users and data tables
-        sale = Normalizer.normalize(sale.trim(), Normalizer.Form.NFC);
+        // Normalize Unicode to NFC + collapse whitespace to handle NFC/NFD/double-space mismatch
+        sale = Normalizer.normalize(sale.trim().replaceAll("\\s+", " "), Normalizer.Form.NFC);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("sale", sale);

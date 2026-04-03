@@ -87,6 +87,13 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
            "(CAST(:toDate AS date) IS NULL OR d.ngay <= :toDate)")
     BigDecimal sumTotalRevenueByDateRange(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
 
+    // Revenue excluding cancelled (HỦY ĐƠN) and returned (Hoàn hàng) orders
+    @Query("SELECT COALESCE(SUM(d.giaThuThucTe), 0) FROM DonHang d WHERE " +
+           "d.tinhTrang NOT IN ('HỦY ĐƠN', 'Hoàn hàng') AND " +
+           "(CAST(:fromDate AS date) IS NULL OR d.ngay >= :fromDate) AND " +
+           "(CAST(:toDate AS date) IS NULL OR d.ngay <= :toDate)")
+    BigDecimal sumActiveRevenueByDateRange(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
     @Query("SELECT COALESCE(COUNT(d), 0) FROM DonHang d WHERE d.tinhTrang = 'Đã Giao Thành Công' AND " +
            "(CAST(:fromDate AS date) IS NULL OR d.ngay >= :fromDate) AND " +
            "(CAST(:toDate AS date) IS NULL OR d.ngay <= :toDate)")
