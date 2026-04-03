@@ -136,7 +136,7 @@ public class AuthService {
                 .active(true)
                 .build();
 
-        return userRepository.save(user);
+        return userRepository.save(Objects.requireNonNull(user, "user must not be null"));
     }
 
     public List<User> getAllUsers() {
@@ -145,10 +145,10 @@ public class AuthService {
 
     @Transactional
     public User toggleActive(Long id) {
-        User user = userRepository.findById(id)
+        User user = userRepository.findById(Objects.requireNonNull(id, "id must not be null"))
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
         user.setActive(!user.getActive());
-        return userRepository.save(user);
+        return userRepository.save(Objects.requireNonNull(user, "user must not be null"));
     }
 
     public List<String> getSaleUserNames() {
@@ -162,7 +162,7 @@ public class AuthService {
 
     @Transactional
     public User updateUser(Long id, String fullName, String password) {
-        User user = userRepository.findById(id)
+        User user = userRepository.findById(Objects.requireNonNull(id, "id must not be null"))
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại (ID: " + id + ")"));
         if (fullName != null && !fullName.isBlank()) {
             user.setFullName(fullName.trim());
@@ -174,11 +174,11 @@ public class AuthService {
             }
             user.setPassword(passwordEncoder.encode(pw));
         }
-        return userRepository.save(user);
+        return userRepository.save(Objects.requireNonNull(user, "user must not be null"));
     }
 
     public void deleteUser(Long id) {
-        User user = userRepository.findById(id)
+        User user = userRepository.findById(Objects.requireNonNull(id, "id must not be null"))
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
         if ("ADMIN".equals(user.getRole())) {
             throw new RuntimeException("Không thể xóa tài khoản Admin");

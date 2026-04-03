@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.text.Normalizer;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -53,7 +54,7 @@ public class InitDataConfig {
                         .role("ADMIN")
                         .active(true)
                         .build();
-                userRepository.save(admin);
+                userRepository.save(Objects.requireNonNull(admin, "admin must not be null"));
                 log.info("Created admin: {}", ADMIN_USERNAME);
             }
         } catch (Exception e) {
@@ -138,7 +139,7 @@ public class InitDataConfig {
                 .role("SALER")
                 .active(true)
                 .build();
-        userRepository.save(saler);
+        userRepository.save(Objects.requireNonNull(saler, "saler must not be null"));
         existingNormalizedNames.add(normalized);
         log.info("Created SALER: username='{}', fullName='{}'", finalUsername, fullName);
     }

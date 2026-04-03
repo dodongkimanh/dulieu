@@ -38,7 +38,8 @@ public class KhachHangService {
 
     @Cacheable(value = "khachHang", key = "#id")
     public KhachHang findById(Long id) {
-        return repository.findById(id).orElseThrow(() -> new RuntimeException("Khách hàng không tồn tại: " + id));
+        return repository.findById(Objects.requireNonNull(id, "id must not be null"))
+            .orElseThrow(() -> new RuntimeException("Khách hàng không tồn tại: " + id));
     }
 
     @Caching(evict = {
@@ -48,7 +49,7 @@ public class KhachHangService {
         @CacheEvict(value = "mess_stats", allEntries = true)
     })
     public KhachHang create(KhachHang entity) {
-        return repository.save(entity);
+        return repository.save(Objects.requireNonNull(entity, "entity must not be null"));
     }
 
     @Caching(evict = {
@@ -101,7 +102,7 @@ public class KhachHangService {
         @CacheEvict(value = "mess_stats", allEntries = true)
     })
     public int bulkTransferSale(List<Long> ids, String newSale) {
-        List<KhachHang> customers = repository.findAllById(ids);
+        List<KhachHang> customers = repository.findAllById(Objects.requireNonNull(ids, "ids must not be null"));
         for (KhachHang kh : customers) {
             String oldSale = kh.getSale();
             kh.setAssignedFrom(oldSale);
@@ -138,7 +139,7 @@ public class KhachHangService {
         @CacheEvict(value = "mess_stats", allEntries = true)
     })
     public void delete(Long id) {
-        repository.deleteById(id);
+        repository.deleteById(Objects.requireNonNull(id, "id must not be null"));
     }
 
     public List<KhachHang> search(String keyword) {

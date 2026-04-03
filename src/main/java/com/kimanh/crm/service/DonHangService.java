@@ -46,7 +46,8 @@ public class DonHangService {
     }
 
     public DonHang findById(Long id) {
-        return repository.findById(id).orElseThrow(() -> new RuntimeException("Đơn hàng không tồn tại: " + id));
+        return repository.findById(Objects.requireNonNull(id, "id must not be null"))
+            .orElseThrow(() -> new RuntimeException("Đơn hàng không tồn tại: " + id));
     }
 
     @Caching(evict = {
@@ -59,7 +60,7 @@ public class DonHangService {
     })
     public DonHang create(DonHang entity) {
         // Mã Hóa Đơn: user inputs manually, no auto-generation
-        return repository.save(entity);
+        return repository.save(Objects.requireNonNull(entity, "entity must not be null"));
     }
 
     @Caching(evict = {
@@ -117,7 +118,7 @@ public class DonHangService {
         @CacheEvict(value = "sale_revenue", allEntries = true)
     })
     public void delete(Long id) {
-        repository.deleteById(id);
+        repository.deleteById(Objects.requireNonNull(id, "id must not be null"));
     }
 
     // Dashboard stats with optional date filter

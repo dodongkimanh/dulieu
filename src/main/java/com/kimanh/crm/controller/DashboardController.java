@@ -201,7 +201,7 @@ public class DashboardController {
             if (ordersByStatusObj instanceof List<?> statusList) {
                 for (Object item : statusList) {
                     if (item instanceof Map<?, ?> map) {
-                        ((Map<String, Object>) map).remove("profit");
+                        map.remove("profit");
                     }
                 }
             }
@@ -233,7 +233,7 @@ public class DashboardController {
         for (Object[] row : khachHangRepository.countMessGroupedBySale(fromDate, toDate)) {
             String saleName = row[0] != null ? Normalizer.normalize(row[0].toString().trim().replaceAll("\\s+", " "), Normalizer.Form.NFC) : "";
             long count = row[1] != null ? ((Number) row[1]).longValue() : 0L;
-            messCountMap.merge(saleName, count, Long::sum);
+            messCountMap.put(saleName, messCountMap.getOrDefault(saleName, 0L) + count);
         }
 
         // Batch query 2: revenue grouped by TRIM(sale) + status (normalize status in Java for Unicode safety)
@@ -336,7 +336,7 @@ public class DashboardController {
             if (ordersByStatusObj instanceof List<?> statusList) {
                 for (Object item : statusList) {
                     if (item instanceof Map<?, ?> map) {
-                        ((Map<String, Object>) map).remove("profit");
+                        map.remove("profit");
                     }
                 }
             }
