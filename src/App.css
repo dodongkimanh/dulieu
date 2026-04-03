@@ -2209,6 +2209,10 @@ textarea.ant-input { min-height: 80px !important; }
 }
 
 /* Status */
+.ds-status-filter-card {
+  background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
+  border: 1px solid #DBEAFE;
+}
 .ds-status-checks {
   display: flex;
   gap: 4px 12px;
@@ -2216,6 +2220,44 @@ textarea.ant-input { min-height: 80px !important; }
 }
 .ds-status-checks .ant-checkbox-wrapper {
   margin-inline-start: 0 !important;
+}
+.ds-status-summary-bar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--gray-600);
+  padding: 10px 16px;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid var(--gray-100);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.ds-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ds-summary-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.ds-summary-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gray-900);
+  font-family: 'Inter', monospace;
+  line-height: 1.2;
+}
+.ds-summary-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--gray-200);
+  flex-shrink: 0;
 }
 .ds-status-summary {
   display: flex;
@@ -2266,4 +2308,7 @@ textarea.ant-input { min-height: 80px !important; }
   .ds-filter-left { flex-direction: column; }
   .ds-kpi-value { font-size: 20px; }
   .ds-status-grid { grid-template-columns: 1fr 1fr; }
+  .ds-status-summary-bar { gap: 12px; padding: 8px 12px; }
+  .ds-summary-value { font-size: 14px; }
+  .ds-summary-divider { height: 24px; }
 }

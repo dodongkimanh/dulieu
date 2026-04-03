@@ -6,6 +6,7 @@ import {
   PhoneOutlined,
   RiseOutlined,
   DownloadOutlined,
+  FilterOutlined,
   WarningOutlined,
   CheckCircleOutlined,
   SettingOutlined,
@@ -294,15 +295,10 @@ export default function DoanhSo() {
   }
 
   const apiCostPerMess = Number(data?.costPerMess || costPerMess);
-  const totalRevenue = Number(data?.totalRevenue || 0);
   const qualifiedRevenue = Number(data?.qualifiedRevenue || 0);
   const messAllocation = Number(data?.messAllocation || 92);
   const totalMess = Number(data?.totalMess || 0);
   const totalPhones = Number(data?.totalPhones || 0);
-  const totalOrders = Number(data?.totalOrders || 0);
-  const totalProfit = Number(data?.totalProfit || 0);
-  // qualifiedProfit: lợi nhuận chỉ tính các trạng thái hoàn thành (không tính Đang Chờ, Hoàn hàng, HỦY ĐƠN)
-  const qualifiedProfit = Number(data?.qualifiedProfit ?? data?.totalProfit ?? 0);
   const ordersByStatus = data?.ordersByStatus || [];
   const messByDay = data?.messByDay || [];
   const messRemaining = Math.max(0, messAllocation - totalMess);
@@ -406,14 +402,67 @@ export default function DoanhSo() {
         </div>
       )}
 
-      {/* Revenue KPI Cards */}
+      {/* --- Bộ lọc Tình Trạng Đơn Hàng --- */}
+      <motion.div className="sg-card ds-status-filter-card" style={{ marginBottom: 16 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+        <div className="sg-card-title" style={{ marginBottom: 4 }}>
+          <FilterOutlined style={{ color: '#4F46E5' }} /> Tình Trạng Đơn Hàng
+        </div>
+        <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 12, paddingLeft: 22 }}>
+          <CheckCircleOutlined style={{ color: '#10B981', marginRight: 4 }} />
+          Tích xanh = Tính vào doanh số &amp; mốc mess. <span style={{ color: '#EF4444', fontWeight: 600 }}>HỦY ĐƠN</span> và <span style={{ color: '#EF4444', fontWeight: 600 }}>Hoàn hàng</span> không tính vào bất kỳ doanh số / lợi nhuận nào.
+        </div>
+        <div className="ds-status-checks" style={{ marginBottom: 12 }}>
+          <Checkbox
+            checked={selectedStatuses.length === STATUS_OPTIONS.length}
+            indeterminate={selectedStatuses.length > 0 && selectedStatuses.length < STATUS_OPTIONS.length}
+            onChange={(e) => setSelectedStatuses(e.target.checked ? [...STATUS_OPTIONS] : [])}
+          ><span style={{ fontWeight: 600 }}>Tất cả</span></Checkbox>
+          {STATUS_OPTIONS.map(s => {
+            const isQualified = QUALIFIED_STATUSES.includes(s);
+            return (
+              <Checkbox key={s} checked={selectedStatuses.includes(s)}
+                onChange={() => setSelectedStatuses(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}>
+                <span style={{ fontSize: 12, color: isQualified ? undefined : '#94A3B8' }}>
+                  {isQualified && <CheckCircleOutlined style={{ color: '#10B981', marginRight: 3, fontSize: 10 }} />}
+                  {s}
+                </span>
+              </Checkbox>
+            );
+          })}
+        </div>
+        <div className="ds-status-summary-bar">
+          <div className="ds-summary-item">
+            <span className="ds-summary-label">Tổng đơn</span>
+            <span className="ds-summary-value">{filteredOrderCount}</span>
+          </div>
+          <div className="ds-summary-divider" />
+          <div className="ds-summary-item">
+            <span className="ds-summary-label">Doanh thu</span>
+            <span className="ds-summary-value" style={{ color: '#2563EB' }}>{vndFull(filteredRevenue)}</span>
+          </div>
+          <div className="ds-summary-divider" />
+          <div className="ds-summary-item">
+            <span className="ds-summary-label">Lợi nhuận</span>
+            <span className="ds-summary-value" style={{ color: filteredProfit >= 0 ? '#059669' : '#DC2626' }}>{vndFull(filteredProfit)}</span>
+          </div>
+          {selectedStatuses.length < STATUS_OPTIONS.length && (
+            <Tag color="blue" style={{ marginLeft: 'auto', fontSize: 11, borderRadius: 12 }}>
+              <FilterOutlined style={{ marginRight: 3 }} />Đang lọc {selectedStatuses.length}/{STATUS_OPTIONS.length}
+            </Tag>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Revenue KPI Cards — reactive to status filter */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} md={6}>
           <motion.div className="ds-kpi-card kpi-blue" whileHover={{ y: -3 }}>
             <div className="ds-kpi-icon"><DollarOutlined /></div>
             <div className="ds-kpi-content">
-              <div className="ds-kpi-value">{vnd(totalRevenue)} đ</div>
-              <div className="ds-kpi-label">Doanh Số <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 400 }}>(trừ HỦY & Hoàn)</span></div>
+              <div className="ds-kpi-value">{vnd(filteredRevenue)} đ</div>
+              <div className="ds-kpi-label">Doanh Số {selectedStatuses.length < STATUS_OPTIONS.length
+                ? <span style={{ fontSize: 10, color: '#3B82F6', fontWeight: 500 }}>(lọc {selectedStatuses.length} trạng thái)</span>
+                : <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 400 }}>(tất cả trạng thái)</span>}</div>
             </div>
           </motion.div>
         </Col>
@@ -453,8 +502,10 @@ export default function DoanhSo() {
             <motion.div className="ds-kpi-card" whileHover={{ y: -3 }} style={{ background: 'linear-gradient(135deg, #FEF3C7, #FDE68A)', border: '1px solid #F59E0B' }}>
               <div className="ds-kpi-icon" style={{ background: '#F59E0B20', color: '#D97706' }}><WalletOutlined /></div>
               <div className="ds-kpi-content">
-                <div className="ds-kpi-value" style={{ color: '#92400E' }}>{vnd(qualifiedProfit)} đ</div>
-                <div className="ds-kpi-label" style={{ color: '#A16207' }}>Lợi Nhuận Ước Tính của Sale</div>
+                <div className="ds-kpi-value" style={{ color: '#92400E' }}>{vnd(filteredProfit)} đ</div>
+                <div className="ds-kpi-label" style={{ color: '#A16207' }}>Lợi Nhuận Ước Tính {selectedStatuses.length < STATUS_OPTIONS.length
+                  ? <span style={{ fontSize: 10, color: '#B45309' }}>(lọc {selectedStatuses.length} trạng thái)</span>
+                  : <span style={{ fontSize: 10, color: '#B45309' }}>của Sale</span>}</div>
               </div>
             </motion.div>
           </Col>
@@ -470,48 +521,24 @@ export default function DoanhSo() {
         </Row>
       )}
 
-      {/* Status Filter + Orders — moved above gauge */}
-      <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-        <div className="sg-card-title" style={{ marginBottom: 4 }}>
-          <DollarOutlined style={{ color: '#4F46E5' }} /> Tình Trạng Đơn Hàng
-        </div>
-        <div style={{ fontSize: 12, color: '#94A3B8', marginBottom: 12, paddingLeft: 22 }}>
-          <CheckCircleOutlined style={{ color: '#10B981', marginRight: 4 }} />
-          Tích xanh = Tính vào doanh số &amp; mốc mess. <span style={{ color: '#EF4444', fontWeight: 600 }}>HỦY ĐƠN</span> và <span style={{ color: '#EF4444', fontWeight: 600 }}>Hoàn hàng</span> không tính vào bất kỳ doanh số / lợi nhuận nào.
-        </div>
-        <div className="ds-status-checks" style={{ marginBottom: 16 }}>
-          <Checkbox
-            checked={selectedStatuses.length === STATUS_OPTIONS.length}
-            indeterminate={selectedStatuses.length > 0 && selectedStatuses.length < STATUS_OPTIONS.length}
-            onChange={(e) => setSelectedStatuses(e.target.checked ? [...STATUS_OPTIONS] : [])}
-          ><span style={{ fontWeight: 600 }}>Tất cả</span></Checkbox>
-          {STATUS_OPTIONS.map(s => {
-            const isQualified = QUALIFIED_STATUSES.includes(s);
-            return (
-              <Checkbox key={s} checked={selectedStatuses.includes(s)}
-                onChange={() => setSelectedStatuses(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}>
-                <span style={{ fontSize: 12, color: isQualified ? undefined : '#94A3B8' }}>
-                  {isQualified && <CheckCircleOutlined style={{ color: '#10B981', marginRight: 3, fontSize: 10 }} />}
-                  {s}
-                </span>
-              </Checkbox>
-            );
-          })}
-        </div>
-        <div className="ds-status-summary">
-          <span>Tổng đơn: <strong>{filteredOrderCount}</strong></span>
-          <span>Doanh thu: <strong>{vndFull(filteredRevenue)}</strong></span>
-        </div>
-        <div className="ds-status-grid">
-          {filteredOrders.map((o, i) => (
-            <div key={i} className="ds-status-item" style={{ borderLeftColor: STATUS_COLORS[o.tinhTrang] || '#94A3B8' }}>
-              <div className="ds-status-name">{o.tinhTrang}</div>
-              <div className="ds-status-count">{o.count} đơn</div>
-              <div className="ds-status-rev">{vndShort(o.revenue)}</div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
+      {/* Chi tiết theo trạng thái */}
+      {filteredOrders.length > 0 && (
+        <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+          <div className="sg-card-title" style={{ marginBottom: 12 }}>
+            <DollarOutlined style={{ color: '#4F46E5' }} /> Chi Tiết Theo Trạng Thái
+          </div>
+          <div className="ds-status-grid">
+            {filteredOrders.map((o, i) => (
+              <div key={i} className="ds-status-item" style={{ borderLeftColor: STATUS_COLORS[o.tinhTrang] || '#94A3B8' }}>
+                <div className="ds-status-name">{o.tinhTrang}</div>
+                <div className="ds-status-count">{o.count} đơn</div>
+                <div className="ds-status-rev">{vndShort(o.revenue)}</div>
+                <div style={{ fontSize: 11, color: Number(o.profit || 0) >= 0 ? '#059669' : '#DC2626', fontWeight: 600, marginTop: 2, fontFamily: "'Inter', monospace" }}>LN: {vndShort(o.profit)}</div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* Mess Gauge + Info */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
