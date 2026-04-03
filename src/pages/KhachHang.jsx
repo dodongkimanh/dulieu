@@ -16,7 +16,6 @@ import {
   InboxOutlined,
   CheckSquareOutlined,
 } from '@ant-design/icons';
-import { motion } from 'framer-motion';
 import { khachHangApi, authApi, kenhTiepThiApi } from '../api';
 import dayjs from 'dayjs';
 import { useAuth } from '../contexts/AuthContext';
@@ -54,8 +53,6 @@ export default function KhachHang() {
   const [hasSdt, setHasSdt] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
-  const [salesList, setSalesList] = useState([]);
-  const [pagesList, setPagesList] = useState([]);
   const [transferModal, setTransferModal] = useState({ open: false, record: null, sale: null });
   const [bulkTransferModal, setBulkTransferModal] = useState({ open: false, sale: null });
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
@@ -96,17 +93,25 @@ export default function KhachHang() {
     document.body.style.userSelect = 'none';
   }, []);
 
-  useEffect(() => { fetchData(); fetchMeta(); fetchChannels(); fetchAssignedCount(); }, []);
+  const fetchChannels = useCallback(async () => {
+    try {
+      const res = await kenhTiepThiApi.getGrouped();
+      setPageChannels(res.data || {});
+    } catch (err) {
+      console.error('Không thể tải nhóm kênh tiếp thị:', err);
+    }
+  }, []);
 
-  const fetchChannels = async () => {
-    try { const res = await kenhTiepThiApi.getGrouped(); setPageChannels(res.data || {}); } catch {}
-  };
+  const fetchAssignedCount = useCallback(async () => {
+    try {
+      const res = await khachHangApi.getAssignedCount();
+      setAssignedCount(res.data?.count || 0);
+    } catch (err) {
+      console.error('Không thể tải số khách được phân công:', err);
+    }
+  }, []);
 
-  const fetchAssignedCount = async () => {
-    try { const res = await khachHangApi.getAssignedCount(); setAssignedCount(res.data?.count || 0); } catch {}
-  };
-
-  const fetchData = async (page = 1, size = 15, extra = {}) => {
+  const fetchData = useCallback(async (page = 1, size = 15, extra = {}) => {
     setLoading(true);
     try {
       const currentTab = extra.tab ?? activeTab;
@@ -125,27 +130,30 @@ export default function KhachHang() {
       const res = await khachHangApi.getAll(params);
       setData(res.data.content);
       setPagination({ current: page, pageSize: size, total: res.data.totalElements });
-    } catch (e) {
+    } catch {
       message.error('Không thể tải danh sách khách hàng');
     } finally {
       setLoading(false);
     }
     // Refresh assigned count in background
     fetchAssignedCount();
-  };
+  }, [activeTab, dateRange, filters.keyword, filters.sale, filters.status, hasSdt, fetchAssignedCount]);
 
-  const fetchMeta = async () => {
-    try {
-      const [sr, pr] = await Promise.all([khachHangApi.getSales(), khachHangApi.getPages()]);
-      setSalesList(sr.data || []);
-      setPagesList(pr.data || []);
-    } catch {}
+  const fetchMeta = useCallback(async () => {
     try {
       const res = await authApi.getSaleUsers();
       const names = (res.data || []).filter(Boolean);
       setAllSaleUsers([...new Set(names)]);
-    } catch {}
-  };
+    } catch (err) {
+      console.error('Không thể tải danh sách sale:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    fetchMeta();
+    fetchChannels();
+  }, [fetchData, fetchMeta, fetchChannels]);
 
   const handleTableChange = (pag) => fetchData(pag.current, pag.pageSize);
   const handleSearch = () => fetchData(1, pagination.pageSize);

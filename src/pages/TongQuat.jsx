@@ -11,12 +11,17 @@ import { motion } from 'framer-motion';
 import { dashboardApi, donHangApi, authApi } from '../api';
 import dayjs from 'dayjs';
 
+const AnimatedDiv = motion.div;
+
 const { RangePicker } = DatePicker;
 
 const STATUS_OPTIONS = [
   'Đã Giao Thành Công', 'Đang Chờ', 'KH Showroom', 'Hoàn hàng',
   'Đang vận chuyển', 'Đang giao', 'HỦY ĐƠN', 'Khách Đặt Cọc', 'Kho đang gọi hàng',
 ];
+
+const EXCLUDED_BY_DEFAULT = new Set(['Hoàn hàng', 'HỦY ĐƠN']);
+const DEFAULT_SELECTED_STATUSES = STATUS_OPTIONS.filter((status) => !EXCLUDED_BY_DEFAULT.has(status));
 
 const STATUS_COLORS = {
   'Đã Giao Thành Công': '#4F46E5',
@@ -41,17 +46,48 @@ const vndShort = (v) => {
 };
 
 const STORAGE_KEY = 'tq_filters';
+const STORAGE_VERSION = 2;
+
+function normalizeSavedStatuses(statuses) {
+  if (!Array.isArray(statuses)) return null;
+
+  const unique = [...new Set(statuses)].filter((status) => STATUS_OPTIONS.includes(status));
+  return unique;
+}
 
 function loadSavedFilters() {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw);
-  } catch { return null; }
+
+    const parsed = JSON.parse(raw);
+    const normalizedStatuses = normalizeSavedStatuses(parsed?.selectedStatuses);
+
+    // Migrate legacy saved filter that previously defaulted to selecting all statuses.
+    const shouldApplyNewDefault =
+      (!parsed?.version || parsed.version < STORAGE_VERSION)
+      && Array.isArray(normalizedStatuses)
+      && normalizedStatuses.length === STATUS_OPTIONS.length;
+
+    return {
+      ...parsed,
+      selectedStatuses: shouldApplyNewDefault ? [...DEFAULT_SELECTED_STATUSES] : normalizedStatuses,
+      version: STORAGE_VERSION,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function saveFilters(filters) {
-  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(filters)); } catch {}
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...filters,
+      version: STORAGE_VERSION,
+    }));
+  } catch {
+    // Ignore storage errors (private mode / full quota).
+  }
 }
 
 export default function TongQuat() {
@@ -66,26 +102,11 @@ export default function TongQuat() {
   });
   const [salesList, setSalesList] = useState([]);
   const [selectedSales, setSelectedSales] = useState(saved?.selectedSales || []);
-  const [selectedStatuses, setSelectedStatuses] = useState(saved?.selectedStatuses || [...STATUS_OPTIONS]);
+  const [selectedStatuses, setSelectedStatuses] = useState(
+    saved?.selectedStatuses || [...DEFAULT_SELECTED_STATUSES]
+  );
 
-  useEffect(() => {
-    fetchSales();
-    const from = dateRange[0]?.format('YYYY-MM-DD') || dayjs().startOf('month').format('YYYY-MM-DD');
-    const to = dateRange[1]?.format('YYYY-MM-DD') || dayjs().endOf('month').format('YYYY-MM-DD');
-    fetchAnalytics(from, to);
-  }, []);
-
-  // Persist filters to sessionStorage whenever they change
-  useEffect(() => {
-    saveFilters({
-      selectedSales,
-      selectedStatuses,
-      dateFrom: dateRange[0]?.format('YYYY-MM-DD') || null,
-      dateTo: dateRange[1]?.format('YYYY-MM-DD') || null,
-    });
-  }, [selectedSales, selectedStatuses, dateRange]);
-
-  const fetchSales = async () => {
+  const fetchSales = useCallback(async () => {
     try {
       // Merge sales from orders + active sale users to get ALL sales
       const [orderSalesRes, userSalesRes] = await Promise.all([
@@ -98,8 +119,24 @@ export default function TongQuat() {
         ...(userSalesRes.data || []).map(normalize),
       ])].filter(Boolean).sort();
       setSalesList(merged);
-    } catch {}
-  };
+    } catch (err) {
+      console.error('Failed to fetch sales list:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSales();
+  }, [fetchSales]);
+
+  // Persist filters to sessionStorage whenever they change
+  useEffect(() => {
+    saveFilters({
+      selectedSales,
+      selectedStatuses,
+      dateFrom: dateRange[0]?.format('YYYY-MM-DD') || null,
+      dateTo: dateRange[1]?.format('YYYY-MM-DD') || null,
+    });
+  }, [selectedSales, selectedStatuses, dateRange]);
 
   const fetchAnalytics = useCallback(async (from, to) => {
     setLoading(true);
@@ -116,11 +153,14 @@ export default function TongQuat() {
     finally { setLoading(false); }
   }, []);
 
+  useEffect(() => {
+    const from = dateRange[0]?.format('YYYY-MM-DD') || dayjs().startOf('month').format('YYYY-MM-DD');
+    const to = dateRange[1]?.format('YYYY-MM-DD') || dayjs().endOf('month').format('YYYY-MM-DD');
+    fetchAnalytics(from, to);
+  }, [dateRange, fetchAnalytics]);
+
   const handleDateChange = (dates) => {
     setDateRange(dates || [null, null]);
-    const from = dates?.[0]?.format('YYYY-MM-DD') || undefined;
-    const to = dates?.[1]?.format('YYYY-MM-DD') || undefined;
-    fetchAnalytics(from, to);
   };
 
   const handleStatusToggle = (status) => {
@@ -211,7 +251,7 @@ export default function TongQuat() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="tongquat-page">
+    <AnimatedDiv initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="tongquat-page">
       {/* Filter Bar */}
       <div className="tq-filter-bar">
         <div className="tq-filter-left">
@@ -234,12 +274,16 @@ export default function TongQuat() {
                 checked={selectedStatuses.length === STATUS_OPTIONS.length}
                 indeterminate={selectedStatuses.length > 0 && selectedStatuses.length < STATUS_OPTIONS.length}
                 onChange={(e) => handleSelectAllStatuses(e.target.checked)}
-              ><span style={{ fontWeight: 600 }}>Select all</span></Checkbox>
+              ><span style={{ fontWeight: 600 }}>Chọn tất cả</span></Checkbox>
               {STATUS_OPTIONS.map(s => (
                 <Checkbox key={s} checked={selectedStatuses.includes(s)} onChange={() => handleStatusToggle(s)}>
                   <span style={{ fontSize: 12 }}>{s}</span>
                 </Checkbox>
               ))}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 12, color: '#64748B' }}>
+              Mặc định đã bỏ chọn <Tag color="red" style={{ marginInlineEnd: 4 }}>Hoàn hàng</Tag>
+              và <Tag color="volcano">HỦY ĐƠN</Tag> để phản ánh doanh số thực tế.
             </div>
           </div>
         </div>
@@ -254,33 +298,33 @@ export default function TongQuat() {
       {/* KPI Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} md={6}>
-          <motion.div className="tq-kpi-card kpi-pink" whileHover={{ y: -3 }}>
+          <AnimatedDiv className="tq-kpi-card kpi-pink" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaBan)} đ</div>
             <div className="tq-kpi-label">Giá Bán Lên Đơn</div>
-          </motion.div>
+          </AnimatedDiv>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <motion.div className="tq-kpi-card kpi-blue" whileHover={{ y: -3 }}>
+          <AnimatedDiv className="tq-kpi-card kpi-blue" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaThu)} đ</div>
             <div className="tq-kpi-label">Giá Thu Thực Tế</div>
-          </motion.div>
+          </AnimatedDiv>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <motion.div className="tq-kpi-card kpi-purple" whileHover={{ y: -3 }}>
+          <AnimatedDiv className="tq-kpi-card kpi-purple" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(filteredTotal.sumLoiNhuan)} đ</div>
             <div className="tq-kpi-label">Lợi Nhuận Ước Tính</div>
-          </motion.div>
+          </AnimatedDiv>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <motion.div className="tq-kpi-card kpi-green" whileHover={{ y: -3 }}>
+          <AnimatedDiv className="tq-kpi-card kpi-green" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{filteredTotal.count}</div>
             <div className="tq-kpi-label">Tổng đơn hàng</div>
-          </motion.div>
+          </AnimatedDiv>
         </Col>
       </Row>
 
       {/* Stacked Bar Chart */}
-      <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+      <AnimatedDiv className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
         <div className="sg-card-title">
           <BarChartOutlined style={{ color: '#4F46E5' }} /> Giá Bán Lên Đơn theo Sale & Tình Trạng
         </div>
@@ -312,11 +356,11 @@ export default function TongQuat() {
         ) : (
           <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8' }}>Không có dữ liệu phù hợp</div>
         )}
-      </motion.div>
+      </AnimatedDiv>
 
       {/* Daily Trend */}
       {dateChartData.length > 0 && (
-        <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+        <AnimatedDiv className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <div className="sg-card-title">
             <FundOutlined style={{ color: '#4F46E5' }} /> Xu hướng theo ngày
           </div>
@@ -332,12 +376,12 @@ export default function TongQuat() {
               <Bar dataKey="loiNhuan" fill="#F59E0B" name="Lợi Nhuận Ước Tính" radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </motion.div>
+        </AnimatedDiv>
       )}
 
       {/* Channel Revenue Chart - Side-by-side Lợi Nhuận vs Giá Thu Thực Tế */}
       {channelChartData.length > 0 && (
-        <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
+        <AnimatedDiv className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <div className="sg-card-title">
             <AppstoreOutlined style={{ color: '#4F46E5' }} /> Lợi Nhuận & Giá Thu Thực Tế theo Kênh Tiếp Thị
           </div>
@@ -414,11 +458,11 @@ export default function TongQuat() {
               </tfoot>
             </table>
           </div>
-        </motion.div>
+        </AnimatedDiv>
       )}
 
       {/* Detail Table */}
-      <motion.div className="sg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+      <AnimatedDiv className="sg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
         <div className="sg-card-title">
           <DollarOutlined style={{ color: '#4F46E5' }} /> Chi tiết theo Sale
         </div>
@@ -470,7 +514,7 @@ export default function TongQuat() {
             </tfoot>
           </table>
         </div>
-      </motion.div>
-    </motion.div>
+      </AnimatedDiv>
+    </AnimatedDiv>
   );
 }

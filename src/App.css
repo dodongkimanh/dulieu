@@ -55,8 +55,7 @@ body {
 ::-webkit-scrollbar-thumb:active { background: var(--gray-500); }
 ::-webkit-scrollbar-corner { background: var(--gray-100); }
 
-/* Firefox scrollbar */
-* { scrollbar-width: auto; scrollbar-color: var(--gray-300) var(--gray-100); }
+/* Scrollbar styling handled via WebKit pseudo-elements for broader support checks */
 
 /* ============================================
    LOGIN PAGE - SmoothGate Split Layout
@@ -105,6 +104,7 @@ body {
   font-weight: 800;
   color: #fff;
   font-size: 13px;
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
 }
 .login-brand-name {
@@ -146,6 +146,7 @@ body {
 }
 .login-feature-badge {
   background: rgba(255,255,255,0.1);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 14px;
@@ -880,7 +881,7 @@ textarea.ant-input { min-height: 80px !important; }
   .sg-filter-bar { flex-direction: column; align-items: stretch; }
   .sg-quick-filters { overflow-x: auto; }
   .login-page { flex-direction: column; }
-  .login-left { min-height: auto; padding: 32px 24px; }
+  .login-left { min-height: initial; padding: 32px 24px; }
   .login-hero-text h1 { font-size: 24px; }
   .login-features-grid { grid-template-columns: 1fr; }
 }
@@ -1094,6 +1095,7 @@ textarea.ant-input { min-height: 80px !important; }
   height: 44px;
   border-radius: 12px;
   background: rgba(255,255,255,0.18);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
@@ -1467,6 +1469,7 @@ textarea.ant-input { min-height: 80px !important; }
 
 /* Modal overlay animation */
 .premium-order-modal .ant-modal-mask {
+  -webkit-backdrop-filter: blur(2px) !important;
   backdrop-filter: blur(2px) !important;
 }
 
@@ -1736,6 +1739,7 @@ textarea.ant-input { min-height: 80px !important; }
   color: var(--gray-600);
   cursor: pointer;
   transition: all 0.2s;
+  -webkit-user-select: none;
   user-select: none;
 }
 .tq-sale-chip:hover { border-color: var(--primary); color: var(--primary); }
@@ -1895,6 +1899,7 @@ textarea.ant-input { min-height: 80px !important; }
   cursor: pointer;
   background: #fff;
   transition: all 0.18s;
+  -webkit-user-select: none;
   user-select: none;
   outline: none;
   line-height: 1.4;

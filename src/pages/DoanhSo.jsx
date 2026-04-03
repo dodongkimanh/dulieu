@@ -21,6 +21,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { dashboardApi, authApi, messConfigApi } from '../api';
 import dayjs from 'dayjs';
 
+const AnimatedDiv = motion.div;
+
 const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
 const vndFull = (v) => Number(v || 0).toLocaleString('vi-VN') + ' đ';
 const vndShort = (v) => {
@@ -144,38 +146,6 @@ export default function DoanhSo() {
     return { from, to };
   };
 
-  useEffect(() => {
-    if (isAdmin || isKeToan) {
-      authApi.getSaleUsers().then(res => {
-        const names = (res.data || []).filter(Boolean);
-        // Deduplicate names from frontend side too
-        const uniqueNames = [...new Set(names)];
-        setSalesList(uniqueNames);
-        if (uniqueNames.length > 0) {
-          setSelectedSale(uniqueNames[0]);
-          const { from, to } = getMonthRange(dayjs());
-          // Load sale data and mess overview in parallel
-          fetchData(uniqueNames[0], from, to);
-          fetchSalesMessOverview(from, to);
-        } else {
-          setLoading(false);
-        }
-      }).catch(() => { setLoading(false); });
-    } else {
-      const { from, to } = getMonthRange(dayjs());
-      fetchData(undefined, from, to);
-    }
-    // Load mess config
-    messConfigApi.getConfig().then(res => {
-      const c = Number(res.data?.costPerMess || 65000);
-      setCostPerMess(c);
-      setEditCost(c);
-      if (res.data?.tiers && Array.isArray(res.data.tiers)) {
-        setMessTierConfig(res.data.tiers);
-      }
-    }).catch(() => {});
-  }, []);
-
   const fetchData = useCallback(async (sale, from, to) => {
     setLoading(true);
     try {
@@ -212,6 +182,38 @@ export default function DoanhSo() {
       console.error('Sales mess overview failed:', err);
     }
   }, [isAdmin, isKeToan]);
+
+  useEffect(() => {
+    if (isAdmin || isKeToan) {
+      authApi.getSaleUsers().then(res => {
+        const names = (res.data || []).filter(Boolean);
+        // Deduplicate names from frontend side too
+        const uniqueNames = [...new Set(names)];
+        setSalesList(uniqueNames);
+        if (uniqueNames.length > 0) {
+          setSelectedSale(uniqueNames[0]);
+          const { from, to } = getMonthRange(dayjs());
+          // Load sale data and mess overview in parallel
+          fetchData(uniqueNames[0], from, to);
+          fetchSalesMessOverview(from, to);
+        } else {
+          setLoading(false);
+        }
+      }).catch(() => { setLoading(false); });
+    } else {
+      const { from, to } = getMonthRange(dayjs());
+      fetchData(undefined, from, to);
+    }
+    // Load mess config
+    messConfigApi.getConfig().then(res => {
+      const c = Number(res.data?.costPerMess || 65000);
+      setCostPerMess(c);
+      setEditCost(c);
+      if (res.data?.tiers && Array.isArray(res.data.tiers)) {
+        setMessTierConfig(res.data.tiers);
+      }
+    }).catch(() => {});
+  }, [fetchData, fetchSalesMessOverview, isAdmin, isKeToan]);
 
   const handleSaleChange = (val) => {
     setSelectedSale(val);
@@ -324,7 +326,7 @@ export default function DoanhSo() {
   }));
 
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="doanhso-page">
+    <AnimatedDiv initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="doanhso-page">
       {/* Filter Bar */}
       <div className="ds-filter-bar">
         {/* Row 1: Sale chip bar (Admin / KeToan only) */}
@@ -403,7 +405,7 @@ export default function DoanhSo() {
       )}
 
       {/* --- Bộ lọc Tình Trạng Đơn Hàng --- */}
-      <motion.div className="sg-card ds-status-filter-card" style={{ marginBottom: 16 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+      <AnimatedDiv className="sg-card ds-status-filter-card" style={{ marginBottom: 16 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
         <div className="sg-card-title" style={{ marginBottom: 4 }}>
           <FilterOutlined style={{ color: '#4F46E5' }} /> Tình Trạng Đơn Hàng
         </div>
@@ -453,12 +455,12 @@ export default function DoanhSo() {
             </Tag>
           )}
         </div>
-      </motion.div>
+      </AnimatedDiv>
 
       {/* Revenue KPI Cards — reactive to status filter */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} md={6}>
-          <motion.div className="ds-kpi-card kpi-blue" whileHover={{ y: -3 }}>
+          <AnimatedDiv className="ds-kpi-card kpi-blue" whileHover={{ y: -3 }}>
             <div className="ds-kpi-icon"><DollarOutlined /></div>
             <div className="ds-kpi-content">
               <div className="ds-kpi-value">{vnd(filteredRevenue)} đ</div>
@@ -466,34 +468,34 @@ export default function DoanhSo() {
                 ? <span style={{ fontSize: 10, color: '#3B82F6', fontWeight: 500 }}>(lọc {selectedStatuses.length} trạng thái)</span>
                 : <span style={{ fontSize: 10, color: '#94A3B8', fontWeight: 400 }}>(tất cả trạng thái)</span>}</div>
             </div>
-          </motion.div>
+          </AnimatedDiv>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <motion.div className="ds-kpi-card kpi-purple" whileHover={{ y: -3 }}>
+          <AnimatedDiv className="ds-kpi-card kpi-purple" whileHover={{ y: -3 }}>
             <div className="ds-kpi-icon"><RiseOutlined /></div>
             <div className="ds-kpi-content">
               <div className="ds-kpi-value">{vnd(qualifiedRevenue)} đ</div>
               <div className="ds-kpi-label">Doanh Số Tính Mess</div>
             </div>
-          </motion.div>
+          </AnimatedDiv>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <motion.div className="ds-kpi-card kpi-green" whileHover={{ y: -3 }}>
+          <AnimatedDiv className="ds-kpi-card kpi-green" whileHover={{ y: -3 }}>
             <div className="ds-kpi-icon"><MessageOutlined /></div>
             <div className="ds-kpi-content">
               <div className="ds-kpi-value">{totalMess}</div>
               <div className="ds-kpi-label">Tổng Mess Nhận Được</div>
             </div>
-          </motion.div>
+          </AnimatedDiv>
         </Col>
         <Col xs={24} sm={12} md={6}>
-          <motion.div className="ds-kpi-card kpi-pink" whileHover={{ y: -3 }}>
+          <AnimatedDiv className="ds-kpi-card kpi-pink" whileHover={{ y: -3 }}>
             <div className="ds-kpi-icon"><PhoneOutlined /></div>
             <div className="ds-kpi-content">
               <div className="ds-kpi-value">{totalPhones}</div>
               <div className="ds-kpi-label">Tổng SĐT</div>
             </div>
-          </motion.div>
+          </AnimatedDiv>
         </Col>
       </Row>
 
@@ -501,7 +503,7 @@ export default function DoanhSo() {
       {isAdmin && (
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
           <Col xs={24} sm={12}>
-            <motion.div className="ds-kpi-card" whileHover={{ y: -3 }} style={{ background: 'linear-gradient(135deg, #FEF3C7, #FDE68A)', border: '1px solid #F59E0B' }}>
+            <AnimatedDiv className="ds-kpi-card" whileHover={{ y: -3 }} style={{ background: 'linear-gradient(135deg, #FEF3C7, #FDE68A)', border: '1px solid #F59E0B' }}>
               <div className="ds-kpi-icon" style={{ background: '#F59E0B20', color: '#D97706' }}><WalletOutlined /></div>
               <div className="ds-kpi-content">
                 <div className="ds-kpi-value" style={{ color: '#92400E' }}>{vnd(filteredProfit)} đ</div>
@@ -509,23 +511,23 @@ export default function DoanhSo() {
                   ? <span style={{ fontSize: 10, color: '#B45309' }}>(lọc {selectedStatuses.length} trạng thái)</span>
                   : <span style={{ fontSize: 10, color: '#B45309' }}>của Sale</span>}</div>
               </div>
-            </motion.div>
+            </AnimatedDiv>
           </Col>
           <Col xs={24} sm={12}>
-            <motion.div className="ds-kpi-card" whileHover={{ y: -3 }} style={{ background: 'linear-gradient(135deg, #ECFDF5, #A7F3D0)', border: '1px solid #10B981' }}>
+            <AnimatedDiv className="ds-kpi-card" whileHover={{ y: -3 }} style={{ background: 'linear-gradient(135deg, #ECFDF5, #A7F3D0)', border: '1px solid #10B981' }}>
               <div className="ds-kpi-icon" style={{ background: '#10B98120', color: '#059669' }}><CalculatorOutlined /></div>
               <div className="ds-kpi-content">
                 <div className="ds-kpi-value" style={{ color: '#065F46' }}>{vnd(totalMessCost)} đ</div>
                 <div className="ds-kpi-label" style={{ color: '#047857' }}>Chi Phí Ước Tính ({vnd(apiCostPerMess)}đ × {totalMess} mess)</div>
               </div>
-            </motion.div>
+            </AnimatedDiv>
           </Col>
         </Row>
       )}
 
       {/* Chi tiết theo trạng thái */}
       {filteredOrders.length > 0 && (
-        <motion.div className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+        <AnimatedDiv className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <div className="sg-card-title" style={{ marginBottom: 12 }}>
             <DollarOutlined style={{ color: '#4F46E5' }} /> Chi Tiết Theo Trạng Thái
           </div>
@@ -539,13 +541,13 @@ export default function DoanhSo() {
               </div>
             ))}
           </div>
-        </motion.div>
+        </AnimatedDiv>
       )}
 
       {/* Mess Gauge + Info */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} md={8}>
-          <motion.div className={`sg-card ds-gauge-card ${messOverflow ? 'ds-gauge-overflow' : ''}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <AnimatedDiv className={`sg-card ds-gauge-card ${messOverflow ? 'ds-gauge-overflow' : ''}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <div className="sg-card-title">
               <MessageOutlined style={{ color: messOverflow ? '#EF4444' : '#4F46E5' }} /> Mốc Số Mess
             </div>
@@ -584,10 +586,10 @@ export default function DoanhSo() {
                 </span>
               </div>
             </div>
-          </motion.div>
+          </AnimatedDiv>
         </Col>
         <Col xs={24} md={16}>
-          <motion.div className="sg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+          <AnimatedDiv className="sg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
             <div className="sg-card-title">
               <RiseOutlined style={{ color: '#4F46E5' }} /> Bảng Mốc Mess Theo Doanh Số
             </div>
@@ -615,13 +617,13 @@ export default function DoanhSo() {
                 </tbody>
               </table>
             </div>
-          </motion.div>
+          </AnimatedDiv>
         </Col>
       </Row>
 
       {/* Mess By Day Chart */}
       {messDayChart.length > 0 && (
-        <motion.div className="sg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+        <AnimatedDiv className="sg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <div className="sg-card-title">
             <MessageOutlined style={{ color: '#4F46E5' }} /> Số Mess Chia Theo Ngày
           </div>
@@ -634,7 +636,7 @@ export default function DoanhSo() {
               <Bar dataKey="count" fill="#4F46E5" name="Số Mess" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
-        </motion.div>
+        </AnimatedDiv>
       )}
 
       {/* Mess Config Modal (ADMIN) */}
@@ -723,6 +725,6 @@ export default function DoanhSo() {
           </div>
         </div>
       </Modal>
-    </motion.div>
+    </AnimatedDiv>
   );
 }
