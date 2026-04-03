@@ -175,8 +175,10 @@ public class KhachHangService {
     public Map<String, Object> getMessStats(String sale, LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new LinkedHashMap<>();
 
-        // Normalize sale name to NFC to handle Unicode mismatch between crm_users and data_dulieukhach
-        String normalizedSale = sale != null ? Normalizer.normalize(sale.trim(), Normalizer.Form.NFC) : sale;
+        // Normalize sale name to NFC + collapse whitespace to match REGEXP_REPLACE(TRIM(Sale), '\s+', ' ') in SQL
+        String normalizedSale = sale != null
+                ? Normalizer.normalize(sale.trim().replaceAll("\\s+", " "), Normalizer.Form.NFC)
+                : sale;
 
         long totalMess = repository.countMessBySale(normalizedSale, fromDate, toDate);
         long totalPhones = repository.countDistinctSdtBySale(normalizedSale, fromDate, toDate);

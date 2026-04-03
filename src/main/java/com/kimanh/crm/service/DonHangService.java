@@ -314,15 +314,17 @@ public class DonHangService {
     public Map<String, Object> getSaleRevenue(String sale, LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new LinkedHashMap<>();
 
-        // Normalize Unicode to NFC to handle NFC/NFD mismatch
-        String normalizedSale = sale != null ? Normalizer.normalize(sale.trim(), Normalizer.Form.NFC) : sale;
+        // Normalize Unicode to NFC + collapse whitespace (must match REGEXP_REPLACE(TRIM(sale), '\s+', ' ') in SQL)
+        String normalizedSale = sale != null
+                ? Normalizer.normalize(sale.trim().replaceAll("\\s+", " "), Normalizer.Form.NFC)
+                : sale;
 
-        // One query: GROUP BY tinh_trang → derive all totals in Java
+        // Primary query: uses REGEXP_REPLACE+TRIM in SQL for robust matching
         List<Object[]> byStatus = repository.ordersByStatusForSale(normalizedSale, fromDate, toDate);
 
-        // If NFC returns nothing, try NFD
+        // Fallback 1: try NFD form (some DB entries may store Vietnamese in decomposed form)
         if (byStatus.isEmpty() && sale != null) {
-            String nfdSale = Normalizer.normalize(sale.trim(), Normalizer.Form.NFD);
+            String nfdSale = Normalizer.normalize(sale.trim().replaceAll("\\s+", " "), Normalizer.Form.NFD);
             if (!nfdSale.equals(normalizedSale)) {
                 List<Object[]> nfdResult = repository.ordersByStatusForSale(nfdSale, fromDate, toDate);
                 if (!nfdResult.isEmpty()) {
@@ -330,9 +332,9 @@ public class DonHangService {
                 }
             }
         }
-        // Fallback: TRIM-based
+        // Fallback 2: case-insensitive LOWER() match
         if (byStatus.isEmpty() && sale != null) {
-            List<Object[]> trimResult = repository.ordersByStatusForSaleTrimmed(sale.trim(), fromDate, toDate);
+            List<Object[]> trimResult = repository.ordersByStatusForSaleTrimmed(normalizedSale, fromDate, toDate);
             if (!trimResult.isEmpty()) {
                 byStatus = trimResult;
             }

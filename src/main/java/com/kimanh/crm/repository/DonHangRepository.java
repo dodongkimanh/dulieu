@@ -134,7 +134,7 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
     int findMaxInvoiceSeq(@Param("prefix") String prefix);
 
     // Analytics: aggregate by sale + tinhTrang
-    @Query(value = "SELECT d.sale, d.tinh_trang, " +
+    @Query(value = "SELECT REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') as sale_name, d.tinh_trang, " +
            "COUNT(*) as cnt, " +
            "COALESCE(SUM(d.gia_ban_len_don), 0) as sum_gia_ban, " +
            "COALESCE(SUM(d.gia_thu_thuc_te), 0) as sum_gia_thu, " +
@@ -144,8 +144,8 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
            "FROM don_hang d WHERE " +
            "(CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
-           "GROUP BY d.sale, d.tinh_trang " +
-           "ORDER BY d.sale, d.tinh_trang", nativeQuery = true)
+           "GROUP BY REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g'), d.tinh_trang " +
+           "ORDER BY sale_name, d.tinh_trang", nativeQuery = true)
     List<Object[]> aggregateBySaleAndStatus(
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
@@ -184,7 +184,7 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
 
     // Sale dashboard: total revenue for a sale
     @Query(value = "SELECT COALESCE(SUM(d.gia_thu_thuc_te), 0) FROM don_hang d " +
-           "WHERE d.sale = :sale " +
+           "WHERE REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
            nativeQuery = true)
@@ -195,7 +195,7 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
 
     // Sale dashboard: total estimated profit for a sale
     @Query(value = "SELECT COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) FROM don_hang d " +
-           "WHERE d.sale = :sale " +
+           "WHERE REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
            nativeQuery = true)
@@ -206,7 +206,7 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
 
     // Sale dashboard: qualified revenue (delivered/shipping statuses) for mess calculation
     @Query(value = "SELECT COALESCE(SUM(d.gia_thu_thuc_te), 0) FROM don_hang d " +
-           "WHERE d.sale = :sale " +
+           "WHERE REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
            "AND d.tinh_trang IN ('Đã Giao Thành Công', 'Đang giao', 'Đang vận chuyển', 'Khách Đặt Cọc', 'KH Showroom', 'Kho đang gọi hàng') " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
@@ -217,8 +217,9 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
             @Param("toDate") LocalDate toDate);
 
     // Sale dashboard: orders by status for a specific sale (with revenue + profit per status)
+    // Uses REGEXP_REPLACE + TRIM for robust matching (handles double spaces, leading/trailing spaces)
     @Query(value = "SELECT d.tinh_trang, COUNT(*), COALESCE(SUM(d.gia_thu_thuc_te), 0), COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) " +
-           "FROM don_hang d WHERE d.sale = :sale " +
+           "FROM don_hang d WHERE REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
            "GROUP BY d.tinh_trang ORDER BY d.tinh_trang",
@@ -228,9 +229,9 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 
-    // TRIM-based fallback for Unicode/spaces mismatch
+    // TRIM + REGEXP_REPLACE + LOWER fallback for Unicode/spaces mismatch
     @Query(value = "SELECT d.tinh_trang, COUNT(*), COALESCE(SUM(d.gia_thu_thuc_te), 0), COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) " +
-           "FROM don_hang d WHERE TRIM(d.sale) = TRIM(CAST(:sale AS text)) " +
+           "FROM don_hang d WHERE LOWER(REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g')) = LOWER(TRIM(CAST(:sale AS text))) " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
            "GROUP BY d.tinh_trang ORDER BY d.tinh_trang",
@@ -241,24 +242,24 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
             @Param("toDate") LocalDate toDate);
 
     // Batch: qualified revenue grouped by sale name (for sales-mess-overview, avoids N+1)
-    @Query(value = "SELECT TRIM(d.sale) as sale_name, COALESCE(SUM(d.gia_thu_thuc_te), 0) as qualified_revenue " +
+    @Query(value = "SELECT REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') as sale_name, COALESCE(SUM(d.gia_thu_thuc_te), 0) as qualified_revenue " +
            "FROM don_hang d " +
            "WHERE d.tinh_trang IN ('Đã Giao Thành Công', 'Đang giao', 'Đang vận chuyển', 'Khách Đặt Cọc', 'KH Showroom', 'Kho đang gọi hàng') " +
            "AND d.sale IS NOT NULL AND TRIM(d.sale) <> '' " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
-           "GROUP BY TRIM(d.sale)", nativeQuery = true)
+           "GROUP BY REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g')", nativeQuery = true)
     List<Object[]> sumQualifiedRevenueGroupedBySale(
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
 
     // Batch: revenue grouped by sale + status (no hardcoded status filter — handles Unicode NFC/NFD mismatch)
-    @Query(value = "SELECT TRIM(d.sale) as sale_name, d.tinh_trang, COALESCE(SUM(d.gia_thu_thuc_te), 0) as revenue " +
+    @Query(value = "SELECT REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') as sale_name, d.tinh_trang, COALESCE(SUM(d.gia_thu_thuc_te), 0) as revenue " +
            "FROM don_hang d " +
            "WHERE d.sale IS NOT NULL AND TRIM(d.sale) <> '' " +
            "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
-           "GROUP BY TRIM(d.sale), d.tinh_trang", nativeQuery = true)
+           "GROUP BY REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g'), d.tinh_trang", nativeQuery = true)
     List<Object[]> sumRevenueGroupedBySaleAndStatus(
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
