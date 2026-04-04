@@ -301,10 +301,10 @@ export default function DoanhSo() {
   const messAllocation = Number(data?.messAllocation || 92);
   const totalMess = Number(data?.totalMess || 0);
   const totalPhones = Number(data?.totalPhones || 0);
-  const _messNew = Number(data?.messNew || 0);
   const messOld = Number(data?.messOld || 0);
   const messSpam = Number(data?.messSpam || 0);
-  const messTotal = Number(data?.messTotal || 0);
+  // Fallback: if BE hasn't deployed breakdown yet, messTotal = totalMess (all are mess_moi)
+  const messTotal = Number(data?.messTotal || 0) || (totalMess + messOld + messSpam);
   const messExcluded = messOld + messSpam;
   const ordersByStatus = data?.ordersByStatus || [];
   const messByDay = data?.messByDay || [];
@@ -490,8 +490,9 @@ export default function DoanhSo() {
             <div className="ds-kpi-content">
               <div className="ds-kpi-value">{totalMess}</div>
               <div className="ds-kpi-label">Mess Mới (Tính Mốc)</div>
-              {messExcluded > 0 && (
+              {messTotal > 0 && (
                 <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                  <Tag style={{ margin: 0, fontSize: 10, fontWeight: 600, background: '#ECFDF5', color: '#059669', border: '1px solid #A7F3D0', borderRadius: 6, padding: '0 6px' }}>Mới: {totalMess}</Tag>
                   {messOld > 0 && <Tag style={{ margin: 0, fontSize: 10, fontWeight: 600, background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', borderRadius: 6, padding: '0 6px' }}>Cũ: {messOld}</Tag>}
                   {messSpam > 0 && <Tag style={{ margin: 0, fontSize: 10, fontWeight: 600, background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 6, padding: '0 6px' }}>Spam: {messSpam}</Tag>}
                   <Tag style={{ margin: 0, fontSize: 10, fontWeight: 500, background: '#F1F5F9', color: '#64748B', border: '1px solid #E2E8F0', borderRadius: 6, padding: '0 6px' }}>Tổng: {messTotal}</Tag>
