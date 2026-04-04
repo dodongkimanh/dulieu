@@ -1,5 +1,8 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox, Badge } from 'antd';
+
+const AnimatedDiv = motion.div;
 import {
   PlusOutlined,
   SearchOutlined,
@@ -153,7 +156,8 @@ export default function KhachHang() {
     fetchData();
     fetchMeta();
     fetchChannels();
-  }, [fetchData, fetchMeta, fetchChannels]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleTableChange = (pag) => fetchData(pag.current, pag.pageSize);
   const handleSearch = () => fetchData(1, pagination.pageSize);
@@ -374,7 +378,7 @@ export default function KhachHang() {
   );
 
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+    <AnimatedDiv initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
       <div className="page-header-premium">
         <div className="page-header-left">
           <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} size="large" className="create-btn-premium">Thêm khách hàng</Button>
@@ -417,7 +421,7 @@ export default function KhachHang() {
         </div>
       </div>
 
-      <motion.div
+      <AnimatedDiv
         className="sg-card"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -490,7 +494,7 @@ export default function KhachHang() {
           size="small"
           expandable={{ expandedRowRender, expandRowByClick: true }}
         />
-      </motion.div>
+      </AnimatedDiv>
 
       <Modal
         title={editingRecord ? 'Cập nhật khách hàng' : 'Thêm khách hàng mới'}
@@ -705,6 +709,6 @@ export default function KhachHang() {
           )}
         </div>
       </Modal>
-    </motion.div>
+    </AnimatedDiv>
   );
 }
