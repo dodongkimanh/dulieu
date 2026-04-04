@@ -5,6 +5,7 @@ import lombok.*;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "data_dulieukhach", schema = "public")
@@ -58,10 +59,12 @@ public class KhachHang implements Serializable {
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
     @PrePersist
     public void prePersist() {
         if (status == null) status = "moi";
         if (loaiMess == null) loaiMess = "mess_moi";
-        if (createdAt == null) createdAt = OffsetDateTime.now();
+        if (createdAt == null) createdAt = OffsetDateTime.now(VN_ZONE);
     }
 }

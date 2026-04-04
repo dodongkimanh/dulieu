@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "don_hang", schema = "public")
@@ -111,18 +112,20 @@ public class DonHang {
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
 
+    private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
     @PrePersist
     public void prePersist() {
-        if (ngay == null) ngay = LocalDate.now();
+        if (ngay == null) ngay = LocalDate.now(VN_ZONE);
         if (tinhTrang == null) tinhTrang = "Đang Chờ";
-        if (createdAt == null) createdAt = OffsetDateTime.now();
-        if (updatedAt == null) updatedAt = OffsetDateTime.now();
+        if (createdAt == null) createdAt = OffsetDateTime.now(VN_ZONE);
+        if (updatedAt == null) updatedAt = OffsetDateTime.now(VN_ZONE);
         calculate();
     }
 
     @PreUpdate
     public void preUpdate() {
-        updatedAt = OffsetDateTime.now();
+        updatedAt = OffsetDateTime.now(VN_ZONE);
         calculate();
     }
 
