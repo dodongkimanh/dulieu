@@ -85,7 +85,8 @@ public class KhachHangService {
 
     @Caching(evict = {
         @CacheEvict(value = "khachHang", key = "#id"),
-        @CacheEvict(value = "khachHang_sales", allEntries = true)
+        @CacheEvict(value = "khachHang_sales", allEntries = true),
+        @CacheEvict(value = "mess_stats", allEntries = true)
     })
     public KhachHang transferSale(Long id, String newSale) {
         KhachHang existing = findById(id);
@@ -123,7 +124,8 @@ public class KhachHangService {
     }
 
     @Caching(evict = {
-        @CacheEvict(value = "khachHang", key = "#id")
+        @CacheEvict(value = "khachHang", key = "#id"),
+        @CacheEvict(value = "mess_stats", allEntries = true)
     })
     public KhachHang updateLoaiMess(Long id, String loaiMess) {
         KhachHang existing = findById(id);
@@ -213,6 +215,24 @@ public class KhachHangService {
 
         result.put("totalMess", totalMess);
         result.put("totalPhones", totalPhones);
+
+        // Mess breakdown by loai_mess (mess_moi / mess_cu / mess_spam)
+        long messNew = 0, messOld = 0, messSpam = 0;
+        List<Object[]> breakdown = repository.countMessByLoaiMessForSale(normalizedSale, fromDate, toDate);
+        for (Object[] row : breakdown) {
+            String loai = row[0] != null ? row[0].toString() : "mess_moi";
+            long cnt = row[1] != null ? ((Number) row[1]).longValue() : 0L;
+            switch (loai) {
+                case "mess_moi" -> messNew = cnt;
+                case "mess_cu" -> messOld = cnt;
+                case "mess_spam" -> messSpam = cnt;
+                default -> messNew += cnt;
+            }
+        }
+        result.put("messNew", messNew);
+        result.put("messOld", messOld);
+        result.put("messSpam", messSpam);
+        result.put("messTotal", messNew + messOld + messSpam);
 
         // Mess by day — use normalizedSale (resolved via NFC/NFD/TRIM fallback), NOT raw sale
         List<Object[]> messByDay = repository.countMessByDayForSale(normalizedSale, fromDate, toDate);

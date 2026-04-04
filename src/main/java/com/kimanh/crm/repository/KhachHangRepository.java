@@ -65,19 +65,21 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     @Query("SELECT DISTINCT k.sale FROM KhachHang k WHERE k.sale IS NOT NULL")
     List<String> findDistinctSales();
 
-    // Sale dashboard: total mess + distinct phones in a single query (excludes assigned/transferred customers)
+    // Sale dashboard: total mess + distinct phones in a single query (excludes assigned/transferred customers, only mess_moi)
     @Query(value = "SELECT COUNT(*), COUNT(DISTINCT CASE WHEN \"Sdt\" IS NOT NULL AND \"Sdt\" <> '' THEN \"Sdt\" END) " +
            "FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (loai_mess IS NULL OR loai_mess = 'mess_moi') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
     Object[] countMessAndPhonesBySale(@Param("sale") String sale,
                                       @Param("fromDate") LocalDate fromDate,
                                       @Param("toDate") LocalDate toDate);
 
-    // Sale dashboard: total mess (records) for a sale in date range (excludes assigned/transferred customers)
+    // Sale dashboard: total mess_moi (records) for a sale in date range (excludes assigned/transferred + spam/cũ)
     @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (loai_mess IS NULL OR loai_mess = 'mess_moi') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
     long countMessBySale(@Param("sale") String sale,
@@ -87,15 +89,17 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     // Fallback: handles invisible chars, trailing/internal whitespace, Unicode mismatches
     @Query(value = "SELECT COUNT(*) FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = REGEXP_REPLACE(TRIM(CAST(:sale AS text)), '\\s+', ' ', 'g') " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (loai_mess IS NULL OR loai_mess = 'mess_moi') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
     long countMessBySaleTrimmed(@Param("sale") String sale,
                                 @Param("fromDate") LocalDate fromDate,
                                 @Param("toDate") LocalDate toDate);
 
-    // Sale dashboard: distinct phone numbers for a sale in date range (excludes assigned/transferred customers)
+    // Sale dashboard: distinct phone numbers for a sale in date range (excludes assigned/transferred + spam/cũ)
     @Query(value = "SELECT COUNT(DISTINCT \"Sdt\") FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text) AND \"Sdt\" IS NOT NULL AND \"Sdt\" <> '' " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (loai_mess IS NULL OR loai_mess = 'mess_moi') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
     long countDistinctSdtBySale(@Param("sale") String sale,
@@ -105,16 +109,18 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     // Fallback for phones with whitespace normalization
     @Query(value = "SELECT COUNT(DISTINCT \"Sdt\") FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = REGEXP_REPLACE(TRIM(CAST(:sale AS text)), '\\s+', ' ', 'g') AND \"Sdt\" IS NOT NULL AND \"Sdt\" <> '' " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (loai_mess IS NULL OR loai_mess = 'mess_moi') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date))", nativeQuery = true)
     long countDistinctSdtBySaleTrimmed(@Param("sale") String sale,
                                        @Param("fromDate") LocalDate fromDate,
                                        @Param("toDate") LocalDate toDate);
 
-    // Sale dashboard: mess count by day for a sale (excludes assigned/transferred customers)
+    // Sale dashboard: mess_moi count by day for a sale (excludes assigned/transferred + spam/cũ)
     @Query(value = "SELECT CAST(TO_CHAR(\"Ngay_thang\", 'DD') AS integer) as day_num, COUNT(*) as cnt " +
            "FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (loai_mess IS NULL OR loai_mess = 'mess_moi') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date)) " +
            "GROUP BY CAST(TO_CHAR(\"Ngay_thang\", 'DD') AS integer) ORDER BY day_num", nativeQuery = true)
@@ -127,6 +133,7 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
     @Query(value = "SELECT CAST(TO_CHAR(\"Ngay_thang\", 'DD') AS integer) as day_num, COUNT(*) as cnt " +
            "FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = REGEXP_REPLACE(TRIM(CAST(:sale AS text)), '\\s+', ' ', 'g') " +
            "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (loai_mess IS NULL OR loai_mess = 'mess_moi') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date)) " +
            "GROUP BY CAST(TO_CHAR(\"Ngay_thang\", 'DD') AS integer) ORDER BY day_num", nativeQuery = true)
@@ -142,14 +149,26 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
            nativeQuery = true)
     long countPendingAssigned(@Param("sale") String sale);
 
-    // Batch: mess counts grouped by sale name (for sales-mess-overview, avoids N+1)
+    // Batch: mess_moi counts grouped by sale name (for sales-mess-overview, avoids N+1)
     @Query(value = "SELECT TRIM(\"Sale\") as sale_name, COUNT(*) as mess_count " +
            "FROM data_dulieukhach " +
            "WHERE (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (loai_mess IS NULL OR loai_mess = 'mess_moi') " +
            "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date)) " +
            "AND \"Sale\" IS NOT NULL AND TRIM(\"Sale\") <> '' " +
            "GROUP BY TRIM(\"Sale\")", nativeQuery = true)
     List<Object[]> countMessGroupedBySale(@Param("fromDate") LocalDate fromDate,
                                           @Param("toDate") LocalDate toDate);
+
+    // Breakdown: count by loai_mess type for a specific sale (for DoanhSo dashboard detail)
+    @Query(value = "SELECT COALESCE(loai_mess, 'mess_moi') as loai, COUNT(*) as cnt " +
+           "FROM data_dulieukhach WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
+           "AND (assigned_from IS NULL OR assigned_from = '') " +
+           "AND (CAST(:fromDate AS date) IS NULL OR \"Ngay_thang\" >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR \"Ngay_thang\" <= CAST(:toDate AS date)) " +
+           "GROUP BY COALESCE(loai_mess, 'mess_moi')", nativeQuery = true)
+    List<Object[]> countMessByLoaiMessForSale(@Param("sale") String sale,
+                                              @Param("fromDate") LocalDate fromDate,
+                                              @Param("toDate") LocalDate toDate);
 }
