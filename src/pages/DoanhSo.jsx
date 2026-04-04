@@ -301,6 +301,11 @@ export default function DoanhSo() {
   const messAllocation = Number(data?.messAllocation || 92);
   const totalMess = Number(data?.totalMess || 0);
   const totalPhones = Number(data?.totalPhones || 0);
+  const _messNew = Number(data?.messNew || 0);
+  const messOld = Number(data?.messOld || 0);
+  const messSpam = Number(data?.messSpam || 0);
+  const messTotal = Number(data?.messTotal || 0);
+  const messExcluded = messOld + messSpam;
   const ordersByStatus = data?.ordersByStatus || [];
   const messByDay = data?.messByDay || [];
   const messRemaining = Math.max(0, messAllocation - totalMess);
@@ -484,7 +489,14 @@ export default function DoanhSo() {
             <div className="ds-kpi-icon"><MessageOutlined /></div>
             <div className="ds-kpi-content">
               <div className="ds-kpi-value">{totalMess}</div>
-              <div className="ds-kpi-label">Tổng Mess Nhận Được</div>
+              <div className="ds-kpi-label">Mess Mới (Tính Mốc)</div>
+              {messExcluded > 0 && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                  {messOld > 0 && <Tag style={{ margin: 0, fontSize: 10, fontWeight: 600, background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A', borderRadius: 6, padding: '0 6px' }}>Cũ: {messOld}</Tag>}
+                  {messSpam > 0 && <Tag style={{ margin: 0, fontSize: 10, fontWeight: 600, background: '#FEE2E2', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 6, padding: '0 6px' }}>Spam: {messSpam}</Tag>}
+                  <Tag style={{ margin: 0, fontSize: 10, fontWeight: 500, background: '#F1F5F9', color: '#64748B', border: '1px solid #E2E8F0', borderRadius: 6, padding: '0 6px' }}>Tổng: {messTotal}</Tag>
+                </div>
+              )}
             </div>
           </AnimatedDiv>
         </Col>
@@ -576,9 +588,15 @@ export default function DoanhSo() {
                 <span className="ds-gauge-val">{messAllocation} mess</span>
               </div>
               <div className="ds-gauge-row">
-                <span>Đã dùng</span>
+                <span>Mess Mới (tính mốc)</span>
                 <span className={`ds-gauge-val ${messOverflow ? 'ds-overflow' : 'ds-used'}`}>{totalMess} mess</span>
               </div>
+              {messExcluded > 0 && (
+                <div className="ds-gauge-row" style={{ fontSize: 12, color: '#94A3B8' }}>
+                  <span>Không tính ({messOld > 0 ? `${messOld} cũ` : ''}{messOld > 0 && messSpam > 0 ? ' + ' : ''}{messSpam > 0 ? `${messSpam} spam` : ''})</span>
+                  <span style={{ color: '#F59E0B', fontWeight: 600 }}>−{messExcluded}</span>
+                </div>
+              )}
               <div className="ds-gauge-row">
                 <span>Còn lại</span>
                 <span className={`ds-gauge-val ${messOverflow ? 'ds-overflow' : 'ds-remain'}`}>
