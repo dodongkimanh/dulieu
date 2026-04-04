@@ -530,7 +530,7 @@ export default function DoanhSo() {
               <div className="ds-kpi-icon" style={{ background: '#10B98120', color: '#059669' }}><CalculatorOutlined /></div>
               <div className="ds-kpi-content">
                 <div className="ds-kpi-value" style={{ color: '#065F46' }}>{vnd(totalMessCost)} đ</div>
-                <div className="ds-kpi-label" style={{ color: '#047857' }}>Chi Phí Ước Tính ({vnd(apiCostPerMess)}đ × {totalMess} mess)</div>
+                <div className="ds-kpi-label" style={{ color: '#047857' }}>Chi Phí Ước Tính ({vnd(apiCostPerMess)}đ × {totalMess} mess mới)</div>
               </div>
             </AnimatedDiv>
           </Col>
@@ -561,7 +561,7 @@ export default function DoanhSo() {
         <Col xs={24} md={8}>
           <AnimatedDiv className={`sg-card ds-gauge-card ${messOverflow ? 'ds-gauge-overflow' : ''}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <div className="sg-card-title">
-              <MessageOutlined style={{ color: messOverflow ? '#EF4444' : '#4F46E5' }} /> Mốc Số Mess
+              <MessageOutlined style={{ color: messOverflow ? '#EF4444' : '#4F46E5' }} /> Mốc Mess Mới
             </div>
             <div className="ds-gauge-wrapper">
               <MessGauge used={totalMess} total={messAllocation} isOverflow={messOverflow} />
@@ -643,7 +643,7 @@ export default function DoanhSo() {
       {messDayChart.length > 0 && (
         <AnimatedDiv className="sg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <div className="sg-card-title">
-            <MessageOutlined style={{ color: '#4F46E5' }} /> Số Mess Chia Theo Ngày
+            <MessageOutlined style={{ color: '#4F46E5' }} /> Số Mess Mới Chia Theo Ngày
           </div>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={messDayChart}>
@@ -651,7 +651,7 @@ export default function DoanhSo() {
               <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#94A3B8' }} />
               <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} allowDecimals={false} />
               <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid #E2E8F0', fontSize: 12 }} />
-              <Bar dataKey="count" fill="#4F46E5" name="Số Mess" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill="#4F46E5" name="Mess Mới" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </AnimatedDiv>

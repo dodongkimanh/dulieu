@@ -35,6 +35,7 @@ const LOAI_MESS_OPTIONS = [
 
 const statusColors = {
   'moi': { color: '#3B82F6', bg: '#EFF6FF', label: 'Mới' },
+  'pending': { color: '#3B82F6', bg: '#EFF6FF', label: 'Mới' },
   'da_lien_he': { color: '#8B5CF6', bg: '#F5F3FF', label: 'Đã liên hệ' },
   'dang_cham_soc': { color: '#F59E0B', bg: '#FFFBEB', label: 'Đang chăm sóc' },
   'da_chuyen_doi': { color: '#10B981', bg: '#D1FAE5', label: 'Đã chuyển đổi' },
@@ -274,21 +275,27 @@ export default function KhachHang() {
       title: 'Chuyển từ', dataIndex: 'assignedFrom', _defaultWidth: 110,
       render: (v) => v ? <Tag color="cyan">{v}</Tag> : '—'
     }] : []),
-    { title: 'Trạng thái', dataIndex: 'status', _defaultWidth: 130, render: (v, record) => (
-      <Select
-        value={v}
-        onChange={(val) => handleStatusChange(record.id, val)}
-        size="small"
-        style={{ width: '100%' }}
-        popupMatchSelectWidth={false}
-      >
-        {Object.entries(statusColors).map(([k, sc]) => (
-          <Option key={k} value={k}>
-            <Tag style={{ background: sc.bg, color: sc.color, border: 'none', fontWeight: 600, padding: '1px 8px', borderRadius: 6, margin: 0 }}>{sc.label}</Tag>
-          </Option>
-        ))}
-      </Select>
-    )},
+    { title: 'Trạng thái', dataIndex: 'status', _defaultWidth: 130, render: (v, record) => {
+      // Normalize: treat unknown/legacy statuses as 'moi'
+      const normalizedStatus = statusColors[v] ? v : 'moi';
+      return (
+        <Select
+          value={normalizedStatus}
+          onChange={(val) => handleStatusChange(record.id, val)}
+          size="small"
+          style={{ width: '100%' }}
+          popupMatchSelectWidth={false}
+        >
+          {Object.entries(statusColors)
+            .filter(([k]) => k !== 'pending')
+            .map(([k, sc]) => (
+              <Option key={k} value={k}>
+                <Tag style={{ background: sc.bg, color: sc.color, border: 'none', fontWeight: 600, padding: '1px 8px', borderRadius: 6, margin: 0 }}>{sc.label}</Tag>
+              </Option>
+            ))}
+        </Select>
+      );
+    }},
     { title: 'Ghi chú', dataIndex: 'mess', _defaultWidth: 180, ellipsis: true, render: (v, record) => {
       const val = v && v !== 'EMPTY' && v !== 'Mes Mới' ? v : '';
       return (
