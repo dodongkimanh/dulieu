@@ -516,7 +516,7 @@ export default function KhachHang() {
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={16}>
-            <Col span={12}><Form.Item name="ngayThang" label="Ngày"><Input disabled={true} /></Form.Item></Col>
+            <Col span={12}><Form.Item name="ngayThang" label="Ngày"><DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} allowClear={false} /></Form.Item></Col>
             <Col span={12}><Form.Item name="khachHang" label="Tên khách hàng" rules={[{ required: true, message: 'Nhập tên' }]}><Input /></Form.Item></Col>
           </Row>
           <Row gutter={16}>

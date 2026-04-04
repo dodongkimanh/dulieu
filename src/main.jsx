@@ -2,8 +2,16 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ConfigProvider } from 'antd'
 import viVN from 'antd/locale/vi_VN'
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 import App from './App.jsx'
 import './App.css'
+
+// Configure dayjs timezone globally — Vietnam (UTC+7)
+dayjs.extend(utc)
+dayjs.extend(timezone)
+dayjs.tz.setDefault('Asia/Ho_Chi_Minh')
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
