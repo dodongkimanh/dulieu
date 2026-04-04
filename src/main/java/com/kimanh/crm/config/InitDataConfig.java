@@ -4,12 +4,14 @@ import com.kimanh.crm.entity.User;
 import com.kimanh.crm.repository.KhachHangRepository;
 import com.kimanh.crm.repository.UserRepository;
 import com.kimanh.crm.service.KenhTiepThiService;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
 import java.util.List;
@@ -26,6 +28,7 @@ public class InitDataConfig {
     private final KhachHangRepository khachHangRepository;
     private final PasswordEncoder passwordEncoder;
     private final KenhTiepThiService kenhTiepThiService;
+    private final EntityManager entityManager;
 
     private static final String ADMIN_USERNAME = "dangducky@kimanh.com";
     private static final String ADMIN_PASSWORD = "Admin@123";
@@ -43,6 +46,10 @@ public class InitDataConfig {
     }
 
     private void doInit() {
+        // 0. Fix PostgreSQL identity sequences — prevent "duplicate key" errors
+        // when tables have pre-imported data with explicit IDs
+        syncSequences();
+
         // 1. Create/update admin account
         try {
             User admin = userRepository.findByUsername(ADMIN_USERNAME).orElse(null);
@@ -168,5 +175,33 @@ public class InitDataConfig {
         s = s.toLowerCase().replaceAll("[^a-z0-9]", "");
         if (s.isEmpty()) return null;
         return s + "@kimanh.com";
+    }
+
+    /**
+     * Sync PostgreSQL identity sequences to MAX(id) + 1 for all tables.
+     * Fixes "duplicate key value violates unique constraint" errors caused by
+     * bulk-imported data with explicit IDs that leave the sequence behind.
+     */
+    @Transactional
+    private void syncSequences() {
+        String[][] tables = {
+            {"data_dulieukhach", "id"},
+            {"don_hang", "id"},
+            {"crm_users", "id"},
+            {"kenh_tiep_thi", "id"},
+            {"mess_config", "id"},
+        };
+        for (String[] t : tables) {
+            try {
+                String sql = String.format(
+                    "SELECT setval(pg_get_serial_sequence('%s', '%s'), COALESCE((SELECT MAX(%s) FROM %s), 0) + 1, false)",
+                    t[0], t[1], t[1], t[0]
+                );
+                entityManager.createNativeQuery(sql).getSingleResult();
+                log.info("Synced sequence for {}.{}", t[0], t[1]);
+            } catch (Exception e) {
+                log.warn("Could not sync sequence for {}.{}: {}", t[0], t[1], e.getMessage());
+            }
+        }
     }
 }

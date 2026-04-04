@@ -16,7 +16,7 @@ public class HealthController {
                 "status", "UP",
                 "timestamp", Instant.now().toString(),
                 "service", "CRM Kim Anh Backend",
-                "version", "2.3.0-23h.47"
+                "version", "2.4.0-21h.14"
         ));
     }
 }
