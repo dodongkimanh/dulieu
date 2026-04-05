@@ -48,6 +48,7 @@ const statusColors = {
 export default function KhachHang() {
   const { user, isAdmin, isSaler } = useAuth();
   const canManage = isAdmin || user?.role === 'KE_TOAN';
+  const currentSaleName = (user?.fullName || '').trim().replace(/\s+/g, ' ');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 15, total: 0 });
@@ -182,13 +183,35 @@ export default function KhachHang() {
     } catch { message.error('Lỗi cập nhật loại mess'); }
   };
 
-  const handleCreate = () => { setEditingRecord(null); form.resetFields(); form.setFieldsValue({ ngayThang: dayjs(), status: 'moi', loaiMess: 'mess_moi' }); setModalOpen(true); };
-  const handleEdit = (record) => { setEditingRecord(record); form.setFieldsValue({ ...record, ngayThang: record.ngayThang ? dayjs(record.ngayThang) : dayjs() }); setModalOpen(true); };
+  const handleCreate = () => {
+    setEditingRecord(null);
+    form.resetFields();
+    form.setFieldsValue({
+      ngayThang: dayjs(),
+      status: 'moi',
+      loaiMess: 'mess_moi',
+      sale: isSaler ? currentSaleName : undefined,
+    });
+    setModalOpen(true);
+  };
+
+  const handleEdit = (record) => {
+    setEditingRecord(record);
+    form.setFieldsValue({
+      ...record,
+      ngayThang: record.ngayThang ? dayjs(record.ngayThang) : dayjs(),
+      sale: isSaler ? currentSaleName : record.sale,
+    });
+    setModalOpen(true);
+  };
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
       values.ngayThang = values.ngayThang?.format('YYYY-MM-DD');
+      if (isSaler) {
+        values.sale = currentSaleName;
+      }
       if (editingRecord) {
         await khachHangApi.update(editingRecord.id, values);
         message.success('Cập nhật khách hàng thành công');
@@ -522,9 +545,13 @@ export default function KhachHang() {
           <Row gutter={16}>
             <Col span={12}><Form.Item name="sdt" label="Số điện thoại"><Input /></Form.Item></Col>
             <Col span={12}><Form.Item name="sale" label="Sale">
-              <Select showSearch allowClear optionFilterProp="children" placeholder="Chọn Sale">
-                {allSaleUsers.map(s => <Option key={s} value={s}>{s}</Option>)}
-              </Select>
+              {isSaler ? (
+                <Input disabled />
+              ) : (
+                <Select showSearch allowClear optionFilterProp="children" placeholder="Chọn Sale">
+                  {allSaleUsers.map(s => <Option key={s} value={s}>{s}</Option>)}
+                </Select>
+              )}
             </Form.Item></Col>
           </Row>
           <Row gutter={16}>
@@ -638,7 +665,7 @@ export default function KhachHang() {
               background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, 
               padding: '10px 14px', marginTop: 12, fontSize: 13, color: '#166534'
             }}>
-              ✅ Khách hàng <strong>{transferModal.record?.khachHang}</strong> sẽ được chuyển từ <strong>{transferModal.record?.sale || '(trống)'}</strong> sang <strong>{transferModal.sale}</strong>
+              Khách hàng <strong>{transferModal.record?.khachHang}</strong> sẽ được chuyển từ <strong>{transferModal.record?.sale || '(trống)'}</strong> sang <strong>{transferModal.sale}</strong>
               <br /><span style={{ color: '#0891B2', fontSize: 12 }}>Trạng thái sẽ được đặt lại thành <strong>"Mới"</strong> và hiển thị trong mục <strong>"Khách Được Phân Công"</strong> của sale mới.</span>
             </div>
           )}
