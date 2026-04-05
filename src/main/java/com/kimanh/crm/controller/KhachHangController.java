@@ -9,14 +9,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @RestController
@@ -29,6 +32,33 @@ public class KhachHangController {
 
     private final KhachHangService service;
     private final UserRepository userRepository;
+
+    private String normalizeSale(String sale) {
+        if (sale == null) return null;
+        String normalized = Normalizer.normalize(sale, Normalizer.Form.NFC).trim().replaceAll("\\s+", " ");
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private boolean hasRole(Authentication auth, String role) {
+        return auth != null && auth.getAuthorities() != null
+                && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_" + role));
+    }
+
+    private String getCurrentSalerNameOrThrow(Authentication auth) {
+        return userRepository.findByUsername(auth.getName())
+                .map(User::getFullName)
+                .map(this::normalizeSale)
+                .filter(Objects::nonNull)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin sale hiện tại"));
+    }
+
+    private void ensureSalerOwnsCustomer(Long customerId, String currentSale) {
+        KhachHang existing = service.findById(customerId);
+        String recordSale = normalizeSale(existing.getSale());
+        if (!Objects.equals(recordSale, currentSale)) {
+            throw new AccessDeniedException("Bạn chỉ được thao tác khách hàng thuộc tài khoản sale của mình");
+        }
+    }
 
     @GetMapping
     public ResponseEntity<Page<KhachHang>> getAll(
@@ -47,13 +77,11 @@ public class KhachHangController {
 
         // SALER can only see their own customers
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        boolean isSaler = auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_SALER"));
+        boolean isSaler = hasRole(auth, "SALER");
         if (isSaler) {
-            sale = userRepository.findByUsername(auth.getName())
-                    .map(User::getFullName)
-                    .map(n -> n.trim().replaceAll("\\s+", " "))
-                    .orElse("");
+            sale = getCurrentSalerNameOrThrow(auth);
+        } else {
+            sale = normalizeSale(sale);
         }
 
         String safeSortBy = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : "createdAt";
@@ -64,25 +92,50 @@ public class KhachHangController {
 
     @GetMapping("/{id}")
     public ResponseEntity<KhachHang> getById(@PathVariable Long id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (hasRole(auth, "SALER")) {
+            ensureSalerOwnsCustomer(id, getCurrentSalerNameOrThrow(auth));
+        }
         return ResponseEntity.ok(service.findById(id));
     }
 
     @PostMapping
     public ResponseEntity<KhachHang> create(@RequestBody KhachHang entity) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (hasRole(auth, "SALER")) {
+            // Enforce creator ownership: SALER cannot assign customer to another sale.
+            entity.setSale(getCurrentSalerNameOrThrow(auth));
+        } else {
+            entity.setSale(normalizeSale(entity.getSale()));
+        }
         return ResponseEntity.ok(service.create(entity));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<KhachHang> update(@PathVariable Long id, @RequestBody KhachHang entity) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (hasRole(auth, "SALER")) {
+            String currentSale = getCurrentSalerNameOrThrow(auth);
+            ensureSalerOwnsCustomer(id, currentSale);
+            // Prevent tampering sale field via crafted requests.
+            entity.setSale(currentSale);
+        } else {
+            entity.setSale(normalizeSale(entity.getSale()));
+        }
         return ResponseEntity.ok(service.update(id, entity));
     }
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<KhachHang> updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (hasRole(auth, "SALER")) {
+            ensureSalerOwnsCustomer(id, getCurrentSalerNameOrThrow(auth));
+        }
         return ResponseEntity.ok(service.updateStatus(id, body.get("status")));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'KE_TOAN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
@@ -122,11 +175,19 @@ public class KhachHangController {
 
     @PatchMapping("/{id}/notes")
     public ResponseEntity<KhachHang> updateNotes(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (hasRole(auth, "SALER")) {
+            ensureSalerOwnsCustomer(id, getCurrentSalerNameOrThrow(auth));
+        }
         return ResponseEntity.ok(service.updateNotes(id, body.get("notes")));
     }
 
     @PatchMapping("/{id}/loai-mess")
     public ResponseEntity<KhachHang> updateLoaiMess(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (hasRole(auth, "SALER")) {
+            ensureSalerOwnsCustomer(id, getCurrentSalerNameOrThrow(auth));
+        }
         return ResponseEntity.ok(service.updateLoaiMess(id, body.get("loaiMess")));
     }
 
@@ -142,6 +203,7 @@ public class KhachHangController {
         if (isSaler) {
             sale = userRepository.findByUsername(auth.getName())
                     .map(User::getFullName)
+                    .map(this::normalizeSale)
                     .orElse(null);
         }
         return ResponseEntity.ok(Map.of("count", service.countPendingAssigned(sale)));
