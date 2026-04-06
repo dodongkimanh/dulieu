@@ -7,9 +7,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.text.Normalizer;
@@ -23,6 +25,7 @@ import java.util.*;
 public class KhachHangService {
 
     private final KhachHangRepository repository;
+    private final JdbcTemplate jdbcTemplate;
 
     public Page<KhachHang> findAll(String keyword, String status, String page, String sale,
                                     LocalDate fromDate, LocalDate toDate,
@@ -49,7 +52,37 @@ public class KhachHangService {
         @CacheEvict(value = "mess_stats", allEntries = true)
     })
     public KhachHang create(KhachHang entity) {
-        return repository.save(Objects.requireNonNull(entity, "entity must not be null"));
+        Objects.requireNonNull(entity, "entity must not be null");
+        try {
+            return repository.save(entity);
+        } catch (DataIntegrityViolationException ex) {
+            Throwable root = ex.getRootCause();
+            if (root != null && root.getMessage() != null && root.getMessage().contains("duplicate key")) {
+                log.warn("Duplicate key on data_dulieukhach insert \u2013 resyncing ID sequence and retrying");
+                resetIdSequence("data_dulieukhach", "id");
+                entity.setId(null);
+                return repository.save(entity);
+            }
+            throw ex;
+        }
+    }
+
+    /**
+     * Reset PostgreSQL identity sequence to MAX(id)+1 for a table.
+     * Self-healing mechanism for sequence desync caused by manual DB inserts.
+     */
+    private void resetIdSequence(String table, String column) {
+        try {
+            String seqName = jdbcTemplate.queryForObject(
+                String.format("SELECT pg_get_serial_sequence('%s', '%s')", table, column), String.class);
+            if (seqName == null) seqName = table + "_" + column + "_seq";
+            jdbcTemplate.queryForObject(
+                String.format("SELECT setval('%s', COALESCE((SELECT MAX(%s) FROM %s), 0) + 1, false)",
+                    seqName, column, table), Long.class);
+            log.info("Reset ID sequence for {}.{}", table, column);
+        } catch (Exception e) {
+            log.warn("Could not reset ID sequence for {}.{}: {}", table, column, e.getMessage());
+        }
     }
 
     @Caching(evict = {

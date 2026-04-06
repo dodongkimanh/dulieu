@@ -181,6 +181,10 @@ public class InitDataConfig {
      * Sync PostgreSQL identity sequences to MAX(id) + 1 for all tables.
      * Fixes "duplicate key value violates unique constraint" errors caused by
      * bulk-imported data with explicit IDs that leave the sequence behind.
+     *
+     * Uses two-phase sequence discovery:
+     * 1. pg_get_serial_sequence() — works for SERIAL and IDENTITY columns
+     * 2. Convention name {table}_{column}_seq — fallback for non-standard setups
      */
     @Transactional
     private void syncSequences() {
@@ -193,12 +197,38 @@ public class InitDataConfig {
         };
         for (String[] t : tables) {
             try {
-                String sql = String.format(
-                    "SELECT setval(pg_get_serial_sequence('%s', '%s'), COALESCE((SELECT MAX(%s) FROM %s), 0) + 1, false)",
-                    t[0], t[1], t[1], t[0]
-                );
-                entityManager.createNativeQuery(sql).getSingleResult();
-                log.info("Synced sequence for {}.{}", t[0], t[1]);
+                String seqName = null;
+
+                // Phase 1: Try pg_get_serial_sequence (works for SERIAL / IDENTITY)
+                try {
+                    Object result = entityManager.createNativeQuery(
+                        String.format("SELECT pg_get_serial_sequence('%s', '%s')", t[0], t[1]))
+                        .getSingleResult();
+                    if (result != null) seqName = result.toString();
+                } catch (Exception ignored) {}
+
+                // Phase 2: Fallback to convention name {table}_{column}_seq
+                if (seqName == null) {
+                    String conventionName = t[0] + "_" + t[1] + "_seq";
+                    Object count = entityManager.createNativeQuery(
+                        String.format("SELECT COUNT(*) FROM pg_class WHERE relname = '%s' AND relkind = 'S'", conventionName))
+                        .getSingleResult();
+                    if (((Number) count).intValue() > 0) {
+                        seqName = conventionName;
+                    }
+                }
+
+                if (seqName == null) {
+                    log.warn("No sequence found for {}.{}, skipping sync", t[0], t[1]);
+                    continue;
+                }
+
+                // Reset sequence to MAX(id) + 1
+                entityManager.createNativeQuery(
+                    String.format("SELECT setval('%s', COALESCE((SELECT MAX(%s) FROM %s), 0) + 1, false)",
+                        seqName, t[1], t[0]))
+                    .getSingleResult();
+                log.info("Synced sequence '{}' for {}.{}", seqName, t[0], t[1]);
             } catch (Exception e) {
                 log.warn("Could not sync sequence for {}.{}: {}", t[0], t[1], e.getMessage());
             }

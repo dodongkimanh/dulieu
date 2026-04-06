@@ -3,6 +3,7 @@ package com.kimanh.crm.service;
 import com.kimanh.crm.entity.DonHang;
 import com.kimanh.crm.repository.DonHangRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
@@ -12,9 +13,11 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -25,12 +28,14 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DonHangService {
 
     private final DonHangRepository repository;
     private final MessConfigService messConfigService;
+    private final JdbcTemplate jdbcTemplate;
 
     private String blankToNull(String s) {
         return (s != null && !s.isBlank()) ? s : null;
@@ -59,8 +64,37 @@ public class DonHangService {
         @CacheEvict(value = "sale_revenue", allEntries = true)
     })
     public DonHang create(DonHang entity) {
-        // Mã Hóa Đơn: user inputs manually, no auto-generation
-        return repository.save(Objects.requireNonNull(entity, "entity must not be null"));
+        Objects.requireNonNull(entity, "entity must not be null");
+        try {
+            return repository.save(entity);
+        } catch (DataIntegrityViolationException ex) {
+            Throwable root = ex.getRootCause();
+            if (root != null && root.getMessage() != null && root.getMessage().contains("duplicate key")) {
+                log.warn("Duplicate key on don_hang insert \u2013 resyncing ID sequence and retrying");
+                resetIdSequence("don_hang", "id");
+                entity.setId(null);
+                return repository.save(entity);
+            }
+            throw ex;
+        }
+    }
+
+    /**
+     * Reset PostgreSQL identity sequence to MAX(id)+1 for a table.
+     * Self-healing mechanism for sequence desync caused by manual DB inserts.
+     */
+    private void resetIdSequence(String table, String column) {
+        try {
+            String seqName = jdbcTemplate.queryForObject(
+                String.format("SELECT pg_get_serial_sequence('%s', '%s')", table, column), String.class);
+            if (seqName == null) seqName = table + "_" + column + "_seq";
+            jdbcTemplate.queryForObject(
+                String.format("SELECT setval('%s', COALESCE((SELECT MAX(%s) FROM %s), 0) + 1, false)",
+                    seqName, column, table), Long.class);
+            log.info("Reset ID sequence for {}.{}", table, column);
+        } catch (Exception e) {
+            log.warn("Could not reset ID sequence for {}.{}: {}", table, column, e.getMessage());
+        }
     }
 
     @Caching(evict = {
