@@ -168,10 +168,9 @@ export default function NhapLieu() {
       // CÔNG THỨC 4: Tổng Thu Khách = Đặt Cọc + Thu Bán Trực Tiếp + ĐS Vận Chuyển
       updated.tongThuKhach = coc + truc + dsvc;
       
-      // CÔNG THỨC 5: Lợi Nhuận Sau Trừ VC = Tổng Thu Khách - Chi Phí Vận Chuyển
-      // = (Đặt Cọc + Thu Bán Trực Tiếp + ĐS Vận Chuyển) - Chi Phí Vận Chuyển
-      // Per khách hàng yêu cầu: Chỉ trừ VC, không trừ vốn
-      updated.loiNhuanSauTru = updated.tongThuKhach - cpvc;
+      // CÔNG THỨC 5: Lợi Nhuận Sau Trừ VC = Lợi Nhuận Ước Tính - Chi Phí Vận Chuyển
+      // = (Giá Thu Thực Tế - Giá Vốn) - Chi Phí Vận Chuyển
+      updated.loiNhuanSauTru = updated.loiNhuanUocTinh - cpvc;
       
       return updated;
     }));
@@ -275,7 +274,7 @@ export default function NhapLieu() {
       payload.tyLeCk = niem > 0 ? ((niem - payload.giaThuThucTe) / niem) * 100 : 0;
       payload.loiNhuanUocTinh = payload.giaThuThucTe - von;
       payload.tongThuKhach = coc + truc + dsvc;
-      payload.loiNhuanSauTru = payload.tongThuKhach - cpvc;
+      payload.loiNhuanSauTru = payload.loiNhuanUocTinh - cpvc;
 
       await donHangApi.update(editModal.record.id, payload);
       message.success(`Đã cập nhật đơn ${editModal.record.maHoaDon || editModal.record.id}`);
