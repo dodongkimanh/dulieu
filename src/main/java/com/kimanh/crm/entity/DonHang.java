@@ -156,8 +156,13 @@ public class DonHang {
         // CÔNG THỨC 4: Tổng thu khách = Đặt cọc + Thu bán trực tiếp + ĐS Vận Chuyển
         tongThuKhach = coc.add(truc).add(dsvc);
         
-        // CÔNG THỨC 5: Lợi nhuận sau trừ VC = Lợi Nhuận Ước Tính - Chi Phí Vận Chuyển
-        // = (Giá Thu Thực Tế - Giá Vốn) - Chi Phí Vận Chuyển
-        loiNhuanSauTru = loiNhuanUocTinh.subtract(cpvc);
+        // CÔNG THỨC 5: Lợi nhuận sau trừ VC
+        // Khi có Tổng Thu Khách (> 0): = Tổng Thu Khách - Giá Vốn - CP Vận Chuyển
+        // Khi chưa có Tổng Thu Khách (= 0): = LN Ước Tính
+        if (tongThuKhach.compareTo(BigDecimal.ZERO) > 0) {
+            loiNhuanSauTru = tongThuKhach.subtract(von).subtract(cpvc);
+        } else {
+            loiNhuanSauTru = loiNhuanUocTinh;
+        }
     }
 }
