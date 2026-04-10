@@ -34,16 +34,15 @@ const LOAI_MESS_OPTIONS = [
 ];
 
 const statusColors = {
-  'moi': { color: '#3B82F6', bg: '#EFF6FF', label: 'Mới' },
-  'pending': { color: '#3B82F6', bg: '#EFF6FF', label: 'Mới' },
-  'da_lien_he': { color: '#8B5CF6', bg: '#F5F3FF', label: 'Đã liên hệ' },
-  'dang_cham_soc': { color: '#F59E0B', bg: '#FFFBEB', label: 'Đang chăm sóc' },
-  'chua_nghe_may': { color: '#F97316', bg: '#FFF7ED', label: 'Chưa nghe máy' },
-  'da_chuyen_doi': { color: '#10B981', bg: '#D1FAE5', label: 'Đã chuyển đổi' },
-  'da_chot_don': { color: '#4F46E5', bg: '#EEF2FF', label: 'Đã chốt đơn' },
-  'tiem_nang': { color: '#06B6D4', bg: '#ECFEFF', label: 'Tiềm năng' },
-  'khong_tiem_nang': { color: '#94A3B8', bg: '#F1F5F9', label: 'Không tiềm năng' },
-  'huy_don': { color: '#EF4444', bg: '#FEE2E2', label: 'Hủy đơn' },
+  'moi': { color: '#3B82F6', bg: '#EFF6FF', label: 'Yêu Cầu Gọi' },
+  'pending': { color: '#3B82F6', bg: '#EFF6FF', label: 'Yêu Cầu Gọi' },
+  'dang_cham_soc': { color: '#F59E0B', bg: '#FFFBEB', label: 'Đang Phân Vân' },
+  'chua_nghe_may': { color: '#F97316', bg: '#FFF7ED', label: 'Chưa Nghe Máy' },
+  'da_chuyen_doi': { color: '#8B5CF6', bg: '#F5F3FF', label: 'Đã Mua Nơi Khác' },
+  'da_chot_don': { color: '#10B981', bg: '#D1FAE5', label: 'Chốt Đơn' },
+  'tiem_nang': { color: '#06B6D4', bg: '#ECFEFF', label: 'Khách Tiềm Năng' },
+  'khong_tiem_nang': { color: '#94A3B8', bg: '#F1F5F9', label: 'Không Nhu Cầu' },
+  'huy_don': { color: '#EF4444', bg: '#FEE2E2', label: 'Hủy Đơn' },
 };
 
 export default function KhachHang() {
@@ -429,7 +428,7 @@ export default function KhachHang() {
             allowClear
           />
           <Select placeholder="Trạng thái" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} allowClear style={{ width: 160 }} popupMatchSelectWidth={false}>
-            {Object.entries(statusColors).map(([k, v]) => <Option key={k} value={k}>{v.label}</Option>)}
+            {Object.entries(statusColors).filter(([k]) => k !== 'pending').map(([k, v]) => <Option key={k} value={k}>{v.label}</Option>)}
           </Select>
           {!isSaler && (
             <Select placeholder="Sale" value={filters.sale} onChange={(v) => setFilters({ ...filters, sale: v })} allowClear style={{ width: 130 }}>
@@ -565,7 +564,7 @@ export default function KhachHang() {
                 ))}
               </Select>
             </Form.Item></Col>
-            <Col span={12}><Form.Item name="status" label="Trạng thái"><Select popupMatchSelectWidth={false}>{Object.entries(statusColors).map(([k, v]) => <Option key={k} value={k}>{v.label}</Option>)}</Select></Form.Item></Col>
+            <Col span={12}><Form.Item name="status" label="Trạng thái"><Select popupMatchSelectWidth={false}>{Object.entries(statusColors).filter(([k]) => k !== 'pending').map(([k, v]) => <Option key={k} value={k}>{v.label}</Option>)}</Select></Form.Item></Col>
           </Row>
           <Row gutter={16}>
             <Col span={24}><Form.Item name="page" label="Tùy Chọn Kênh Tiếp Thị" tooltip="Chọn kênh nguồn khách hàng">
