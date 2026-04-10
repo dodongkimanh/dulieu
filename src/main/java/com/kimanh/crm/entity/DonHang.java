@@ -158,11 +158,11 @@ public class DonHang {
         
         // CÔNG THỨC 5: Lợi nhuận sau trừ VC
         // Khi có Tổng Thu Khách (> 0): = Tổng Thu Khách - Giá Vốn - CP Vận Chuyển
-        // Khi chưa có Tổng Thu Khách (= 0): = LN Ước Tính
+        // Khi chưa có Tổng Thu Khách (= 0): = 0
         if (tongThuKhach.compareTo(BigDecimal.ZERO) > 0) {
             loiNhuanSauTru = tongThuKhach.subtract(von).subtract(cpvc);
         } else {
-            loiNhuanSauTru = loiNhuanUocTinh;
+            loiNhuanSauTru = BigDecimal.ZERO;
         }
     }
 }
