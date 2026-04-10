@@ -1557,7 +1557,7 @@ textarea.ant-input { min-height: 80px !important; }
   background: #374151;
 }
 .nl-header-cell {
-  padding: 8px 4px;
+  padding: 10px 4px;
   font-size: 11px;
   font-weight: 700;
   color: #fff;
@@ -1578,7 +1578,7 @@ textarea.ant-input { min-height: 80px !important; }
 .nl-summary-row {
   display: flex;
   position: sticky;
-  top: 35px;
+  top: 39px;
   z-index: 9;
   background: #EEF2FF;
   border-bottom: 2px solid var(--primary);
@@ -1615,12 +1615,12 @@ textarea.ant-input { min-height: 80px !important; }
 .nl-data-row.edited:hover { background: #FDE68A !important; }
 
 .nl-data-cell {
-  padding: 2px 2px;
+  padding: 4px 3px;
   border-right: 1px solid var(--gray-100);
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  min-height: 32px;
+  min-height: 38px;
   overflow: hidden;
 }
 .nl-data-cell.computed {
@@ -1636,7 +1636,7 @@ textarea.ant-input { min-height: 80px !important; }
 }
 
 .nl-computed {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--gray-700);
   font-family: 'Inter', monospace;
@@ -1650,12 +1650,14 @@ textarea.ant-input { min-height: 80px !important; }
 .nl-text .ant-input,
 .nl-number .ant-input-number-input,
 .nl-date-picker .ant-picker-input input {
-  font-size: 12px !important;
-  padding: 2px 4px !important;
+  font-size: 13px !important;
+  padding: 4px 6px !important;
+  height: 30px !important;
 }
 .nl-select .ant-select-selector {
-  font-size: 12px !important;
-  padding: 0 4px !important;
+  font-size: 13px !important;
+  padding: 0 6px !important;
+  height: 30px !important;
 }
 .nl-number {
   width: 100%;
@@ -1666,8 +1668,9 @@ textarea.ant-input { min-height: 80px !important; }
 .nl-number .ant-input-number-input {
   text-align: right;
   font-family: 'Inter', monospace;
-  font-size: 11px !important;
+  font-size: 12px !important;
   padding-right: 6px !important;
+  height: 30px !important;
 }
 .nl-text .ant-input {
   overflow: hidden;

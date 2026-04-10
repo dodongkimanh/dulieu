@@ -170,10 +170,10 @@ export default function NhapLieu() {
       
       // CÔNG THỨC 5: Lợi Nhuận Sau Trừ VC
       // Khi có Tổng Thu Khách (> 0): = Tổng Thu Khách - Giá Vốn - CP Vận Chuyển
-      // Khi chưa có Tổng Thu Khách (= 0): = LN Ước Tính
+      // Khi chưa có Tổng Thu Khách (= 0): = 0
       updated.loiNhuanSauTru = updated.tongThuKhach > 0
         ? updated.tongThuKhach - von - cpvc
-        : updated.loiNhuanUocTinh;
+        : 0;
       
       return updated;
     }));
@@ -279,7 +279,7 @@ export default function NhapLieu() {
       payload.tongThuKhach = coc + truc + dsvc;
       payload.loiNhuanSauTru = payload.tongThuKhach > 0
         ? payload.tongThuKhach - von - cpvc
-        : payload.loiNhuanUocTinh;
+        : 0;
 
       await donHangApi.update(editModal.record.id, payload);
       message.success(`Đã cập nhật đơn ${editModal.record.maHoaDon || editModal.record.id}`);

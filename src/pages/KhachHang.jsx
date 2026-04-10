@@ -38,6 +38,7 @@ const statusColors = {
   'pending': { color: '#3B82F6', bg: '#EFF6FF', label: 'Mới' },
   'da_lien_he': { color: '#8B5CF6', bg: '#F5F3FF', label: 'Đã liên hệ' },
   'dang_cham_soc': { color: '#F59E0B', bg: '#FFFBEB', label: 'Đang chăm sóc' },
+  'chua_nghe_may': { color: '#F97316', bg: '#FFF7ED', label: 'Chưa nghe máy' },
   'da_chuyen_doi': { color: '#10B981', bg: '#D1FAE5', label: 'Đã chuyển đổi' },
   'da_chot_don': { color: '#4F46E5', bg: '#EEF2FF', label: 'Đã chốt đơn' },
   'tiem_nang': { color: '#06B6D4', bg: '#ECFEFF', label: 'Tiềm năng' },
