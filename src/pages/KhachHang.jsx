@@ -34,8 +34,8 @@ const LOAI_MESS_OPTIONS = [
 ];
 
 const statusColors = {
-  'moi': { color: '#3B82F6', bg: '#EFF6FF', label: 'Yêu Cầu Gọi' },
-  'pending': { color: '#3B82F6', bg: '#EFF6FF', label: 'Yêu Cầu Gọi' },
+  'moi': { color: '#3B82F6', bg: '#EFF6FF', label: 'Đang Chờ' },
+  'pending': { color: '#3B82F6', bg: '#EFF6FF', label: 'Đang Chờ' },
   'dang_cham_soc': { color: '#F59E0B', bg: '#FFFBEB', label: 'Đang Phân Vân' },
   'chua_nghe_may': { color: '#F97316', bg: '#FFF7ED', label: 'Chưa Nghe Máy' },
   'da_chuyen_doi': { color: '#8B5CF6', bg: '#F5F3FF', label: 'Đã Mua Nơi Khác' },
