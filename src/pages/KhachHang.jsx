@@ -18,6 +18,7 @@ import {
   CalendarOutlined,
   InboxOutlined,
   CheckSquareOutlined,
+  SaveOutlined,
 } from '@ant-design/icons';
 import { khachHangApi, authApi, kenhTiepThiApi } from '../api';
 import dayjs from 'dayjs';
@@ -68,6 +69,7 @@ export default function KhachHang() {
   const [colWidths, setColWidths] = useState(() => {
     try { return JSON.parse(sessionStorage.getItem('kh_colWidths') || '{}'); } catch { return {}; }
   });
+  const [noteValues, setNoteValues] = useState({});
 
   useEffect(() => {
     if (Object.keys(colWidths).length) sessionStorage.setItem('kh_colWidths', JSON.stringify(colWidths));
@@ -268,6 +270,11 @@ export default function KhachHang() {
     try {
       await khachHangApi.updateNotes(id, notes);
       message.success('Lưu ghi chú thành công');
+      setNoteValues(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       fetchData(pagination.current, pagination.pageSize);
     } catch { message.error('Lỗi lưu ghi chú'); }
   };
@@ -319,19 +326,31 @@ export default function KhachHang() {
         </Select>
       );
     }},
-    { title: 'Ghi chú', dataIndex: 'mess', _defaultWidth: 180, ellipsis: true, render: (v, record) => {
-      const val = v && v !== 'EMPTY' && v !== 'Mes Mới' ? v : '';
+    { title: 'Ghi chú', dataIndex: 'mess', _defaultWidth: 220, render: (v, record) => {
+      const originalVal = v && v !== 'EMPTY' && v !== 'Mes Mới' ? v : '';
+      const currentVal = noteValues[record.id] !== undefined ? noteValues[record.id] : originalVal;
+      const isDirty = noteValues[record.id] !== undefined && noteValues[record.id] !== originalVal;
       return (
-        <Input.TextArea
-          defaultValue={val}
-          placeholder="Ghi chú..."
-          autoSize={{ minRows: 1, maxRows: 3 }}
-          style={{ fontSize: 12, border: 'none', background: 'transparent', padding: '2px 4px', resize: 'none' }}
-          onBlur={(e) => {
-            const newVal = e.target.value;
-            if (newVal !== val) handleNoteSave(record.id, newVal);
-          }}
-        />
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+          <Input.TextArea
+            value={currentVal}
+            placeholder="Ghi chú..."
+            autoSize={{ minRows: 1, maxRows: 3 }}
+            style={{ fontSize: 12, border: 'none', background: 'transparent', padding: '2px 4px', resize: 'none', flex: 1 }}
+            onChange={(e) => setNoteValues(prev => ({ ...prev, [record.id]: e.target.value }))}
+          />
+          {isDirty && (
+            <Tooltip title="Lưu ghi chú">
+              <Button
+                type="primary"
+                size="small"
+                icon={<SaveOutlined />}
+                onClick={() => handleNoteSave(record.id, currentVal)}
+                style={{ flexShrink: 0, marginTop: 2, background: '#10B981', borderColor: '#10B981' }}
+              />
+            </Tooltip>
+          )}
+        </div>
       );
     }},
     { title: '', width: canManage ? 110 : (isSaler ? 40 : 80), fixed: 'right', render: (_, record) => (
