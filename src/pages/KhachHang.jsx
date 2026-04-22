@@ -329,27 +329,32 @@ export default function KhachHang() {
     { title: 'Ghi chú', dataIndex: 'mess', _defaultWidth: 220, render: (v, record) => {
       const originalVal = v && v !== 'EMPTY' && v !== 'Mes Mới' ? v : '';
       const currentVal = noteValues[record.id] !== undefined ? noteValues[record.id] : originalVal;
-      const isDirty = noteValues[record.id] !== undefined && noteValues[record.id] !== originalVal;
+      const isDirty = currentVal !== originalVal;
       return (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
           <Input.TextArea
             value={currentVal}
             placeholder="Ghi chú..."
             autoSize={{ minRows: 1, maxRows: 3 }}
-            style={{ fontSize: 12, border: 'none', background: 'transparent', padding: '2px 4px', resize: 'none', flex: 1 }}
+            style={{ fontSize: 12, border: isDirty ? '1px solid #10B981' : 'none', borderRadius: 4, background: 'transparent', padding: '2px 4px', resize: 'none', flex: 1, transition: 'border 0.2s' }}
             onChange={(e) => setNoteValues(prev => ({ ...prev, [record.id]: e.target.value }))}
           />
-          {isDirty && (
-            <Tooltip title="Lưu ghi chú">
-              <Button
-                type="primary"
-                size="small"
-                icon={<SaveOutlined />}
-                onClick={() => handleNoteSave(record.id, currentVal)}
-                style={{ flexShrink: 0, marginTop: 2, background: '#10B981', borderColor: '#10B981' }}
-              />
-            </Tooltip>
-          )}
+          <Tooltip title={isDirty ? 'Lưu ghi chú' : 'Chưa có thay đổi'}>
+            <Button
+              type={isDirty ? 'primary' : 'text'}
+              size="small"
+              icon={<SaveOutlined />}
+              disabled={!isDirty}
+              onClick={() => isDirty && handleNoteSave(record.id, currentVal)}
+              style={{
+                flexShrink: 0,
+                marginTop: 2,
+                ...(isDirty
+                  ? { background: '#10B981', borderColor: '#10B981', color: '#fff' }
+                  : { color: '#CBD5E1', border: '1px dashed #E2E8F0', background: 'transparent' }),
+              }}
+            />
+          </Tooltip>
         </div>
       );
     }},
