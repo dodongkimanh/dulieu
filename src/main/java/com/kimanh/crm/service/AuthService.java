@@ -1,6 +1,7 @@
 package com.kimanh.crm.service;
 
 import com.kimanh.crm.entity.User;
+import com.kimanh.crm.repository.KhachHangRepository;
 import com.kimanh.crm.repository.UserRepository;
 import com.kimanh.crm.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final KhachHangRepository khachHangRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
@@ -59,15 +61,6 @@ public class AuthService {
             log.info("Unicode fallback found {} candidates", candidates.size());
 
             if (candidates.isEmpty()) {
-                // Still not found - log all users for diagnosis
-                for (User u : allUsers) {
-                    log.warn("DB user: id={}, username='{}' (len={}), fullName='{}' (len={}), active={}",
-                            u.getId(), u.getUsername(),
-                            u.getUsername() != null ? u.getUsername().length() : 0,
-                            u.getFullName(),
-                            u.getFullName() != null ? u.getFullName().length() : 0,
-                            u.getActive());
-                }
                 throw new RuntimeException("Tài khoản không tồn tại");
             }
         }
@@ -161,11 +154,30 @@ public class AuthService {
     }
 
     @Transactional
-    public User updateUser(Long id, String fullName, String password) {
+    public Map<String, Object> updateUser(Long id, String username, String fullName, String password) {
         User user = userRepository.findById(Objects.requireNonNull(id, "id must not be null"))
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại (ID: " + id + ")"));
+        if (username != null && !username.isBlank()) {
+            String newUsername = username.trim();
+            if (!newUsername.matches("[a-zA-Z0-9._@]+")) {
+                throw new RuntimeException("Tên đăng nhập chỉ được chứa chữ cái không dấu, số, dấu chấm, @ và gạch dưới");
+            }
+            if (newUsername.length() < 3) {
+                throw new RuntimeException("Tên đăng nhập phải có ít nhất 3 ký tự");
+            }
+            if (!newUsername.equals(user.getUsername()) && userRepository.existsByUsername(newUsername)) {
+                throw new RuntimeException("Tên đăng nhập đã tồn tại");
+            }
+            user.setUsername(newUsername);
+        }
+        int updatedCustomers = 0;
         if (fullName != null && !fullName.isBlank()) {
-            user.setFullName(fullName.trim());
+            String newName = Normalizer.normalize(fullName.trim().replaceAll("\\s+", " "), Normalizer.Form.NFC);
+            String oldName = user.getFullName();
+            if (!newName.equals(oldName)) {
+                user.setFullName(newName);
+                updatedCustomers = khachHangRepository.updateSaleByName(oldName, newName);
+            }
         }
         if (password != null && !password.isBlank()) {
             String pw = password.trim();
@@ -174,7 +186,11 @@ public class AuthService {
             }
             user.setPassword(passwordEncoder.encode(pw));
         }
-        return userRepository.save(Objects.requireNonNull(user, "user must not be null"));
+        User saved = userRepository.save(Objects.requireNonNull(user, "user must not be null"));
+        Map<String, Object> result = new HashMap<>();
+        result.put("user", saved);
+        result.put("updatedCustomers", updatedCustomers);
+        return result;
     }
 
     public void deleteUser(Long id) {

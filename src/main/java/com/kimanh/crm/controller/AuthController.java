@@ -65,10 +65,11 @@ public class AuthController {
 
     @PutMapping("/users/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    public ResponseEntity<Map<String, Object>> updateUser(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String username = body.get("username");
         String fullName = body.get("fullName");
         String password = body.get("password");
-        return ResponseEntity.ok(authService.updateUser(id, fullName, password));
+        return ResponseEntity.ok(authService.updateUser(id, username, fullName, password));
     }
 
     @DeleteMapping("/users/{id}")
