@@ -90,18 +90,21 @@ export default function UserManagement() {
   const handleEdit = (record) => {
     setEditingUser(record);
     editForm.resetFields();
-    editForm.setFieldsValue({ fullName: record.fullName });
+    editForm.setFieldsValue({ username: record.username, fullName: record.fullName });
     setEditModalOpen(true);
   };
 
   const handleEditSubmit = async () => {
     try {
       const values = await editForm.validateFields();
-      const data = { fullName: values.fullName };
+      const data = { fullName: values.fullName, username: values.username };
       const pw = values.password?.trim();
       if (pw) data.password = pw;
-      await authApi.updateUser(editingUser.id, data);
-      message.success(pw ? 'Cập nhật tài khoản & mật khẩu thành công' : 'Cập nhật tài khoản thành công');
+      const res = await authApi.updateUser(editingUser.id, data);
+      const updatedCustomers = res.data?.updatedCustomers ?? 0;
+      let msg = pw ? 'Cập nhật tài khoản & mật khẩu thành công' : 'Cập nhật tài khoản thành công';
+      if (updatedCustomers > 0) msg += ` — đã chuyển ${updatedCustomers} khách hàng sang tên mới`;
+      message.success(msg);
       setEditModalOpen(false);
       setEditingUser(null);
       fetchUsers();
@@ -267,8 +270,17 @@ export default function UserManagement() {
         className="premium-modal"
       >
         <Form form={editForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="fullName" label="Họ tên đầy đủ" rules={[{ required: true, message: 'Nhập họ tên' }]}>
-            <Input prefix={<UserOutlined />} placeholder="Họ tên đầy đủ" />
+          <Form.Item name="username" label="Tên đăng nhập" rules={[
+            { required: true, message: 'Nhập tên đăng nhập' },
+            { pattern: /^[a-zA-Z0-9._@]+$/, message: 'Chỉ cho phép chữ cái không dấu, số, dấu chấm, @ và gạch dưới' },
+            { min: 3, message: 'Tối thiểu 3 ký tự' },
+          ]}>
+            <Input prefix={<UserOutlined />} placeholder="Tên đăng nhập" />
+          </Form.Item>
+          <Form.Item name="fullName" label="Họ tên đầy đủ" rules={[{ required: true, message: 'Nhập họ tên' }]}
+            extra={<span style={{ fontSize: 12, color: '#F59E0B' }}>⚠ Đổi tên sẽ tự động cập nhật tất cả dữ liệu khách hàng sang tên mới</span>}
+          >
+            <Input placeholder="Họ tên đầy đủ" />
           </Form.Item>
           <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 16px 4px', marginBottom: 16, border: '1px solid #E2E8F0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
