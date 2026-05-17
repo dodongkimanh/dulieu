@@ -23,7 +23,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401 || error.response?.status === 403) {
       sessionStorage.removeItem('crm_token');
       sessionStorage.removeItem('crm_user');
-      window.location.href = '/login';
+      // Dùng event thay vì window.location để tránh reload toàn trang
+      window.dispatchEvent(new Event('auth:logout'));
     }
     return Promise.reject(error);
   }
@@ -96,6 +97,19 @@ export const kenhTiepThiApi = {
   create: (data) => api.post('/kenh-tiep-thi', data),
   update: (id, data) => api.put(`/kenh-tiep-thi/${id}`, data),
   delete: (id) => api.delete(`/kenh-tiep-thi/${id}`),
+};
+
+// Zalo Contact history APIs
+export const zaloContactApi = {
+  getByIds: (ids) => api.get('/zalo-contacts', { params: { ids: ids.join(',') } }),
+  syncBatch: (data) => api.post('/zalo-contacts/sync', data),
+};
+
+// Call Recording APIs
+export const callRecordingApi = {
+  getByKhachHang: (khachHangId) => api.get('/call-recordings', { params: { khachHangId } }),
+  upload: (formData) => api.post('/call-recordings/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  delete: (id) => api.delete(`/call-recordings/${id}`),
 };
 
 // Mess Config APIs

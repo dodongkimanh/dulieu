@@ -1,6 +1,7 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox, Badge } from 'antd';
+import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox, Badge, Spin, Avatar } from 'antd';
 
 const AnimatedDiv = motion.div;
 import {
@@ -19,10 +20,48 @@ import {
   InboxOutlined,
   CheckSquareOutlined,
   SaveOutlined,
+  SyncOutlined,
+  MessageOutlined,
+  AudioOutlined,
+  UploadOutlined,
+  PlayCircleOutlined,
+  DeleteFilled,
 } from '@ant-design/icons';
-import { khachHangApi, authApi, kenhTiepThiApi } from '../api';
+import { khachHangApi, authApi, kenhTiepThiApi, zaloContactApi, callRecordingApi } from '../api';
 import dayjs from 'dayjs';
 import { useAuth } from '../contexts/AuthContext';
+
+const ZALO_SERVICE = import.meta.env.VITE_ZALO_SERVICE || 'http://localhost:3001';
+
+function ZaloIcon({ size = 16, style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style}>
+      <path d="M24 4C12.95 4 4 12.95 4 24c0 3.9 1.07 7.55 2.93 10.67L4 44l9.6-2.87A19.87 19.87 0 0024 44c11.05 0 20-8.95 20-20S35.05 4 24 4z" fill="#0068FF"/>
+      <path d="M33 28.5c-.28-.14-1.63-.8-1.88-.9-.25-.1-.43-.14-.62.14-.18.28-.72.9-.88 1.08-.16.18-.33.2-.61.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.4-1.66-1.56-1.94-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.17.18-.28.28-.47.1-.2.05-.36-.02-.5-.07-.14-.62-1.5-.85-2.05-.22-.54-.45-.46-.62-.47-.16 0-.35-.02-.53-.02-.18 0-.48.07-.74.33-.25.27-.97.95-.97 2.32 0 1.37.99 2.7 1.13 2.88.14.18 1.96 2.99 4.75 4.2.66.28 1.18.45 1.58.58.66.21 1.27.18 1.74.11.53-.08 1.63-.67 1.86-1.3.23-.64.23-1.19.16-1.3-.07-.12-.26-.18-.54-.32z" fill="white"/>
+    </svg>
+  );
+}
+
+function ZaloAvatar({ name, src, size = 36 }) {
+  const colors = ['#0068FF', '#00AFFF', '#FF6B35', '#10B981', '#8B5CF6', '#F59E0B'];
+  const color = colors[(name?.charCodeAt(0) || 0) % colors.length];
+  if (src && !src.includes('undefined'))
+    return <Avatar src={src} size={size} style={{ flexShrink: 0 }} />;
+  return (
+    <Avatar size={size} style={{ background: color, flexShrink: 0, fontWeight: 700 }}>
+      {name?.charAt(0)?.toUpperCase() || 'Z'}
+    </Avatar>
+  );
+}
+
+function formatZaloTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts > 1e12 ? ts : ts * 1000);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString())
+    return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+}
 
 const { Option, OptGroup } = Select;
 const { TextArea } = Input;
@@ -35,6 +74,7 @@ const LOAI_MESS_OPTIONS = [
 ];
 
 const statusColors = {
+  'uu_tien': { color: '#15803D', bg: '#DCFCE7', label: 'Ưu Tiên' },
   'moi': { color: '#3B82F6', bg: '#EFF6FF', label: 'Đang Chờ' },
   'pending': { color: '#3B82F6', bg: '#EFF6FF', label: 'Đang Chờ' },
   'dang_cham_soc': { color: '#F59E0B', bg: '#FFFBEB', label: 'Đang Phân Vân' },
@@ -48,11 +88,13 @@ const statusColors = {
 
 export default function KhachHang() {
   const { user, isAdmin, isSaler } = useAuth();
+  const navigate = useNavigate();
   const canManage = isAdmin || user?.role === 'KE_TOAN';
   const currentSaleName = (user?.fullName || '').trim().replace(/\s+/g, ' ');
   const [data, setData] = useState([]);
+  const [pinnedRows, setPinnedRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 15, total: 0 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 30, total: 0 });
   const [filters, setFilters] = useState({ keyword: '', status: null, sale: null });
   const [activeTab, setActiveTab] = useState('all');
   const [dateRange, setDateRange] = useState(null);
@@ -70,10 +112,38 @@ export default function KhachHang() {
     try { return JSON.parse(sessionStorage.getItem('kh_colWidths') || '{}'); } catch { return {}; }
   });
   const [noteValues, setNoteValues] = useState({});
+  const [pendingStatus, setPendingStatus] = useState({});
+  const [zaloData, setZaloData] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('zaloData') || '{}'); } catch { return {}; }
+  });
+  const [zaloSyncing, setZaloSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
+  const [zaloPopup, setZaloPopup] = useState({ open: false, record: null, contact: null, messages: [], loading: false });
+  const [audioModal, setAudioModal] = useState({ open: false, record: null, recordings: [], loading: false, uploading: false });
+  const audioUploadRef = useRef(null);
+  const [allCrmUsers, setAllCrmUsers] = useState([]);
+  const zaloMsgsEndRef = useRef(null);
+  const msgPollerRef = useRef(null);
+  const [newMsgCount, setNewMsgCount] = useState(0);
 
   useEffect(() => {
     if (Object.keys(colWidths).length) sessionStorage.setItem('kh_colWidths', JSON.stringify(colWidths));
   }, [colWidths]);
+
+  useEffect(() => {
+    if (Object.keys(zaloData).length) {
+      try { localStorage.setItem('zaloData', JSON.stringify(zaloData)); } catch {}
+    }
+  }, [zaloData]);
+
+  useEffect(() => {
+    if (zaloPopup.open && !zaloPopup.loading) {
+      setTimeout(() => zaloMsgsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
+  }, [zaloPopup.messages, zaloPopup.loading, zaloPopup.open]);
+
+  // Cleanup poller on unmount
+  useEffect(() => () => { if (msgPollerRef.current) clearInterval(msgPollerRef.current); }, []);
 
   const handleResizeStart = useCallback((dataIndex) => (e) => {
     e.preventDefault();
@@ -118,7 +188,27 @@ export default function KhachHang() {
     }
   }, []);
 
-  const fetchData = useCallback(async (page = 1, size = 15, extra = {}) => {
+  const fetchPinnedRows = useCallback(async (extra = {}) => {
+    const currentDateRange = extra.dateRange !== undefined ? extra.dateRange : dateRange;
+    const currentHasSdt = extra.hasSdt !== undefined ? extra.hasSdt : hasSdt;
+    const statusFilter = extra.status !== undefined ? extra.status : filters.status;
+    if (statusFilter === 'uu_tien') { setPinnedRows([]); return; }
+    try {
+      const res = await khachHangApi.getAll({
+        pageNum: 0, size: 500, status: 'uu_tien',
+        keyword: (extra.keyword ?? filters.keyword) || undefined,
+        sale: (extra.sale ?? filters.sale) || undefined,
+        fromDate: currentDateRange?.[0]?.format('YYYY-MM-DD') || undefined,
+        toDate: currentDateRange?.[1]?.format('YYYY-MM-DD') || undefined,
+        hasSdt: currentHasSdt ? true : undefined,
+      });
+      const pinned = res.data.content || [];
+      setPinnedRows(pinned);
+      fetchZaloContacts(pinned);
+    } catch { setPinnedRows([]); }
+  }, [dateRange, filters.keyword, filters.sale, filters.status, hasSdt]); // fetchZaloContacts stable ([] deps) — không cần trong array
+
+  const fetchData = useCallback(async (page = 1, size = 30, extra = {}) => {
     setLoading(true);
     try {
       const currentTab = extra.tab ?? activeTab;
@@ -135,8 +225,10 @@ export default function KhachHang() {
         hasSdt: currentHasSdt ? true : undefined,
       };
       const res = await khachHangApi.getAll(params);
-      setData(res.data.content);
+      const newRows = res.data.content;
+      setData(newRows);
       setPagination({ current: page, pageSize: size, total: res.data.totalElements });
+      fetchZaloContacts(newRows);
     } catch {
       message.error('Không thể tải danh sách khách hàng');
     } finally {
@@ -144,7 +236,7 @@ export default function KhachHang() {
     }
     // Refresh assigned count in background
     fetchAssignedCount();
-  }, [activeTab, dateRange, filters.keyword, filters.sale, filters.status, hasSdt, fetchAssignedCount]);
+  }, [activeTab, dateRange, filters.keyword, filters.sale, filters.status, hasSdt, fetchAssignedCount]); // fetchZaloContacts stable ([] deps) — không cần trong array
 
   const fetchMeta = useCallback(async () => {
     try {
@@ -156,20 +248,63 @@ export default function KhachHang() {
     }
   }, []);
 
+  const fetchAllCrmUsers = useCallback(async () => {
+    try {
+      const res = await authApi.getUsers();
+      setAllCrmUsers(res.data || []);
+    } catch {}
+  }, []);
+
+  const stopMsgPoller = useCallback(() => {
+    if (msgPollerRef.current) {
+      clearInterval(msgPollerRef.current);
+      msgPollerRef.current = null;
+    }
+    setNewMsgCount(0);
+  }, []);
+
+  const fetchZaloContacts = useCallback(async (rows) => {
+    const ids = [...new Set((rows || []).map(r => r.id).filter(Boolean))];
+    if (!ids.length) return;
+    try {
+      const res = await zaloContactApi.getByIds(ids);
+      const fetched = res.data || [];
+      if (!fetched.length) return;
+      setZaloData(prev => {
+        const next = { ...prev };
+        fetched.forEach(zc => {
+          // Always load from DB unless a fresh sync already set this entry
+          if (!next[zc.khachHangId] || next[zc.khachHangId].fromDb) {
+            next[zc.khachHangId] = {
+              contact: { id: zc.zaloId, name: zc.displayName, avatar: zc.avatar },
+              saleSession: zc.sessionId,
+              fromDb: true,
+            };
+          }
+        });
+        return next;
+      });
+    } catch {}
+  }, []);
+
   useEffect(() => {
     fetchData();
+    fetchPinnedRows();
     fetchMeta();
     fetchChannels();
+    fetchAllCrmUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleTableChange = (pag) => fetchData(pag.current, pag.pageSize);
-  const handleSearch = () => fetchData(1, pagination.pageSize);
+  const handleSearch = () => { fetchData(1, pagination.pageSize); fetchPinnedRows(); };
   const handleReset = () => {
     setFilters({ keyword: '', status: null, sale: null });
     setDateRange(null);
     setHasSdt(false);
-    fetchData(1, pagination.pageSize, { keyword: '', status: null, sale: null, dateRange: null, hasSdt: false });
+    const extra = { keyword: '', status: null, sale: null, dateRange: null, hasSdt: false };
+    fetchData(1, pagination.pageSize, extra);
+    fetchPinnedRows(extra);
   };
 
   const handleTabChange = (key) => {
@@ -237,12 +372,28 @@ export default function KhachHang() {
     } catch { message.error('Lỗi khi xóa khách hàng'); }
   };
 
-  const handleStatusChange = async (id, status) => {
+  const handleStatusChange = (id, status) => {
+    setPendingStatus(prev => ({ ...prev, [id]: status }));
+  };
+
+  const handleRowSave = async (record) => {
+    const id = record.id;
+    const savedStatus = statusColors[record.status] ? record.status : 'moi';
+    const hasStatusChange = pendingStatus[id] !== undefined && pendingStatus[id] !== savedStatus;
+    const originalNote = record.mess && record.mess !== 'EMPTY' && record.mess !== 'Mes Mới' ? record.mess : '';
+    const hasNoteChange = noteValues[id] !== undefined && noteValues[id] !== originalNote;
+    if (!hasStatusChange && !hasNoteChange) return;
     try {
-      await khachHangApi.updateStatus(id, status);
-      message.success('Cập nhật trạng thái thành công');
+      await Promise.all([
+        hasStatusChange ? khachHangApi.updateStatus(id, pendingStatus[id]) : null,
+        hasNoteChange ? khachHangApi.updateNotes(id, noteValues[id]) : null,
+      ].filter(Boolean));
+      message.success('Lưu thành công');
+      setPendingStatus(prev => { const next = { ...prev }; delete next[id]; return next; });
+      setNoteValues(prev => { const next = { ...prev }; delete next[id]; return next; });
       fetchData(pagination.current, pagination.pageSize);
-    } catch { message.error('Lỗi cập nhật trạng thái'); }
+      if (hasStatusChange) fetchPinnedRows();
+    } catch { message.error('Lỗi khi lưu'); }
   };
 
   const handleTransfer = async () => {
@@ -279,6 +430,186 @@ export default function KhachHang() {
     } catch { message.error('Lỗi lưu ghi chú'); }
   };
 
+  const handleZaloSync = async () => {
+    const allVisible = [...pinnedRows, ...data];
+    const uniqueMap = new Map(allVisible.map(d => [d.id, d]));
+    const selectedWithPhone = selectedRowKeys
+      .map(id => uniqueMap.get(id))
+      .filter(d => d && d.sdt);
+
+    if (!selectedWithPhone.length) {
+      message.warning('Chọn ít nhất 1 khách hàng có số điện thoại để đồng bộ Zalo');
+      return;
+    }
+
+    setZaloSyncing(true);
+    setSyncProgress({ current: 0, total: selectedWithPhone.length });
+    const newZaloData = { ...zaloData };
+    let found = 0;
+
+    for (let i = 0; i < selectedWithPhone.length; i++) {
+      const customer = selectedWithPhone[i];
+      setSyncProgress({ current: i + 1, total: selectedWithPhone.length });
+      const normStr = s => (s || '').replace(/\s+/g, ' ').trim();
+      const saleUser = allCrmUsers.find(u => normStr(u.fullName) === normStr(customer.sale));
+      const sessionId = saleUser?.username || customer.sale || 'default';
+
+      try {
+        const resp = await fetch(
+          `${ZALO_SERVICE}/search?session=${encodeURIComponent(sessionId)}&q=${encodeURIComponent(customer.sdt)}`
+        );
+        if (!resp.ok) continue;
+        const contacts = await resp.json();
+        if (Array.isArray(contacts) && contacts.length > 0) {
+          newZaloData[customer.id] = { contact: contacts[0], saleSession: sessionId };
+          found++;
+        }
+      } catch {}
+    }
+
+    setZaloData(newZaloData);
+
+    // Lưu kết quả đồng bộ vào database
+    const batch = Object.entries(newZaloData)
+      .filter(([, v]) => !v.fromDb)
+      .map(([khId, v]) => ({
+        khachHangId: Number(khId),
+        sessionId: v.saleSession,
+        zaloId: v.contact?.id || null,
+        displayName: v.contact?.name || null,
+        avatar: v.contact?.avatar || null,
+      }));
+    if (batch.length) {
+      zaloContactApi.syncBatch(batch).catch(() => {});
+    }
+
+    setZaloSyncing(false);
+    setSyncProgress({ current: 0, total: 0 });
+    message.success(`Đồng bộ hoàn tất: tìm thấy ${found}/${selectedWithPhone.length} khách hàng trên Zalo`);
+  };
+
+  const handleZaloIconClick = async (record) => {
+    const zInfo = zaloData[record.id];
+    if (!zInfo) return;
+
+    stopMsgPoller();
+    setNewMsgCount(0);
+    setZaloPopup({ open: true, record, contact: zInfo.contact, messages: [], loading: true });
+
+    const session = zInfo.saleSession;
+
+    try {
+      await fetch(
+        `${ZALO_SERVICE}/open-contact?session=${encodeURIComponent(session)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: zInfo.contact.id, name: zInfo.contact.name, phone: record.sdt }),
+        }
+      );
+      await new Promise(r => setTimeout(r, 1800));
+      const resp = await fetch(`${ZALO_SERVICE}/messages?session=${encodeURIComponent(session)}`);
+      const msgs = await resp.json();
+      const initialMsgs = Array.isArray(msgs) ? msgs : [];
+      setZaloPopup(prev => ({ ...prev, messages: initialMsgs, loading: false }));
+
+      // Start polling for new messages every 3 seconds
+      msgPollerRef.current = setInterval(async () => {
+        try {
+          const r2 = await fetch(`${ZALO_SERVICE}/messages?session=${encodeURIComponent(session)}`);
+          if (!r2.ok) return;
+          const latest = await r2.json();
+          if (!Array.isArray(latest)) return;
+          setZaloPopup(prev => {
+            if (latest.length <= prev.messages.length) return prev;
+            const added = latest.length - prev.messages.length;
+            setNewMsgCount(n => n + added);
+            return { ...prev, messages: latest };
+          });
+        } catch {}
+      }, 3000);
+    } catch {
+      message.error('Không thể tải tin nhắn Zalo — kiểm tra Zalo service đang chạy');
+      setZaloPopup(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleAudioIconClick = async (record) => {
+    setAudioModal({ open: true, record, recordings: [], loading: true, uploading: false });
+    try {
+      const res = await callRecordingApi.getByKhachHang(record.id);
+      setAudioModal(prev => ({ ...prev, recordings: res.data || [], loading: false }));
+    } catch {
+      message.error('Không thể tải danh sách bản ghi âm');
+      setAudioModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleAudioUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const { record } = audioModal;
+    setAudioModal(prev => ({ ...prev, uploading: true }));
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('khachHangId', record.id);
+      await callRecordingApi.upload(formData);
+      message.success('Tải bản ghi âm lên thành công');
+      const res = await callRecordingApi.getByKhachHang(record.id);
+      setAudioModal(prev => ({ ...prev, recordings: res.data || [], uploading: false }));
+    } catch {
+      message.error('Tải lên thất bại — kiểm tra cấu hình Supabase Storage');
+      setAudioModal(prev => ({ ...prev, uploading: false }));
+    }
+  };
+
+  const handleAudioDelete = async (id) => {
+    try {
+      await callRecordingApi.delete(id);
+      setAudioModal(prev => ({ ...prev, recordings: prev.recordings.filter(r => r.id !== id) }));
+      message.success('Đã xóa bản ghi âm');
+    } catch {
+      message.error('Xóa thất bại');
+    }
+  };
+
+  const handleSendZalo = () => {
+    const allVisible = [...pinnedRows, ...data];
+    const uniqueMap = new Map(allVisible.map(d => [d.id, d]));
+    const selectedWithPhone = selectedRowKeys
+      .map(id => uniqueMap.get(id))
+      .filter(d => d && d.sdt);
+
+    if (!selectedWithPhone.length) {
+      message.warning('Chọn ít nhất 1 khách hàng có số điện thoại để nhắn tin Zalo');
+      return;
+    }
+
+    const groups = {};
+    selectedWithPhone.forEach(c => {
+      const normStr = s => (s || '').replace(/\s+/g, ' ').trim();
+      const saleUser = allCrmUsers.find(u => normStr(u.fullName) === normStr(c.sale));
+      const sessionId = saleUser?.username || c.sale || 'default';
+      if (!groups[sessionId]) groups[sessionId] = [];
+      groups[sessionId].push({
+        id: String(c.id),
+        name: c.khachHang || '',
+        phone: c.sdt || '',
+        sale: c.sale || '',
+      });
+    });
+
+    localStorage.setItem('crm_bulk_targets', JSON.stringify({
+      timestamp: Date.now(),
+      groups,
+      defaultSession: Object.keys(groups)[0] || null,
+    }));
+
+    navigate('/zalo');
+  };
+
   const baseColumns = [
     { title: 'Ngày', dataIndex: 'ngayThang', _defaultWidth: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
     { title: 'Khách hàng', dataIndex: 'khachHang', _defaultWidth: 140, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
@@ -306,14 +637,15 @@ export default function KhachHang() {
       render: (v) => v ? <Tag color="cyan">{v}</Tag> : '—'
     }] : []),
     { title: 'Trạng thái', dataIndex: 'status', _defaultWidth: 130, render: (v, record) => {
-      // Normalize: treat unknown/legacy statuses as 'moi'
-      const normalizedStatus = statusColors[v] ? v : 'moi';
+      const savedStatus = statusColors[v] ? v : 'moi';
+      const currentVal = pendingStatus[record.id] !== undefined ? pendingStatus[record.id] : savedStatus;
+      const isDirty = pendingStatus[record.id] !== undefined && pendingStatus[record.id] !== savedStatus;
       return (
         <Select
-          value={normalizedStatus}
+          value={currentVal}
           onChange={(val) => handleStatusChange(record.id, val)}
           size="small"
-          style={{ width: '100%' }}
+          style={{ width: '100%', outline: isDirty ? '1.5px solid #10B981' : undefined, borderRadius: 6 }}
           popupMatchSelectWidth={false}
         >
           {Object.entries(statusColors)
@@ -331,35 +663,46 @@ export default function KhachHang() {
       const currentVal = noteValues[record.id] !== undefined ? noteValues[record.id] : originalVal;
       const isDirty = currentVal !== originalVal;
       return (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4 }}>
-          <Input.TextArea
-            value={currentVal}
-            placeholder="Ghi chú..."
-            autoSize={{ minRows: 1, maxRows: 3 }}
-            style={{ fontSize: 12, border: isDirty ? '1px solid #10B981' : 'none', borderRadius: 4, background: 'transparent', padding: '2px 4px', resize: 'none', flex: 1, transition: 'border 0.2s' }}
-            onChange={(e) => setNoteValues(prev => ({ ...prev, [record.id]: e.target.value }))}
-          />
-          <Tooltip title={isDirty ? 'Lưu ghi chú' : 'Chưa có thay đổi'}>
-            <Button
-              type={isDirty ? 'primary' : 'text'}
-              size="small"
-              icon={<SaveOutlined />}
-              disabled={!isDirty}
-              onClick={() => isDirty && handleNoteSave(record.id, currentVal)}
-              style={{
-                flexShrink: 0,
-                marginTop: 2,
-                ...(isDirty
-                  ? { background: '#10B981', borderColor: '#10B981', color: '#fff' }
-                  : { color: '#CBD5E1', border: '1px dashed #E2E8F0', background: 'transparent' }),
-              }}
-            />
-          </Tooltip>
-        </div>
+        <Input.TextArea
+          value={currentVal}
+          placeholder="Ghi chú..."
+          autoSize={{ minRows: 1, maxRows: 3 }}
+          style={{ fontSize: 12, outline: isDirty ? '1.5px solid #10B981' : undefined, border: 'none', borderRadius: 4, background: 'transparent', padding: '2px 4px', resize: 'none', width: '100%', transition: 'outline 0.2s' }}
+          onChange={(e) => setNoteValues(prev => ({ ...prev, [record.id]: e.target.value }))}
+        />
       );
     }},
-    { title: '', width: canManage ? 110 : (isSaler ? 40 : 80), fixed: 'right', render: (_, record) => (
+    { title: '', width: canManage ? 168 : (isSaler ? 98 : 108), fixed: 'right', render: (_, record) => {
+      const savedStatus = statusColors[record.status] ? record.status : 'moi';
+      const originalNote = record.mess && record.mess !== 'EMPTY' && record.mess !== 'Mes Mới' ? record.mess : '';
+      const hasChanges = (pendingStatus[record.id] !== undefined && pendingStatus[record.id] !== savedStatus)
+        || (noteValues[record.id] !== undefined && noteValues[record.id] !== originalNote);
+      const hasZalo = !!zaloData[record.id];
+      return (
       <Space size={4}>
+        {hasChanges && (
+          <Tooltip title="Lưu thay đổi"><Button type="primary" size="small" icon={<SaveOutlined />} onClick={() => handleRowSave(record)} style={{ background: '#10B981', borderColor: '#10B981' }} /></Tooltip>
+        )}
+        {hasZalo && (
+          <Tooltip title={`Xem hội thoại Zalo — ${zaloData[record.id].contact.name}`}>
+            <Button
+              type="text"
+              size="small"
+              icon={<ZaloIcon size={15} />}
+              onClick={() => handleZaloIconClick(record)}
+              style={{ color: '#0068FF', padding: '0 4px' }}
+            />
+          </Tooltip>
+        )}
+        <Tooltip title="Bản ghi âm cuộc gọi">
+          <Button
+            type="text"
+            size="small"
+            icon={<AudioOutlined />}
+            onClick={() => handleAudioIconClick(record)}
+            style={{ color: '#7C3AED', padding: '0 4px' }}
+          />
+        </Tooltip>
         {canManage && (
           <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} style={{ color: '#4F46E5' }} /></Tooltip>
         )}
@@ -375,7 +718,8 @@ export default function KhachHang() {
           <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} style={{ color: '#4F46E5' }} /></Tooltip>
         )}
       </Space>
-    )},
+    );
+  }},
   ];
 
   // Apply dynamic widths + resize handles
@@ -440,6 +784,55 @@ export default function KhachHang() {
             <TeamOutlined style={{ fontSize: 20, color: '#4F46E5' }} />
             <span className="page-header-title-text">Khách hàng</span>
           </div>
+          <Tooltip title={selectedRowKeys.length ? `Đồng bộ Zalo cho ${selectedRowKeys.length} khách đã chọn` : 'Chọn khách hàng để đồng bộ Zalo'}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <Button
+                onClick={handleZaloSync}
+                loading={zaloSyncing}
+                disabled={!selectedRowKeys.length}
+                icon={<ZaloIcon size={16} style={{ verticalAlign: 'middle' }} />}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  borderColor: '#0068FF', color: '#0068FF',
+                  fontWeight: 600, borderRadius: 8,
+                  opacity: selectedRowKeys.length ? 1 : 0.5,
+                }}
+              >
+                {zaloSyncing
+                  ? `Đang đồng bộ... ${syncProgress.current}/${syncProgress.total}`
+                  : 'Đồng bộ Zalo'}
+              </Button>
+              {zaloSyncing && syncProgress.total > 0 && (
+                <div style={{ width: '100%', height: 4, background: '#E8EAED', borderRadius: 2, overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${Math.round((syncProgress.current / syncProgress.total) * 100)}%`,
+                      background: '#0068FF',
+                      borderRadius: 2,
+                      transition: 'width 0.3s ease',
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </Tooltip>
+          <Tooltip title={selectedRowKeys.length ? `Nhắn tin Zalo cho ${selectedRowKeys.length} khách đã chọn` : 'Chọn khách hàng để nhắn tin Zalo'}>
+            <Button
+              onClick={handleSendZalo}
+              disabled={!selectedRowKeys.length}
+              icon={<ZaloIcon size={16} style={{ verticalAlign: 'middle' }} />}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: selectedRowKeys.length ? '#0068FF' : undefined,
+                borderColor: '#0068FF', color: selectedRowKeys.length ? '#fff' : '#0068FF',
+                fontWeight: 600, borderRadius: 8,
+                opacity: selectedRowKeys.length ? 1 : 0.5,
+              }}
+            >
+              Nhắn tin Zalo
+            </Button>
+          </Tooltip>
         </div>
         <div className="page-header-right">
           <Input
@@ -531,10 +924,16 @@ export default function KhachHang() {
           </div>
         )}
         <Table
-          dataSource={data}
+          dataSource={(() => {
+            if (filters.status === 'uu_tien') return data;
+            const pinnedIds = new Set(pinnedRows.map(r => r.id));
+            const regular = data.filter(r => !pinnedIds.has(r.id));
+            return pagination.current === 1 ? [...pinnedRows, ...regular] : regular;
+          })()}
           columns={columns}
           rowKey="id"
           loading={loading}
+          rowClassName={(record) => record.status === 'uu_tien' ? 'row-uu-tien' : ''}
           rowSelection={canManage ? {
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
@@ -542,11 +941,11 @@ export default function KhachHang() {
             fixed: true,
             getCheckboxProps: () => ({ style: { transform: 'scale(1.15)' } }),
           } : undefined}
-          pagination={{ ...pagination, showSizeChanger: true, showTotal: (t) => `Tổng ${t} khách hàng` }}
+          pagination={{ ...pagination, showSizeChanger: true, pageSizeOptions: ['30', '50', '100'], showTotal: (t) => `Tổng ${t} khách hàng` }}
           onChange={handleTableChange}
           scroll={{ x: 1200 }}
           size="small"
-          expandable={{ expandedRowRender, expandRowByClick: true }}
+          expandable={{ expandedRowRender, expandRowByClick: false }}
         />
       </AnimatedDiv>
 
@@ -765,6 +1164,220 @@ export default function KhachHang() {
               <br /><span style={{ color: '#0891B2', fontSize: 12 }}>Trạng thái sẽ được đặt lại thành <strong>"Mới"</strong> và hiển thị trong mục <strong>"Khách Được Phân Công"</strong> của sale mới.</span>
             </div>
           )}
+        </div>
+      </Modal>
+      {/* Audio Recording Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AudioOutlined style={{ color: '#7C3AED', fontSize: 20 }} />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#1F2937' }}>Bản ghi âm cuộc gọi</div>
+              <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 400 }}>
+                KH: {audioModal.record?.khachHang} · SĐT: {audioModal.record?.sdt}
+              </div>
+            </div>
+          </div>
+        }
+        open={audioModal.open}
+        onCancel={() => setAudioModal({ open: false, record: null, recordings: [], loading: false, uploading: false })}
+        footer={null}
+        width={520}
+        className="premium-modal"
+        styles={{ body: { padding: 0 } }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Upload button */}
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, background: '#FAF5FF' }}>
+            <input
+              ref={audioUploadRef}
+              type="file"
+              accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.opus,.wma"
+              style={{ display: 'none' }}
+              onChange={handleAudioUpload}
+            />
+            <Button
+              icon={<UploadOutlined />}
+              loading={audioModal.uploading}
+              onClick={() => audioUploadRef.current?.click()}
+              style={{ background: '#7C3AED', borderColor: '#7C3AED', color: '#fff', fontWeight: 600 }}
+            >
+              Tải bản ghi âm lên
+            </Button>
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>Hỗ trợ: MP3, M4A, WAV, OGG, AAC...</span>
+          </div>
+
+          {/* Recordings list */}
+          <div style={{ padding: '12px 20px', minHeight: 200, maxHeight: 420, overflowY: 'auto' }}>
+            {audioModal.loading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 180 }}>
+                <Spin size="large" />
+              </div>
+            ) : audioModal.recordings.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 180, gap: 8 }}>
+                <AudioOutlined style={{ fontSize: 40, color: '#CBD5E1' }} />
+                <span style={{ color: '#9CA3AF', fontSize: 13 }}>Chưa có bản ghi âm nào</span>
+                <span style={{ color: '#CBD5E1', fontSize: 12 }}>Nhấn "Tải bản ghi âm lên" để thêm</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {audioModal.recordings.map((rec, i) => (
+                  <div key={rec.id} style={{
+                    background: '#F8F7FF', border: '1px solid #DDD6FE', borderRadius: 10,
+                    padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <PlayCircleOutlined style={{ color: '#7C3AED', fontSize: 18 }} />
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13, color: '#1F2937', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {rec.fileName || `Bản ghi âm #${i + 1}`}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#9CA3AF' }}>
+                            {rec.recordedAt ? new Date(rec.recordedAt).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                            {rec.fileSize ? ` · ${(rec.fileSize / 1024 / 1024).toFixed(1)} MB` : ''}
+                          </div>
+                        </div>
+                      </div>
+                      <Popconfirm title="Xóa bản ghi âm này?" onConfirm={() => handleAudioDelete(rec.id)} okText="Xóa" cancelText="Hủy">
+                        <Button type="text" size="small" icon={<DeleteFilled />} danger style={{ flexShrink: 0 }} />
+                      </Popconfirm>
+                    </div>
+                    <audio
+                      controls
+                      src={rec.fileUrl}
+                      style={{ width: '100%', height: 36, borderRadius: 6 }}
+                      preload="metadata"
+                    />
+                    {rec.note && (
+                      <div style={{ fontSize: 12, color: '#6B7280', padding: '4px 8px', background: '#EDE9FE', borderRadius: 6 }}>
+                        {rec.note}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Zalo Conversation Popup */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <ZaloIcon size={22} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#1F2937', lineHeight: 1.3, display: 'flex', alignItems: 'center', gap: 8 }}>
+                {zaloPopup.contact?.name || 'Hội thoại Zalo'}
+                {!zaloPopup.loading && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 500, color: '#16A34A', background: '#DCFCE7', borderRadius: 10, padding: '1px 7px' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16A34A', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
+                    Live
+                  </span>
+                )}
+                {newMsgCount > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', background: '#EF4444', borderRadius: 10, padding: '1px 7px' }}>
+                    +{newMsgCount} mới
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 400 }}>
+                KH: {zaloPopup.record?.khachHang} · SĐT: {zaloPopup.record?.sdt} · Sale: {zaloPopup.record?.sale}
+              </div>
+            </div>
+          </div>
+        }
+        open={zaloPopup.open}
+        onCancel={() => { stopMsgPoller(); setZaloPopup({ open: false, record: null, contact: null, messages: [], loading: false }); }}
+        footer={null}
+        width={520}
+        className="premium-modal"
+        styles={{ body: { padding: 0 } }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', height: 480 }}>
+          {/* Contact info bar */}
+          {zaloPopup.contact && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '12px 20px', background: '#F0F9FF',
+              borderBottom: '1px solid #BAE6FD',
+            }}>
+              <ZaloAvatar name={zaloPopup.contact.name} src={zaloPopup.contact.avatar} size={40} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#1F2937' }}>{zaloPopup.contact.name}</div>
+                {zaloPopup.contact.phone && (
+                  <div style={{ fontSize: 12, color: '#0068FF' }}>
+                    <PhoneOutlined style={{ marginRight: 4 }} />{zaloPopup.contact.phone}
+                  </div>
+                )}
+              </div>
+              <Tag color="blue" style={{ marginLeft: 'auto', fontSize: 11 }}>Zalo</Tag>
+            </div>
+          )}
+
+          {/* Messages area */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', background: '#F8FAFC', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {zaloPopup.loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
+                <Spin size="large" />
+                <span style={{ color: '#9CA3AF', fontSize: 13 }}>Đang tải tin nhắn từ Zalo...</span>
+              </div>
+            ) : zaloPopup.messages.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>
+                <MessageOutlined style={{ fontSize: 40, color: '#CBD5E1' }} />
+                <span style={{ color: '#9CA3AF', fontSize: 13 }}>Chưa có tin nhắn trong hội thoại này</span>
+                <span style={{ color: '#CBD5E1', fontSize: 12 }}>Hoặc chưa có cuộc trò chuyện nào với khách hàng</span>
+              </div>
+            ) : (
+              <>
+                {zaloPopup.messages.map((m, i) => {
+                  const isSelf = m.isSelf || false;
+                  return (
+                    <div key={m.msgId || i} style={{ display: 'flex', flexDirection: isSelf ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8 }}>
+                      {!isSelf && (
+                        <ZaloAvatar name={zaloPopup.contact?.name} src={zaloPopup.contact?.avatar} size={28} />
+                      )}
+                      <div style={{ maxWidth: '72%', display: 'flex', flexDirection: 'column', alignItems: isSelf ? 'flex-end' : 'flex-start', gap: 2 }}>
+                        {m.imageUrl && (
+                          <img
+                            src={m.imageUrl}
+                            alt=""
+                            style={{ maxWidth: 200, maxHeight: 240, borderRadius: 10, cursor: 'pointer', display: 'block' }}
+                            onClick={() => window.open(m.imageUrl, '_blank')}
+                            onError={e => { e.target.style.display = 'none'; }}
+                          />
+                        )}
+                        {m.content && (
+                          <div style={{
+                            background: isSelf ? '#0068FF' : '#fff',
+                            color: isSelf ? '#fff' : '#1F2937',
+                            borderRadius: isSelf ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                            padding: '8px 12px',
+                            fontSize: 13,
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                            lineHeight: 1.5,
+                            wordBreak: 'break-word',
+                          }}>
+                            {m.content}
+                          </div>
+                        )}
+                        <span style={{ fontSize: 10, color: '#9CA3AF', padding: '0 4px' }}>
+                          {formatZaloTime(m.time)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div ref={zaloMsgsEndRef} />
+              </>
+            )}
+          </div>
+
+          {/* Footer hint */}
+          <div style={{ padding: '10px 20px', borderTop: '1px solid #E2E8F0', background: '#fff', fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
+            Để nhắn tin, hãy mở tab <strong>Zalo</strong> trong menu
+          </div>
         </div>
       </Modal>
     </AnimatedDiv>
