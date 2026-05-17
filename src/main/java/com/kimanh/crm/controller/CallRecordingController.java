@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/call-recordings")
@@ -23,6 +24,11 @@ public class CallRecordingController {
     public ResponseEntity<List<CallRecording>> getRecordings(
             @RequestParam Long khachHangId) {
         return ResponseEntity.ok(recordingService.getByKhachHang(khachHangId));
+    }
+
+    @GetMapping("/counts")
+    public ResponseEntity<Map<Long, Long>> getCounts(@RequestParam List<Long> ids) {
+        return ResponseEntity.ok(recordingService.countByKhachHangIds(ids));
     }
 
     @PostMapping("/upload")

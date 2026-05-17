@@ -9,10 +9,12 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
 import java.time.LocalDate;
@@ -27,6 +29,7 @@ public class KhachHangService {
     private final KhachHangRepository repository;
     private final JdbcTemplate jdbcTemplate;
 
+    @Transactional(readOnly = true)
     public Page<KhachHang> findAll(String keyword, String status, String page, String sale,
                                     LocalDate fromDate, LocalDate toDate,
                                     Boolean hasSdt, Boolean assignedOnly,
@@ -35,10 +38,14 @@ public class KhachHangService {
         String st = (status != null && !status.isBlank()) ? status : null;
         String pg = (page != null && !page.isBlank()) ? page : null;
         String sl = (sale != null && !sale.isBlank()) ? sale : null;
-        Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
-        return repository.findWithFilters(kw, st, pg, sl, fromDate, toDate, hasSdt, assignedOnly, unsorted);
+        int size = pageable.getPageSize();
+        int offset = pageable.getPageNumber() * size;
+        List<KhachHang> content = repository.findWithFiltersRaw(kw, st, pg, sl, fromDate, toDate, hasSdt, assignedOnly, size, offset);
+        long total = repository.countWithFilters(kw, st, pg, sl, fromDate, toDate, hasSdt, assignedOnly);
+        return new PageImpl<>(content, PageRequest.of(pageable.getPageNumber(), size), total);
     }
 
+    @Transactional(readOnly = true)
     @Cacheable(value = "khachHang", key = "#id")
     public KhachHang findById(Long id) {
         return repository.findById(Objects.requireNonNull(id, "id must not be null"))
@@ -130,6 +137,7 @@ public class KhachHangService {
         return repository.save(existing);
     }
 
+    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "khachHang_sales", allEntries = true),
         @CacheEvict(value = "khachHang_count", allEntries = true),
@@ -177,36 +185,43 @@ public class KhachHangService {
         repository.deleteById(Objects.requireNonNull(id, "id must not be null"));
     }
 
+    @Transactional(readOnly = true)
     public List<KhachHang> search(String keyword) {
         return repository.searchByNameOrPhone(keyword);
     }
 
+    @Transactional(readOnly = true)
     @Cacheable(value = "khachHang_count")
     public long count() {
         return repository.count();
     }
 
+    @Transactional(readOnly = true)
     public long countNewThisMonth() {
         OffsetDateTime startOfMonth = OffsetDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         return repository.countNewThisMonth(startOfMonth);
     }
 
+    @Transactional(readOnly = true)
     @Cacheable(value = "khachHang_pages")
     public List<String> getDistinctPages() {
         return repository.findDistinctPages();
     }
 
+    @Transactional(readOnly = true)
     @Cacheable(value = "khachHang_sales")
     public List<String> getDistinctSales() {
         return repository.findDistinctSales();
     }
 
+    @Transactional(readOnly = true)
     public long countPendingAssigned(String sale) {
         return repository.countPendingAssigned(sale);
     }
 
     // Sale dashboard: mess stats for a specific sale
     // Use individual queries (long return type) to avoid Object[] parsing issues across Hibernate versions
+    @Transactional(readOnly = true)
     @Cacheable(value = "mess_stats", key = "#sale + '_' + #fromDate + '_' + #toDate")
     public Map<String, Object> getMessStats(String sale, LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new LinkedHashMap<>();

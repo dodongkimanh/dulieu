@@ -19,6 +19,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -41,6 +42,7 @@ public class DonHangService {
         return (s != null && !s.isBlank()) ? s : null;
     }
 
+    @Transactional(readOnly = true)
     public Page<DonHang> findAll(String keyword, String tinhTrang, String sale,
                                   String page, String maIdQuangCao,
                                   LocalDate fromDate, LocalDate toDate, Pageable pageable) {
@@ -50,6 +52,7 @@ public class DonHangService {
                 blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate, unsorted);
     }
 
+    @Transactional(readOnly = true)
     public DonHang findById(Long id) {
         return repository.findById(Objects.requireNonNull(id, "id must not be null"))
             .orElseThrow(() -> new RuntimeException("Đơn hàng không tồn tại: " + id));
@@ -156,11 +159,13 @@ public class DonHangService {
     }
 
     // Dashboard stats with optional date filter
+    @Transactional(readOnly = true)
     @Cacheable(value = "donhang_dashboard_stats")
     public Map<String, Object> getDashboardStats() {
         return getDashboardStats(null, null);
     }
 
+    @Transactional(readOnly = true)
     public Map<String, Object> getDashboardStats(LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> stats = new LinkedHashMap<>();
         long total = repository.countByDateRange(fromDate, toDate);
@@ -176,21 +181,7 @@ public class DonHangService {
         return stats;
     }
 
-    @Deprecated
-    @Cacheable(value = "donhang_dashboard_stats_old")
-    public Map<String, Object> getDashboardStatsOld() {
-        Map<String, Object> stats = new LinkedHashMap<>();
-        long total = repository.count();
-        long completed = repository.countCompleted();
-        stats.put("tongDonHang", total);
-        stats.put("tongDoanhThu", repository.sumTotalRevenue());
-        stats.put("donMoiHomNay", repository.countTodayOrders(LocalDate.now()));
-        stats.put("donHoanThanh", completed);
-        double conversionRate = total > 0 ? (double) completed / total * 100 : 0;
-        stats.put("tyLeChuyenDoi", Math.round(conversionRate * 10.0) / 10.0);
-        return stats;
-    }
-
+    @Transactional(readOnly = true)
     @Cacheable(value = "donhang_revenue_monthly")
     public List<Map<String, Object>> getRevenueByMonth() {
         LocalDate startDate = LocalDate.now().minusMonths(11).withDayOfMonth(1);
@@ -237,6 +228,7 @@ public class DonHangService {
         return repository.findTop10ByOrderByCreatedAtDesc();
     }
 
+    @Transactional(readOnly = true)
     public List<String> getDistinctSales() {
         return repository.findDistinctSales().stream()
                 .map(s -> s != null ? s.trim().replaceAll("\\s+", " ") : s)
@@ -246,11 +238,13 @@ public class DonHangService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<String> getDistinctPages() {
         return repository.findDistinctPages();
     }
 
     // Analytics for TongQuat page
+    @Transactional(readOnly = true)
     public Map<String, Object> getAnalytics(LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new LinkedHashMap<>();
 
@@ -293,6 +287,7 @@ public class DonHangService {
             item.put("sumLoiNhuan", row[5]);
             item.put("sumGiaVon", row[6]);
             item.put("sumCPVC", row[7]);
+            item.put("sumLNSauTru", row[8]);
             saleStatusData.add(item);
         }
         result.put("bySaleStatus", saleStatusData);
@@ -345,6 +340,7 @@ public class DonHangService {
 
     // Sale dashboard: revenue stats for a specific sale
     // Single grouped query replaces 4 separate queries
+    @Transactional(readOnly = true)
     @Cacheable(value = "sale_revenue", key = "#sale + '_' + #fromDate + '_' + #toDate")
     public Map<String, Object> getSaleRevenue(String sale, LocalDate fromDate, LocalDate toDate) {
         Map<String, Object> result = new LinkedHashMap<>();

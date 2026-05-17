@@ -140,7 +140,8 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
            "COALESCE(SUM(d.gia_thu_thuc_te), 0) as sum_gia_thu, " +
            "COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0) as sum_loi_nhuan, " +
            "COALESCE(SUM(d.gia_von), 0) as sum_gia_von, " +
-           "COALESCE(SUM(d.chi_phi_van_chuyen), 0) as sum_cpvc " +
+           "COALESCE(SUM(d.chi_phi_van_chuyen), 0) as sum_cpvc, " +
+           "COALESCE(SUM(d.loi_nhuan_sau_tru), 0) as sum_ln_sau_tru " +
            "FROM don_hang d WHERE " +
            "(CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
            "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
