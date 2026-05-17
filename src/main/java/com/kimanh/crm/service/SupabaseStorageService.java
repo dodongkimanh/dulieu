@@ -60,6 +60,37 @@ public class SupabaseStorageService {
         return supabaseUrl + "/storage/v1/object/public/" + BUCKET + "/" + path;
     }
 
+    /**
+     * Uploads an audio recording to Supabase Storage under recordings/kh-{id}/.
+     * Returns the public URL of the uploaded file.
+     */
+    public String uploadRecording(MultipartFile file, Long khachHangId) throws IOException {
+        if (!isConfigured()) {
+            throw new RuntimeException("Supabase Storage chưa được cấu hình (SUPABASE_URL / SUPABASE_SERVICE_KEY)");
+        }
+
+        String ext = getExtension(file.getOriginalFilename());
+        String path = "recordings/kh-" + khachHangId + "/" + UUID.randomUUID() + ext;
+        String uploadUrl = supabaseUrl + "/storage/v1/object/" + BUCKET + "/" + path;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + serviceKey);
+        headers.setContentType(MediaType.parseMediaType(
+            file.getContentType() != null ? file.getContentType() : "audio/mpeg"
+        ));
+        headers.set("x-upsert", "true");
+
+        HttpEntity<byte[]> entity = new HttpEntity<>(file.getBytes(), headers);
+        try {
+            restTemplate.exchange(uploadUrl, HttpMethod.POST, entity, String.class);
+        } catch (Exception e) {
+            log.error("Supabase Storage recording upload failed: {}", e.getMessage());
+            throw new RuntimeException("Upload bản ghi âm lên Supabase Storage thất bại: " + e.getMessage());
+        }
+
+        return supabaseUrl + "/storage/v1/object/public/" + BUCKET + "/" + path;
+    }
+
     private String getExtension(String filename) {
         if (filename == null) return "";
         int dot = filename.lastIndexOf('.');
