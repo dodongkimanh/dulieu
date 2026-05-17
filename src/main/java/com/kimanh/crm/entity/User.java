@@ -36,6 +36,12 @@ public class User {
     @Builder.Default
     private Boolean active = true;
 
+    @Column
+    private String zalo;
+
+    @Column
+    private String sim;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 

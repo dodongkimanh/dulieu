@@ -98,7 +98,7 @@ public class AuthService {
     }
 
     @Transactional
-    public User register(String username, String password, String fullName, String role) {
+    public User register(String username, String password, String fullName, String role, String zalo, String sim) {
         if (username == null || username.isBlank()) {
             throw new RuntimeException("Tên đăng nhập không được để trống");
         }
@@ -126,6 +126,8 @@ public class AuthService {
                 .password(passwordEncoder.encode(password))
                 .fullName(fullName)
                 .role(role)
+                .zalo(zalo)
+                .sim(sim)
                 .active(true)
                 .build();
 
@@ -154,7 +156,7 @@ public class AuthService {
     }
 
     @Transactional
-    public Map<String, Object> updateUser(Long id, String username, String fullName, String password) {
+    public Map<String, Object> updateUser(Long id, String username, String fullName, String password, String zalo, String sim) {
         User user = userRepository.findById(Objects.requireNonNull(id, "id must not be null"))
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại (ID: " + id + ")"));
         if (username != null && !username.isBlank()) {
@@ -186,6 +188,8 @@ public class AuthService {
             }
             user.setPassword(passwordEncoder.encode(pw));
         }
+        if (zalo != null) user.setZalo(zalo.trim().isEmpty() ? null : zalo.trim());
+        if (sim != null) user.setSim(sim.trim().isEmpty() ? null : sim.trim());
         User saved = userRepository.save(Objects.requireNonNull(user, "user must not be null"));
         Map<String, Object> result = new HashMap<>();
         result.put("user", saved);
