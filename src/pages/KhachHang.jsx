@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox, Badge, Spin, Avatar } from 'antd';
+import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox, Badge, Spin, Avatar, Progress } from 'antd';
 
 const AnimatedDiv = motion.div;
 import {
@@ -119,7 +119,8 @@ export default function KhachHang() {
   const [zaloSyncing, setZaloSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [zaloPopup, setZaloPopup] = useState({ open: false, record: null, contact: null, messages: [], loading: false });
-  const [audioModal, setAudioModal] = useState({ open: false, record: null, recordings: [], loading: false, uploading: false });
+  const [audioModal, setAudioModal] = useState({ open: false, record: null, recordings: [], loading: false, uploading: false, uploadProgress: 0 });
+  const [recordingCounts, setRecordingCounts] = useState({});
   const audioUploadRef = useRef(null);
   const [allCrmUsers, setAllCrmUsers] = useState([]);
   const zaloMsgsEndRef = useRef(null);
@@ -535,10 +536,12 @@ export default function KhachHang() {
   };
 
   const handleAudioIconClick = async (record) => {
-    setAudioModal({ open: true, record, recordings: [], loading: true, uploading: false });
+    setAudioModal({ open: true, record, recordings: [], loading: true, uploading: false, uploadProgress: 0 });
     try {
       const res = await callRecordingApi.getByKhachHang(record.id);
-      setAudioModal(prev => ({ ...prev, recordings: res.data || [], loading: false }));
+      const recs = res.data || [];
+      setAudioModal(prev => ({ ...prev, recordings: recs, loading: false }));
+      setRecordingCounts(prev => ({ ...prev, [record.id]: recs.length }));
     } catch {
       message.error('Không thể tải danh sách bản ghi âm');
       setAudioModal(prev => ({ ...prev, loading: false }));
@@ -550,25 +553,37 @@ export default function KhachHang() {
     if (!file) return;
     e.target.value = '';
     const { record } = audioModal;
-    setAudioModal(prev => ({ ...prev, uploading: true }));
+    setAudioModal(prev => ({ ...prev, uploading: true, uploadProgress: 0 }));
     try {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('khachHangId', record.id);
-      await callRecordingApi.upload(formData);
+      await callRecordingApi.upload(formData, {
+        onUploadProgress: (e) => {
+          const pct = e.total ? Math.round((e.loaded * 100) / e.total) : 0;
+          setAudioModal(prev => ({ ...prev, uploadProgress: pct }));
+        },
+      });
       message.success('Tải bản ghi âm lên thành công');
       const res = await callRecordingApi.getByKhachHang(record.id);
-      setAudioModal(prev => ({ ...prev, recordings: res.data || [], uploading: false }));
-    } catch {
-      message.error('Tải lên thất bại — kiểm tra cấu hình Supabase Storage');
-      setAudioModal(prev => ({ ...prev, uploading: false }));
+      const recs = res.data || [];
+      setAudioModal(prev => ({ ...prev, recordings: recs, uploading: false, uploadProgress: 0 }));
+      setRecordingCounts(prev => ({ ...prev, [record.id]: recs.length }));
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Tải lên thất bại';
+      message.error(msg);
+      setAudioModal(prev => ({ ...prev, uploading: false, uploadProgress: 0 }));
     }
   };
 
   const handleAudioDelete = async (id) => {
     try {
       await callRecordingApi.delete(id);
-      setAudioModal(prev => ({ ...prev, recordings: prev.recordings.filter(r => r.id !== id) }));
+      setAudioModal(prev => {
+        const recs = prev.recordings.filter(r => r.id !== id);
+        setRecordingCounts(c => ({ ...c, [prev.record?.id]: recs.length }));
+        return { ...prev, recordings: recs };
+      });
       message.success('Đã xóa bản ghi âm');
     } catch {
       message.error('Xóa thất bại');
@@ -694,15 +709,25 @@ export default function KhachHang() {
             />
           </Tooltip>
         )}
-        <Tooltip title="Bản ghi âm cuộc gọi">
-          <Button
-            type="text"
-            size="small"
-            icon={<AudioOutlined />}
-            onClick={() => handleAudioIconClick(record)}
-            style={{ color: '#7C3AED', padding: '0 4px' }}
-          />
-        </Tooltip>
+        {(() => {
+          const hasRec = recordingCounts[record.id] > 0;
+          const unknownRec = recordingCounts[record.id] === undefined;
+          return (
+            <Tooltip title={hasRec ? `${recordingCounts[record.id]} bản ghi âm` : 'Bản ghi âm cuộc gọi'}>
+              <Button
+                type="text"
+                size="small"
+                icon={<AudioOutlined />}
+                onClick={() => handleAudioIconClick(record)}
+                style={{
+                  color: hasRec ? '#7C3AED' : '#9CA3AF',
+                  padding: '0 4px',
+                  opacity: unknownRec ? 0.4 : (hasRec ? 1 : 0.4),
+                }}
+              />
+            </Tooltip>
+          );
+        })()}
         {canManage && (
           <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} style={{ color: '#4F46E5' }} /></Tooltip>
         )}
@@ -1187,24 +1212,42 @@ export default function KhachHang() {
         styles={{ body: { padding: 0 } }}
       >
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {/* Upload button */}
-          <div style={{ padding: '14px 20px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 10, background: '#FAF5FF' }}>
-            <input
-              ref={audioUploadRef}
-              type="file"
-              accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.opus,.wma"
-              style={{ display: 'none' }}
-              onChange={handleAudioUpload}
-            />
-            <Button
-              icon={<UploadOutlined />}
-              loading={audioModal.uploading}
-              onClick={() => audioUploadRef.current?.click()}
-              style={{ background: '#7C3AED', borderColor: '#7C3AED', color: '#fff', fontWeight: 600 }}
-            >
-              Tải bản ghi âm lên
-            </Button>
-            <span style={{ fontSize: 12, color: '#9CA3AF' }}>Hỗ trợ: MP3, M4A, WAV, OGG, AAC...</span>
+          {/* Upload button + progress */}
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid #E2E8F0', background: '#FAF5FF' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input
+                ref={audioUploadRef}
+                type="file"
+                accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.opus,.wma"
+                style={{ display: 'none' }}
+                onChange={handleAudioUpload}
+              />
+              <Button
+                icon={<UploadOutlined />}
+                loading={audioModal.uploading}
+                disabled={audioModal.uploading}
+                onClick={() => audioUploadRef.current?.click()}
+                style={{ background: '#7C3AED', borderColor: '#7C3AED', color: '#fff', fontWeight: 600 }}
+              >
+                Tải bản ghi âm lên
+              </Button>
+              <span style={{ fontSize: 12, color: '#9CA3AF' }}>MP3, M4A, WAV, OGG, AAC...</span>
+            </div>
+            {audioModal.uploading && (
+              <div style={{ marginTop: 10 }}>
+                <Progress
+                  percent={audioModal.uploadProgress}
+                  strokeColor="#7C3AED"
+                  trailColor="#EDE9FE"
+                  size="small"
+                  status={audioModal.uploadProgress < 100 ? 'active' : 'success'}
+                  format={pct => <span style={{ fontSize: 12, color: '#7C3AED' }}>{pct}%</span>}
+                />
+                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                  {audioModal.uploadProgress < 100 ? 'Đang tải lên Supabase Storage...' : 'Đang lưu vào cơ sở dữ liệu...'}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Recordings list */}

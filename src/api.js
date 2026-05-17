@@ -108,7 +108,7 @@ export const zaloContactApi = {
 // Call Recording APIs
 export const callRecordingApi = {
   getByKhachHang: (khachHangId) => api.get('/call-recordings', { params: { khachHangId } }),
-  upload: (formData) => api.post('/call-recordings/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  upload: (formData, config = {}) => api.post('/call-recordings/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }, ...config }),
   delete: (id) => api.delete(`/call-recordings/${id}`),
 };
 
