@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  crm-backend:
+    build: .
+    container_name: crm-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      PORT: 8080
+
+      # Database (Supabase Pooler)
+      DATABASE_URL: jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0
+      DATABASE_USERNAME: postgres.aamzezukxjcnwoostttd
+      DATABASE_PASSWORD: Trungkienak@123
+
+      # JWT
+      JWT_SECRET: KimAnhCRM2024SecretKeyForJWTAuthenticationSystemVeryLongAndSecure256Bits!!
+      JWT_EXPIRATION: 86400000
+
+      # Redis (Upstash)
+      REDIS_HOST: blessed-cat-73757.upstash.io
+      REDIS_PORT: 6379
+      REDIS_USERNAME: default
+      REDIS_PASSWORD: gQAAAAAAASAdAAIncDI1Zjc1YjY1N2FjODE0NTJkYTMxZDI3NGY3YzJjZWI2YXAyNzM3NTc
+
+      # CORS - cho phép frontend Vercel + IP VPS nếu cần
+      CORS_ORIGINS: https://dodongkimanh.vercel.app
+
+      # Keep-alive tự ping (thay URL Render bằng IP VPS)
+      RENDER_EXTERNAL_URL: http://66.42.61.149:8080
+      KEEP_ALIVE_ENABLED: "true"
+
+      # DB Heartbeat
+      DB_HEARTBEAT_ENABLED: "true"
+
+      # Supabase Storage (để trống nếu không dùng)
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
