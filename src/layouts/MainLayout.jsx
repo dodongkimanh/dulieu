@@ -20,6 +20,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 
 const SERVICE_BASE = import.meta.env.VITE_ZALO_SERVICE || 'http://66.42.61.149:3001';
+const VNC_URL = import.meta.env.VITE_VNC_URL || null;
 
 function ZaloIcon() {
   return (
@@ -235,14 +236,17 @@ export default function MainLayout() {
 
           <div className="sg-header-right">
             {user?.role === 'ADMIN' && (
-              <Tooltip title="Mở Zalo VPS" placement="bottom">
+              <Tooltip title="Mở màn hình VPS" placement="bottom">
                 <motion.button
-                  onClick={() => navigate('/zalo')}
+                  onClick={() => VNC_URL
+                    ? window.open(VNC_URL, 'zalo-vnc', 'width=1400,height=900,noopener,noreferrer')
+                    : navigate('/zalo')
+                  }
                   whileHover={{ scale: 1.07 }}
                   whileTap={{ scale: 0.95 }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
-                    background: location.pathname === '/zalo' ? '#0052cc' : '#0068ff',
+                    background: '#0068ff',
                     color: 'white', border: 'none', borderRadius: 8,
                     padding: '6px 12px', cursor: 'pointer', fontSize: 13,
                     fontWeight: 600, boxShadow: '0 2px 8px rgba(0,104,255,0.35)',
