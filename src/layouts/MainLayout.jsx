@@ -1,5 +1,6 @@
-﻿import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Tooltip, Dropdown, Badge } from 'antd';
+﻿import { useState, useEffect, useRef } from 'react';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Tooltip, Dropdown, Badge, Popover } from 'antd';
 import {
   ShoppingCartOutlined,
   TeamOutlined,
@@ -12,9 +13,13 @@ import {
   FundOutlined,
   AppstoreOutlined,
   InboxOutlined,
+  WifiOutlined,
+  DisconnectOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+
+const SERVICE_BASE = import.meta.env.VITE_ZALO_SERVICE || 'http://66.42.61.149:3001';
 
 function ZaloIcon() {
   return (
@@ -48,6 +53,113 @@ const pageTitles = {
   '/kenh-tiep-thi': 'Quản lý Kênh tiếp thị',
   '/users': 'Quản lý Tài khoản',
 };
+
+function ZaloFloatingBtn({ navigate, location }) {
+  const { user } = useAuth();
+  const [sessions, setSessions] = useState([]);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (user?.role !== 'ADMIN') return;
+    const fetch_ = () => {
+      fetch(`${SERVICE_BASE}/sessions`)
+        .then(r => r.json())
+        .then(d => setSessions(Array.isArray(d) ? d : []))
+        .catch(() => {});
+    };
+    fetch_();
+    timerRef.current = setInterval(fetch_, 30000);
+    return () => clearInterval(timerRef.current);
+  }, [user?.role]);
+
+  if (user?.role !== 'ADMIN') return null;
+  if (location.pathname === '/zalo') return null;
+
+  const onlineCount = sessions.filter(s => s.status === 'online').length;
+
+  const content = (
+    <div style={{ width: 260, maxHeight: 360, overflowY: 'auto' }}>
+      <div style={{ fontWeight: 700, fontSize: 13, color: '#0068FF', marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #f0f0f0' }}>
+        Zalo VPS — {onlineCount}/{sessions.length} online
+      </div>
+      {sessions.length === 0 && (
+        <div style={{ color: '#9CA3AF', fontSize: 12, textAlign: 'center', padding: '12px 0' }}>Không có session nào</div>
+      )}
+      {sessions.map(s => (
+        <div
+          key={s.sessionId}
+          onClick={() => { setOpen(false); navigate('/zalo'); }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '7px 4px',
+            borderRadius: 6, cursor: 'pointer', transition: 'background .15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#f5f7ff'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          <div style={{
+            width: 34, height: 34, borderRadius: '50%', background: '#0068FF',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontWeight: 700, fontSize: 14, flexShrink: 0,
+          }}>
+            {(s.name || s.sessionId)?.charAt(0)?.toUpperCase() || 'Z'}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {s.name || s.sessionId}
+            </div>
+            <div style={{ fontSize: 11, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {s.phone || s.sessionId}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            {s.status === 'online'
+              ? <><WifiOutlined style={{ color: '#22C55E', fontSize: 12 }} /><span style={{ fontSize: 11, color: '#22C55E', fontWeight: 600 }}>Online</span></>
+              : <><DisconnectOutlined style={{ color: '#9CA3AF', fontSize: 12 }} /><span style={{ fontSize: 11, color: '#9CA3AF' }}>Offline</span></>
+            }
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <Popover
+      content={content}
+      trigger="click"
+      open={open}
+      onOpenChange={setOpen}
+      placement="topRight"
+    >
+      <motion.div
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.95 }}
+        style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 1000,
+          width: 52, height: 52, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #0068FF 0%, #0052cc 100%)',
+          boxShadow: '0 4px 16px rgba(0,104,255,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer',
+        }}
+      >
+        <ZaloIcon />
+        {onlineCount > 0 && (
+          <div style={{
+            position: 'absolute', top: -2, right: -2,
+            background: '#22C55E', color: '#fff',
+            borderRadius: '50%', width: 18, height: 18,
+            fontSize: 11, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '2px solid #fff',
+          }}>
+            {onlineCount}
+          </div>
+        )}
+      </motion.div>
+    </Popover>
+  );
+}
 
 export default function MainLayout() {
   const navigate = useNavigate();
@@ -175,6 +287,8 @@ export default function MainLayout() {
           <Outlet />
         </main>
       </div>
+
+      <ZaloFloatingBtn navigate={navigate} location={location} />
     </div>
   );
 }
