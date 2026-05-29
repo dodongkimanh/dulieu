@@ -904,6 +904,9 @@ export default function Zalo() {
   const [sending, setSending] = useState(false);
   const [msgLoadingStatus, setMsgLoadingStatus] = useState(null);
   const [loadingLong, setLoadingLong] = useState(false);
+  const [sessionLoadText, setSessionLoadText] = useState('Đang kết nối...');
+  const [sessionLoadHistory, setSessionLoadHistory] = useState([]);
+  const [reloadingPage, setReloadingPage] = useState(false);
   const [bulkResults, setBulkResults] = useState([]);
   const [bulkRunning, setBulkRunning] = useState(false);
   const [lookupPhone, setLookupPhone] = useState('');
@@ -926,6 +929,11 @@ export default function Zalo() {
 
     ws.onopen = () => {
       setWsConnected(true);
+      setSessionLoadHistory(prev => {
+        const label = 'Đã kết nối tới server';
+        return prev.includes(label) ? prev : [...prev, label];
+      });
+      setSessionLoadText('Đang lấy thông tin phiên...');
       ws.send(JSON.stringify({ type: 'get_my_info' }));
       ws.send(JSON.stringify({ type: 'get_phonebook' }));
       ws.send(JSON.stringify({ type: 'get_messages' }));
@@ -961,6 +969,13 @@ export default function Zalo() {
         if (msg.type === 'messages') setMessages(msg.data || []);
         if (msg.type === 'loading_status') {
           setMsgLoadingStatus(msg.step === 'done' ? null : { step: msg.step, text: msg.text });
+        }
+        if (msg.type === 'session_progress') {
+          setSessionLoadHistory(prev => {
+            if (prev.includes(msg.text)) return prev;
+            return [...prev, msg.text];
+          });
+          setSessionLoadText(msg.text);
         }
         if (msg.type === 'new_message') {
           setMessages((prev) => {
@@ -1105,6 +1120,7 @@ export default function Zalo() {
   useEffect(() => {
     if (status !== 'loading') {
       setLoadingLong(false);
+      setReloadingPage(false);
       clearTimeout(loadingTimerRef.current);
       return;
     }
@@ -1126,6 +1142,8 @@ export default function Zalo() {
     setStatus('loading'); setQrData(null); setQrCanvas(null); setContacts([]); setPhonebook([]);
     setMessages([]); setActiveContact(null); setMyInfo({ name: null, phone: null, uid: null });
     setSearch(''); setSearchResults([]); setWsConnected(false);
+    setSessionLoadText('Đang kết nối tài khoản mới...');
+    setSessionLoadHistory([]);
     setAdminViewSession(username);
   };
 
@@ -1135,10 +1153,7 @@ export default function Zalo() {
   };
 
   const startService = () => {
-    // Mở Electron app trên máy nhân viên qua custom URL scheme
-    window.location.href = `kimanh-zalo://sync?session=${encodeURIComponent(effectiveSessionId)}`;
-    // Sau 3 giây bắt đầu poll trạng thái VPS
-    setTimeout(() => connectWS(), 3000);
+    handleStartServer();
   };
 
   const resetState = () => {
@@ -1150,6 +1165,14 @@ export default function Zalo() {
     setSearch('');
     setSearchResults([]);
     setMyInfo({ name: null, phone: null, uid: null });
+  };
+
+  const handleStartServer = async () => {
+    setStatus('loading');
+    try {
+      await fetch(`${SERVICE_BASE}/start${qp}`, { method: 'POST' });
+    } catch { /* ignore */ }
+    setTimeout(() => connectWS(), 3000);
   };
 
   // Dừng từ màn QR → về idle chờ kết nối
@@ -1194,6 +1217,23 @@ export default function Zalo() {
       await fetch(`${SERVICE_BASE}/refresh-contacts${qp}`, { method: 'POST' });
     } catch {}
     setTimeout(() => setContactsRefreshing(false), 3000);
+  };
+
+  const handleReloadPage = async () => {
+    setReloadingPage(true);
+    setSessionLoadText('Đang tải lại Zalo Web...');
+    setSessionLoadHistory([]);
+    try {
+      const res = await fetch(`${SERVICE_BASE}/reload-page${qp}`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        antMessage.error(`Không thể tải lại: ${data.error || res.statusText}`);
+        setReloadingPage(false);
+      }
+    } catch (e) {
+      antMessage.error(`Lỗi kết nối: ${e.message}`);
+      setReloadingPage(false);
+    }
   };
 
   const resolveIsSelf = (msg) => {
@@ -1273,21 +1313,27 @@ export default function Zalo() {
                 <path d="M33 28.5c-.28-.14-1.63-.8-1.88-.9-.25-.1-.43-.14-.62.14-.18.28-.72.9-.88 1.08-.16.18-.33.2-.61.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.4-1.66-1.56-1.94-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.17.18-.28.28-.47.1-.2.05-.36-.02-.5-.07-.14-.62-1.5-.85-2.05-.22-.54-.45-.46-.62-.47-.16 0-.35-.02-.53-.02-.18 0-.48.07-.74.33-.25.27-.97.95-.97 2.32 0 1.37.99 2.7 1.13 2.88.14.18 1.96 2.99 4.75 4.2.66.28 1.18.45 1.58.58.66.21 1.27.18 1.74.11.53-.08 1.63-.67 1.86-1.3.23-.64.23-1.19.16-1.3-.07-.12-.26-.18-.54-.32z" fill="#0068FF"/>
               </svg>
             </div>
-            <h2 style={{ marginBottom: 4 }}>Yêu Cầu Sale Đăng Nhập Zalo</h2>
-            <p style={{ fontSize: 12, color: '#EF4444', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '6px 14px', marginBottom: 10, maxWidth: 360, lineHeight: 1.6 }}>
-              ⚠️ Chú ý: Zalo công ty cấp chỉ được phép đăng nhập ở đây, không được đăng nhập Zalo Web ở trình duyệt khác.
-            </p>
-            <Tag color="blue" style={{ fontSize: 13, padding: '2px 10px', marginBottom: 8 }}>
+            <h2 style={{ marginBottom: 4 }}>Dịch vụ Zalo đã dừng</h2>
+            <Tag color="blue" style={{ fontSize: 13, padding: '2px 10px', marginBottom: 16 }}>
               Tài khoản: <strong>{effectiveSessionId}</strong>
             </Tag>
-            <p style={{ color: '#6B7280' }}>Dùng <strong>Chrome Extension "Zalo CRM"</strong> để đăng nhập Zalo lên VPS</p>
             <Button
-              size="middle"
+              type="primary"
+              size="large"
+              icon={<PlayCircleOutlined />}
+              onClick={handleStartServer}
+              className="zalo-start-btn"
+            >
+              Khởi động server
+            </Button>
+            <div className="zalo-start-hint">Khởi động lại máy chủ ảo trên VPS</div>
+            <Button
+              size="small"
               icon={<SyncOutlined />}
               onClick={() => handleSyncOpen(effectiveSessionId, effectiveSessionId)}
-              style={{ marginTop: 4, color: '#0068FF', borderColor: '#0068FF' }}
+              style={{ marginTop: 12, color: '#6B7280', borderColor: '#D1D5DB', fontSize: 12 }}
             >
-              Xem hướng dẫn đăng nhập
+              Cần đăng nhập lại? Xem hướng dẫn
             </Button>
           </div>
         </motion.div>
@@ -1331,8 +1377,29 @@ export default function Zalo() {
           {isAdmin && <AdminZaloTabs selectedSession={effectiveSessionId} onSelect={handleAdminSelect} crmGroups={crmAllGroups} onSync={handleSyncOpen} />}
           <div className="zalo-start-screen">
             <Spin size="large" />
-            <h3 style={{ marginTop: 24, color: '#0068FF' }}>Đang khởi động trình duyệt ảo...</h3>
-            <p style={{ color: '#6B7280' }}>Lần đầu có thể mất 30–60 giây</p>
+            <h3 style={{ marginTop: 20, color: '#0068FF', marginBottom: 4 }}>{sessionLoadText}</h3>
+            <p style={{ color: '#6B7280', fontSize: 12, marginBottom: 16 }}>Lần đầu có thể mất 30–60 giây</p>
+            {sessionLoadHistory.length > 0 && (
+              <div style={{
+                background: '#f0f6ff',
+                border: '1px solid #d0e4ff',
+                borderRadius: 8,
+                padding: '10px 14px',
+                width: 280,
+                textAlign: 'left',
+              }}>
+                {sessionLoadHistory.map((label, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    fontSize: 12, color: '#10B981',
+                    marginBottom: i < sessionLoadHistory.length - 1 ? 6 : 0,
+                  }}>
+                    <span style={{ fontSize: 14, lineHeight: 1 }}>✓</span>
+                    <span>{label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {loadingLong && (
               <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                 <p style={{ color: '#F59E0B', fontSize: 13, margin: 0 }}>
@@ -1545,12 +1612,13 @@ export default function Zalo() {
                   {wsConnected ? 'Online' : 'Offline'}
                 </Tag>
               </Tooltip>
-              <Tooltip title="Hướng dẫn đăng nhập lại">
+              <Tooltip title="Tải lại trang Zalo">
                 <Button
                   size="small"
-                  icon={<SyncOutlined />}
+                  icon={<SyncOutlined spin={reloadingPage} />}
                   style={{ color: '#0068FF', borderColor: '#0068FF' }}
-                  onClick={() => handleSyncOpen(effectiveSessionId, myInfo.name || effectiveSessionId)}
+                  loading={reloadingPage}
+                  onClick={handleReloadPage}
                 />
               </Tooltip>
               <Tooltip title={isAdmin ? 'Đăng xuất Zalo' : 'Chỉ quản trị viên mới có thể đăng xuất'}>
