@@ -74,7 +74,6 @@ function ZaloFloatingBtn({ navigate, location }) {
   }, [user?.role]);
 
   if (user?.role !== 'ADMIN') return null;
-  if (location.pathname === '/zalo') return null;
 
   const onlineCount = sessions.filter(s => s.status === 'online').length;
 
