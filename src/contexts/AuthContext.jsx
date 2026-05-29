@@ -8,7 +8,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Use sessionStorage: forces re-login on browser/tab close to avoid stale data
     const token = sessionStorage.getItem('crm_token');
     const savedUser = sessionStorage.getItem('crm_user');
     if (token && savedUser) {
@@ -19,10 +18,16 @@ export function AuthProvider({ children }) {
         sessionStorage.removeItem('crm_user');
       }
     }
-    // Clean up any old localStorage data
     localStorage.removeItem('crm_token');
     localStorage.removeItem('crm_user');
     setLoading(false);
+
+    // Lắng nghe sự kiện 401/403 từ api interceptor — không reload trang
+    const handleLogout = () => {
+      setUser(null);
+    };
+    window.addEventListener('auth:logout', handleLogout);
+    return () => window.removeEventListener('auth:logout', handleLogout);
   }, []);
 
   const login = async (username, password) => {

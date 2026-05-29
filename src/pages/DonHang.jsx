@@ -39,12 +39,16 @@ const statusColors = {
 const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
 
 export default function DonHang() {
-  const { isAdmin, isKeToan, isSaler } = useAuth();
+  const { isAdmin, isKeToan, isSaler, user } = useAuth();
   const canEdit = isAdmin || isKeToan;
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
-  const [filters, setFilters] = useState({ keyword: '', tinhTrang: null, sale: null, page: null, maIdQuangCao: '' });
+  const [filters, setFilters] = useState(() => ({
+    keyword: '', tinhTrang: null,
+    sale: isSaler ? (user?.fullName || null) : null,
+    page: null, maIdQuangCao: '',
+  }));
   const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
   const [salesList, setSalesList] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
@@ -84,9 +88,10 @@ export default function DonHang() {
   const handleTableChange = (pag) => fetchData(pag.current, pag.pageSize);
   const handleSearch = () => fetchData(1, pagination.pageSize);
   const handleReset = () => {
-    setFilters({ keyword: '', tinhTrang: null, sale: null, page: null, maIdQuangCao: '' });
+    const saleFilter = isSaler ? (user?.fullName || null) : null;
+    setFilters({ keyword: '', tinhTrang: null, sale: saleFilter, page: null, maIdQuangCao: '' });
     setDateRange([dayjs().startOf('month'), dayjs().endOf('month')]);
-    fetchData(1, pagination.pageSize, { keyword: '', tinhTrang: null, sale: null, page: null, maIdQuangCao: '' });
+    fetchData(1, pagination.pageSize, { keyword: '', tinhTrang: null, sale: saleFilter, page: null, maIdQuangCao: '' });
   };
 
   const handleDelete = async (id) => {
@@ -193,7 +198,7 @@ export default function DonHang() {
             <div className="expand-item"><span className="expand-label">Đặt Cọc</span><span className="expand-value">{vnd(record.datCoc)} đ</span></div>
             <div className="expand-item"><span className="expand-label">Thu Trực Tiếp</span><span className="expand-value">{vnd(record.thuBanTrucTiep)} đ</span></div>
             <div className="expand-item highlight"><span className="expand-label">Tổng Thu Khách</span><span className="expand-value">{vnd(record.tongThuKhach)} đ</span></div>
-            <div className="expand-item highlight"><span className="expand-label">LN Sau Trừ</span><span className="expand-value" style={{ color: record.loiNhuanSauTru >= 0 ? '#059669' : '#DC2626' }}>{vnd(record.loiNhuanSauTru)} đ</span></div>
+            <div className="expand-item highlight"><span className="expand-label">Lợi Nhuận Thực</span><span className="expand-value" style={{ color: record.loiNhuanSauTru >= 0 ? '#059669' : '#DC2626' }}>{vnd(record.loiNhuanSauTru)} đ</span></div>
           </div>
         </div>
       )}

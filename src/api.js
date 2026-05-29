@@ -108,6 +108,10 @@ export const zaloContactApi = {
 // Call Recording APIs
 export const callRecordingApi = {
   getByKhachHang: (khachHangId) => api.get('/call-recordings', { params: { khachHangId } }),
+  getCounts: (ids) => {
+    const qs = ids.map(id => `ids=${id}`).join('&');
+    return api.get(`/call-recordings/counts?${qs}`);
+  },
   upload: (formData, config = {}) => api.post('/call-recordings/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }, ...config }),
   delete: (id) => api.delete(`/call-recordings/${id}`),
 };
@@ -117,6 +121,22 @@ export const messConfigApi = {
   getConfig: () => api.get('/mess-config'),
   updateCostPerMess: (costPerMess) => api.put('/mess-config/cost-per-mess', { costPerMess }),
   updateTiers: (tiers) => api.put('/mess-config/tiers', { tiers }),
+};
+
+// Zalo Service API — gọi thẳng VPS, không qua backend, không cần JWT
+const ZALO_SERVICE_BASE = import.meta.env.VITE_ZALO_SERVICE || 'http://localhost:3001';
+const zaloService = axios.create({ baseURL: ZALO_SERVICE_BASE });
+
+export const zaloServiceApi = {
+  startSession:  (sessionId) => zaloService.post(`/start?session=${encodeURIComponent(sessionId)}`),
+  stopSession:   (sessionId) => zaloService.post(`/stop?session=${encodeURIComponent(sessionId)}`),
+  logoutSession: (sessionId) => zaloService.post(`/logout?session=${encodeURIComponent(sessionId)}`),
+  syncProfile:   (sessionId, cookies, storage) =>
+    zaloService.post(`/sessions/${encodeURIComponent(sessionId)}/cookies`, {
+      cookies,
+      localStorage: storage,
+      userAgent: navigator.userAgent,
+    }),
 };
 
 export default api;

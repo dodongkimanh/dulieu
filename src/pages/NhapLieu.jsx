@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Button, Input, Select, DatePicker, InputNumber, message, Popconfirm, Space, Tooltip, Badge, Tag, Modal, Form, Row, Col } from 'antd';
+import { Button, Input, Select, DatePicker, InputNumber, message, Popconfirm, Space, Tooltip, Badge, Tag, Modal, Form, Row, Col, Popover, Checkbox } from 'antd';
 import {
   PlusOutlined,
   SaveOutlined,
@@ -59,7 +59,7 @@ const COLUMNS_DEFAULT = [
   { key: 'datCoc', label: 'Đặt Cọc/CK', width: 95, type: 'number' },
   { key: 'thuBanTrucTiep', label: 'Thu Bán TT', width: 100, type: 'number' },
   { key: 'tongThuKhach', label: 'Tổng Thu Khách', width: 110, type: 'computed' },
-  { key: 'loiNhuanSauTru', label: 'LN Sau Trừ', width: 110, type: 'computed' },
+  { key: 'loiNhuanSauTru', label: 'Lợi Nhuận Thực', width: 120, type: 'computed' },
   { key: 'page', label: 'Tùy Chọn', width: 180, type: 'select-page' },
   { key: 'maIdQuangCao', label: 'Mã ID QC', width: 120, type: 'text' },
   { key: 'ghiChu', label: 'Ghi Chú', width: 160, type: 'text' },
@@ -78,6 +78,32 @@ export default function NhapLieu() {
   const [editForm] = Form.useForm();
   const [pageChannels, setPageChannels] = useState({});
   const tableRef = useRef(null);
+  const [selectedRowId, setSelectedRowId] = useState(null);
+
+  const mGiaBan = Form.useWatch('giaBanLenDon', editForm);
+  const mCuocPhu = Form.useWatch('cuocPhuTroi', editForm);
+  const mGiaVon = Form.useWatch('giaVon', editForm);
+  const mDatCoc = Form.useWatch('datCoc', editForm);
+  const mThuBan = Form.useWatch('thuBanTrucTiep', editForm);
+  const mDsVc = Form.useWatch('dsVanChuyen', editForm);
+  const mCpVc = Form.useWatch('chiPhiVanChuyen', editForm);
+  const mNiemYet = Form.useWatch('tongTienNiemYet', editForm);
+  const mGiaThuTT = Number(mGiaBan || 0) - Number(mCuocPhu || 0);
+  const mTyLeCk = Number(mNiemYet || 0) > 0 ? ((Number(mNiemYet) - mGiaThuTT) / Number(mNiemYet)) * 100 : 0;
+  const mLnUocTinh = mGiaThuTT - Number(mGiaVon || 0);
+  const _coc = Number(mDatCoc || 0);
+  const _truc = Number(mThuBan || 0);
+  const mTongThu = (_coc > 0 && _truc === 0)
+    ? _coc
+    : _coc + _truc + Number(mDsVc || 0);
+  const mLnSauTru = (_coc > 0 && _truc === 0)
+    ? _coc
+    : mTongThu > 0 ? mTongThu - Number(mGiaVon || 0) - Number(mCpVc || 0) : 0;
+
+  const [colFilters, setColFilters] = useState({ sale: null, tinhTrang: null });
+  const [openFilterCol, setOpenFilterCol] = useState(null);
+  const [tempFilter, setTempFilter] = useState([]);
+
   const [colWidths, setColWidths] = useState(() => {
     try {
       const saved = JSON.parse(sessionStorage.getItem('nl_colWidths') || '{}');
@@ -113,6 +139,14 @@ export default function NhapLieu() {
   }, [colWidths]);
 
   const COLUMNS = COLUMNS_DEFAULT.map(c => ({ ...c, width: colWidths[c.key] || c.width }));
+
+  const getFilterOptions = (colKey) => colKey === 'sale' ? salesList : STATUS_OPTIONS;
+
+  const filteredData = data.filter(row => {
+    if (colFilters.sale && !colFilters.sale.includes(row.sale)) return false;
+    if (colFilters.tinhTrang && !colFilters.tinhTrang.includes(row.tinhTrang)) return false;
+    return true;
+  });
 
   const fetchData = useCallback(async (pg = 1, size = 50) => {
     setLoading(true);
@@ -165,15 +199,24 @@ export default function NhapLieu() {
       // CÔNG THỨC 3: Lợi Nhuận Ước Tính = Giá Thu Thực Tế - Giá Vốn
       updated.loiNhuanUocTinh = updated.giaThuThucTe - von;
       
-      // CÔNG THỨC 4: Tổng Thu Khách = Đặt Cọc + Thu Bán Trực Tiếp + ĐS Vận Chuyển
-      updated.tongThuKhach = coc + truc + dsvc;
-      
-      // CÔNG THỨC 5: Lợi Nhuận Sau Trừ VC
-      // Khi có Tổng Thu Khách (> 0): = Tổng Thu Khách - Giá Vốn - CP Vận Chuyển
-      // Khi chưa có Tổng Thu Khách (= 0): = 0
-      updated.loiNhuanSauTru = updated.tongThuKhach > 0
-        ? updated.tongThuKhach - von - cpvc
-        : 0;
+      // CÔNG THỨC 4: Tổng Thu Khách
+      // Case A: Đặt cọc > 0, chưa bán trực tiếp → chỉ tính đặt cọc
+      // Case B: Có thu bán → Đặt cọc + Thu bán + ĐS VC
+      updated.tongThuKhach = (coc > 0 && truc === 0)
+        ? coc
+        : coc + truc + dsvc;
+
+      // CÔNG THỨC 5: Lợi Nhuận Thực
+      // Case A: Đặt cọc > 0, chưa bán → LN Thực = Đặt Cọc (không trừ vốn/VC)
+      // Case B: Có thu bán → Tổng Thu - Giá Vốn - CP Vận Chuyển
+      // Case C: Chưa thu tiền → 0
+      if (coc > 0 && truc === 0) {
+        updated.loiNhuanSauTru = coc;
+      } else if (updated.tongThuKhach > 0) {
+        updated.loiNhuanSauTru = updated.tongThuKhach - von - cpvc;
+      } else {
+        updated.loiNhuanSauTru = 0;
+      }
       
       return updated;
     }));
@@ -276,10 +319,14 @@ export default function NhapLieu() {
       payload.giaThuThucTe = ban - phu;
       payload.tyLeCk = niem > 0 ? ((niem - payload.giaThuThucTe) / niem) * 100 : 0;
       payload.loiNhuanUocTinh = payload.giaThuThucTe - von;
-      payload.tongThuKhach = coc + truc + dsvc;
-      payload.loiNhuanSauTru = payload.tongThuKhach > 0
-        ? payload.tongThuKhach - von - cpvc
-        : 0;
+      payload.tongThuKhach = (coc > 0 && truc === 0) ? coc : coc + truc + dsvc;
+      if (coc > 0 && truc === 0) {
+        payload.loiNhuanSauTru = coc;
+      } else if (payload.tongThuKhach > 0) {
+        payload.loiNhuanSauTru = payload.tongThuKhach - von - cpvc;
+      } else {
+        payload.loiNhuanSauTru = 0;
+      }
 
       await donHangApi.update(editModal.record.id, payload);
       message.success(`Đã cập nhật đơn ${editModal.record.maHoaDon || editModal.record.id}`);
@@ -294,7 +341,7 @@ export default function NhapLieu() {
   const editedCount = Object.keys(editedRows).length;
 
   // Compute summary row
-  const summary = data.reduce((acc, row) => {
+  const summary = filteredData.reduce((acc, row) => {
     acc.giaVon += Number(row.giaVon || 0);
     acc.tongTienNiemYet += Number(row.tongTienNiemYet || 0);
     acc.giaBanLenDon += Number(row.giaBanLenDon || 0);
@@ -490,16 +537,78 @@ export default function NhapLieu() {
         <div className="nl-spreadsheet" style={{ minWidth: COLUMNS.reduce((s, c) => s + c.width, 0) + 90 }}>
           {/* Header */}
           <div className="nl-header-row">
-            {COLUMNS.map(col => (
-              <div key={col.key} className="nl-header-cell" style={{ width: col.width, minWidth: col.width, position: 'relative' }}>
-                {col.label}
-                <div
-                  className="nl-resize-handle"
-                  onMouseDown={handleHeaderResizeStart(col.key)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
-            ))}
+            {COLUMNS.map(col => {
+              const isFilterable = col.key === 'sale' || col.key === 'tinhTrang';
+              const hasActiveFilter = isFilterable && colFilters[col.key] !== null;
+              const filterOptions = isFilterable ? getFilterOptions(col.key) : [];
+              return (
+                <div key={col.key} className="nl-header-cell" style={{ width: col.width, minWidth: col.width, position: 'relative' }}>
+                  <div className="nl-header-cell-inner">
+                    <span className="nl-header-label">{col.label}</span>
+                    {isFilterable && (
+                      <Popover
+                        open={openFilterCol === col.key}
+                        onOpenChange={(visible) => {
+                          if (visible) {
+                            setTempFilter(colFilters[col.key] ? [...colFilters[col.key]] : [...filterOptions]);
+                            setOpenFilterCol(col.key);
+                          } else {
+                            setOpenFilterCol(null);
+                          }
+                        }}
+                        trigger="click"
+                        placement="bottomLeft"
+                        content={
+                          <div className="nl-filter-dropdown">
+                            <div className="nl-filter-select-all">
+                              <Checkbox
+                                checked={tempFilter.length === filterOptions.length}
+                                indeterminate={tempFilter.length > 0 && tempFilter.length < filterOptions.length}
+                                onChange={(e) => setTempFilter(e.target.checked ? [...filterOptions] : [])}
+                              >
+                                <span style={{ fontSize: 12, fontWeight: 600 }}>Chọn tất cả</span>
+                              </Checkbox>
+                            </div>
+                            <div className="nl-filter-options">
+                              {filterOptions.map(opt => (
+                                <div key={opt} className="nl-filter-option">
+                                  <Checkbox
+                                    checked={tempFilter.includes(opt)}
+                                    onChange={(e) => setTempFilter(prev =>
+                                      e.target.checked ? [...prev, opt] : prev.filter(o => o !== opt)
+                                    )}
+                                  >
+                                    <span style={{ fontSize: 12 }}>{opt}</span>
+                                  </Checkbox>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="nl-filter-actions">
+                              <Button size="small" onClick={() => { setColFilters(p => ({ ...p, [col.key]: null })); setOpenFilterCol(null); }}>Xóa lọc</Button>
+                              <Button size="small" type="primary" onClick={() => {
+                                const isAll = tempFilter.length === filterOptions.length;
+                                setColFilters(p => ({ ...p, [col.key]: isAll ? null : tempFilter }));
+                                setOpenFilterCol(null);
+                              }}>Áp dụng</Button>
+                            </div>
+                          </div>
+                        }
+                      >
+                        <span
+                          className={`nl-filter-btn${hasActiveFilter ? ' active' : ''}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >▼</span>
+                      </Popover>
+                    )}
+                  </div>
+                  <div
+                    className="nl-resize-handle"
+                    onMouseDown={handleHeaderResizeStart(col.key)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              );
+            })}
             <div className="nl-header-cell nl-action-col" style={{ width: 90 }}>Thao tác</div>
           </div>
 
@@ -516,10 +625,10 @@ export default function NhapLieu() {
           {/* Data Rows */}
           {loading ? (
             <div className="nl-loading">Đang tải dữ liệu...</div>
-          ) : data.length === 0 ? (
-            <div className="nl-empty">Không có dữ liệu</div>
-          ) : data.map((record, index) => (
-            <div key={record.id} className={`nl-data-row ${editedRows[record.id] ? 'edited' : ''} ${index % 2 === 0 ? 'even' : 'odd'}`}>
+          ) : filteredData.length === 0 ? (
+            <div className="nl-empty">{data.length > 0 ? 'Không có dữ liệu khớp với bộ lọc' : 'Không có dữ liệu'}</div>
+          ) : filteredData.map((record, index) => (
+            <div key={record.id} className={`nl-data-row ${editedRows[record.id] ? 'edited' : ''} ${selectedRowId === record.id ? 'selected' : index % 2 === 0 ? 'even' : 'odd'}`} onClick={() => setSelectedRowId(record.id)}>
               {COLUMNS.map(col => (
                 <div key={col.key} className={`nl-data-cell ${col.type === 'computed' || col.type === 'computed-pct' ? 'computed' : ''}`} style={{ width: col.width, minWidth: col.width }}>
                   {renderCell(col, record, index)}
@@ -675,6 +784,30 @@ export default function NhapLieu() {
               </Form.Item>
             </Col>
           </Row>
+          {/* Computed summary panel */}
+          <div className="modal-computed-panel">
+            <div className="modal-computed-item">
+              <span className="modal-computed-label">Giá Thu TT</span>
+              <span className="modal-computed-value">{vnd(mGiaThuTT)} đ</span>
+            </div>
+            <div className="modal-computed-item">
+              <span className="modal-computed-label">CK %</span>
+              <span className="modal-computed-value">{mTyLeCk.toFixed(1)}%</span>
+            </div>
+            <div className="modal-computed-item">
+              <span className="modal-computed-label">Tổng Thu Khách</span>
+              <span className="modal-computed-value">{vnd(mTongThu)} đ</span>
+            </div>
+            <div className="modal-computed-item">
+              <span className="modal-computed-label">LN Ước Tính</span>
+              <span className={`modal-computed-value ${mLnUocTinh >= 0 ? 'profit' : 'loss'}`}>{vnd(mLnUocTinh)} đ</span>
+            </div>
+            <div className="modal-computed-item highlight">
+              <span className="modal-computed-label">Lợi Nhuận Thực</span>
+              <span className={`modal-computed-value ${mLnSauTru >= 0 ? 'profit' : 'loss'}`}>{vnd(mLnSauTru)} đ</span>
+            </div>
+          </div>
+
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item label="Ghi Chú" name="ghiChu">

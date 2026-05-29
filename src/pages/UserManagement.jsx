@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Table, Button, Input, Select, Modal, Form, Tag, Space, Popconfirm, message, Row, Col, Tooltip } from 'antd';
+import { useState, useEffect, useRef } from 'react';
+import { Table, Button, Input, Select, Modal, Form, Tag, Space, Popconfirm, message, Row, Col, Tooltip, Upload, Alert } from 'antd';
 import {
   PlusOutlined,
   UserOutlined,
@@ -9,9 +9,11 @@ import {
   EditOutlined,
   DeleteOutlined,
   ExclamationCircleOutlined,
+  SyncOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
-import { authApi } from '../api';
+import { authApi, zaloServiceApi } from '../api';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -34,6 +36,9 @@ export default function UserManagement() {
   const [roleFilter, setRoleFilter] = useState(null);
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
+  const [syncModal, setSyncModal] = useState({ open: false, username: '', label: '' });
+  const [syncLoading, setSyncLoading] = useState(false);
+  const syncFileRef = useRef(null);
 
   const ROLE_ORDER = { ADMIN: 0, KE_TOAN: 1, SALER: 2 };
 
@@ -70,6 +75,9 @@ export default function UserManagement() {
     try {
       const values = await form.validateFields();
       await authApi.register(values);
+      if (values.role === 'SALER') {
+        zaloServiceApi.startSession(values.username).catch(() => {});
+      }
       message.success('Tạo tài khoản thành công');
       setModalOpen(false);
       fetchUsers();
@@ -81,7 +89,13 @@ export default function UserManagement() {
 
   const handleToggle = async (id) => {
     try {
+      const user = users.find(u => u.id === id);
       await authApi.toggleUser(id);
+      if (user?.role === 'SALER') {
+        // active → đang khóa → stop; inactive → đang mở → start
+        if (user.active) zaloServiceApi.stopSession(user.username).catch(() => {});
+        else zaloServiceApi.startSession(user.username).catch(() => {});
+      }
       message.success('Cập nhật trạng thái thành công');
       fetchUsers();
     } catch { message.error('Lỗi khi cập nhật'); }
@@ -90,14 +104,14 @@ export default function UserManagement() {
   const handleEdit = (record) => {
     setEditingUser(record);
     editForm.resetFields();
-    editForm.setFieldsValue({ username: record.username, fullName: record.fullName });
+    editForm.setFieldsValue({ username: record.username, fullName: record.fullName, zalo: record.zalo, sim: record.sim });
     setEditModalOpen(true);
   };
 
   const handleEditSubmit = async () => {
     try {
       const values = await editForm.validateFields();
-      const data = { fullName: values.fullName, username: values.username };
+      const data = { fullName: values.fullName, username: values.username, zalo: values.zalo || '', sim: values.sim || '' };
       const pw = values.password?.trim();
       if (pw) data.password = pw;
       const res = await authApi.updateUser(editingUser.id, data);
@@ -116,7 +130,11 @@ export default function UserManagement() {
 
   const handleDelete = async (id) => {
     try {
+      const user = users.find(u => u.id === id);
       await authApi.deleteUser(id);
+      if (user?.role === 'SALER') {
+        zaloServiceApi.logoutSession(user.username).catch(() => {});
+      }
       message.success('Xóa tài khoản thành công');
       setDeleteConfirmId(null);
       setDeleteConfirmName('');
@@ -126,10 +144,42 @@ export default function UserManagement() {
     }
   };
 
+  const handleSyncOpen = (record) => {
+    setSyncModal({ open: true, username: record.username, label: record.fullName || record.username });
+    setSyncLoading(false);
+  };
+
+  const handleSyncClose = () => setSyncModal({ open: false, username: '', label: '' });
+
+  const handleSyncFile = async (file) => {
+    setSyncLoading(true);
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      let cookies, storage;
+      if (Array.isArray(data)) {
+        cookies = data; storage = {};
+      } else if (data.cookies && Array.isArray(data.cookies)) {
+        cookies = data.cookies; storage = data.localStorage || {};
+      } else {
+        throw new Error('Định dạng file không hợp lệ. Cần file JSON có trường "cookies"');
+      }
+      if (!cookies.length) throw new Error('File không chứa cookies nào');
+      await zaloServiceApi.syncProfile(syncModal.username, cookies, storage);
+      message.success(`✓ Đồng bộ thành công! ${cookies.length} cookies đã gửi lên VPS cho ${syncModal.label}`);
+      handleSyncClose();
+    } catch (err) {
+      message.error(err.message || 'Lỗi khi đồng bộ');
+    }
+    setSyncLoading(false);
+  };
+
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Tài khoản', dataIndex: 'username', width: 150, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
-    { title: 'Họ tên', dataIndex: 'fullName', width: 200 },
+    { title: 'Tài khoản', dataIndex: 'username', width: 170, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
+    { title: 'Họ tên', dataIndex: 'fullName', width: 170 },
+    { title: 'Zalo', dataIndex: 'zalo', width: 120, render: (v) => v || <span style={{ color: '#CBD5E1' }}>—</span> },
+    { title: 'Sim', dataIndex: 'sim', width: 120, render: (v) => v || <span style={{ color: '#CBD5E1' }}>—</span> },
     { title: 'Vai trò', dataIndex: 'role', width: 150, render: (v) => {
       const r = roleLabels[v] || { label: v, color: '#64748B', bg: '#F1F5F9' };
       return <Tag style={{ background: r.bg, color: r.color, border: 'none', fontWeight: 600, padding: '2px 10px', borderRadius: 6 }}>{r.label}</Tag>;
@@ -139,11 +189,16 @@ export default function UserManagement() {
       : <Tag icon={<StopOutlined />} color="error">Đã khóa</Tag>
     },
     { title: 'Ngày tạo', dataIndex: 'createdAt', width: 150, render: (v) => v ? dayjs(v).format('DD/MM/YYYY HH:mm') : '' },
-    { title: '', width: 200, render: (_, record) => record.username === 'admin' ? null : (
+    { title: '', width: 230, render: (_, record) => record.username === 'admin' ? null : (
       <Space size={4}>
         <Tooltip title="Sửa thông tin">
           <Button type="text" size="small" icon={<EditOutlined />} style={{ color: '#4F46E5' }} onClick={() => handleEdit(record)} />
         </Tooltip>
+        {record.role === 'SALER' && (
+          <Tooltip title="Đồng bộ Zalo PC">
+            <Button type="text" size="small" icon={<SyncOutlined />} style={{ color: '#0068FF' }} onClick={() => handleSyncOpen(record)} />
+          </Tooltip>
+        )}
         <Popconfirm
           title={record.active ? 'Khóa tài khoản này?' : 'Mở khóa tài khoản này?'}
           onConfirm={() => handleToggle(record.id)}
@@ -249,6 +304,18 @@ export default function UserManagement() {
           <Form.Item name="fullName" label="Họ tên đầy đủ" rules={[{ required: true, message: 'Nhập họ tên' }]}>
             <Input placeholder="Ví dụ: Khánh Đồ Đồng" />
           </Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="zalo" label="Zalo">
+                <Input placeholder="Số Zalo" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="sim" label="Sim">
+                <Input placeholder="Số điện thoại Sim" />
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item name="role" label="Vai trò">
             <Select>
               <Option value="SALER">Nhân viên Sale</Option>
@@ -256,6 +323,48 @@ export default function UserManagement() {
             </Select>
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={<span><SyncOutlined style={{ color: '#0068FF', marginRight: 8 }} />Đồng bộ Zalo PC — {syncModal.label}</span>}
+        open={syncModal.open}
+        onCancel={handleSyncClose}
+        footer={null}
+        width={520}
+        destroyOnClose
+        className="premium-modal"
+      >
+        <div style={{ padding: '8px 0 16px' }}>
+          <Alert
+            type="info"
+            style={{ marginBottom: 16, fontSize: 12 }}
+            message={<b>Cách lấy file profile Zalo PC</b>}
+            description={
+              <ol style={{ margin: '6px 0 0', paddingLeft: 20, lineHeight: 2 }}>
+                <li>Cài <b>extension Zalo CRM</b> vào Chrome (xin file từ Admin)</li>
+                <li>Mở <b>chat.zalo.me</b> trong Chrome và đăng nhập Zalo</li>
+                <li>Click icon extension → nhập Session ID: <b style={{ color: '#0068FF' }}>{syncModal.username}</b></li>
+                <li>Nhấn <b>"Xuất session"</b> → tải về file <code>zalo-profile.json</code></li>
+                <li>Upload file vừa tải về ở đây</li>
+              </ol>
+            }
+          />
+          <Upload.Dragger
+            accept=".json"
+            showUploadList={false}
+            multiple={false}
+            beforeUpload={(file) => { handleSyncFile(file); return false; }}
+            disabled={syncLoading}
+            style={{ borderRadius: 10 }}
+          >
+            <div style={{ padding: '12px 0' }}>
+              {syncLoading
+                ? <><SyncOutlined spin style={{ fontSize: 28, color: '#0068FF' }} /><p style={{ marginTop: 10, color: '#0068FF' }}>Đang đồng bộ...</p></>
+                : <><UploadOutlined style={{ fontSize: 28, color: '#0068FF' }} /><p style={{ marginTop: 10, fontWeight: 600 }}>Kéo file vào đây hoặc click để chọn</p><p style={{ fontSize: 12, color: '#6B7280' }}>Chấp nhận file .json từ Chrome Extension Zalo CRM</p></>
+              }
+            </div>
+          </Upload.Dragger>
+        </div>
       </Modal>
 
       <Modal
@@ -282,6 +391,18 @@ export default function UserManagement() {
           >
             <Input placeholder="Họ tên đầy đủ" />
           </Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="zalo" label="Zalo">
+                <Input placeholder="Số Zalo" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="sim" label="Sim">
+                <Input placeholder="Số điện thoại Sim" />
+              </Form.Item>
+            </Col>
+          </Row>
           <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 16px 4px', marginBottom: 16, border: '1px solid #E2E8F0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <LockOutlined style={{ color: '#F59E0B', fontSize: 16 }} />

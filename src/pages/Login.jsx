@@ -13,9 +13,10 @@ export default function Login() {
   const onFinish = async (values) => {
     setLoading(true);
     try {
-      await login(values.username, values.password);
+      const userData = await login(values.username, values.password);
       message.success('Đăng nhập thành công!');
-      navigate('/dashboard');
+      const target = userData.role === 'ADMIN' ? '/tong-quat' : userData.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
+      navigate(target);
     } catch (err) {
       message.error(err.response?.data?.error || 'Sai tài khoản hoặc mật khẩu');
     } finally {

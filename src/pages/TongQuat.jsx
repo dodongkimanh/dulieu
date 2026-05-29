@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Row, Col, DatePicker, Checkbox, Spin, Tag, message } from 'antd';
 import {
   DollarOutlined,
@@ -173,28 +173,27 @@ export default function TongQuat() {
     setSelectedStatuses(checked ? [...STATUS_OPTIONS] : []);
   };
 
-  if (loading && !analytics) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}><Spin size="large" /></div>;
-  }
-
   const bySaleStatus = analytics?.bySaleStatus || [];
   const byDate = analytics?.byDate || [];
+  const byPageStatus = analytics?.byPageStatus || [];
 
-  // Build chart data
-  const saleMap = {};
-  bySaleStatus.forEach(item => {
-    const sale = item.sale || 'Không xác định';
-    if (selectedSales.length > 0 && !selectedSales.includes(sale)) return;
-    if (!selectedStatuses.includes(item.tinhTrang)) return;
-    if (!saleMap[sale]) saleMap[sale] = { sale, total: 0 };
-    saleMap[sale][item.tinhTrang] = Number(item.sumGiaBan || 0);
-    saleMap[sale].total += Number(item.sumGiaBan || 0);
-  });
-  const chartData = Object.values(saleMap).sort((a, b) => b.total - a.total).map(d => ({ ...d, _lbl: 0.001 }));
-  const activeStatuses = [...new Set(bySaleStatus.map(i => i.tinhTrang))].filter(s => selectedStatuses.includes(s));
+  const { chartData, activeStatuses } = useMemo(() => {
+    const saleMap = {};
+    bySaleStatus.forEach(item => {
+      const sale = item.sale || 'Không xác định';
+      if (selectedSales.length > 0 && !selectedSales.includes(sale)) return;
+      if (!selectedStatuses.includes(item.tinhTrang)) return;
+      if (!saleMap[sale]) saleMap[sale] = { sale, total: 0 };
+      saleMap[sale][item.tinhTrang] = Number(item.sumGiaBan || 0);
+      saleMap[sale].total += Number(item.sumGiaBan || 0);
+    });
+    return {
+      chartData: Object.values(saleMap).sort((a, b) => b.total - a.total).map(d => ({ ...d, _lbl: 0.001 })),
+      activeStatuses: [...new Set(bySaleStatus.map(i => i.tinhTrang))].filter(s => selectedStatuses.includes(s)),
+    };
+  }, [bySaleStatus, selectedSales, selectedStatuses]);
 
-  // Label renderer for the transparent label bar at end of stack
-  const renderStackLabel = (props) => {
+  const renderStackLabel = useCallback((props) => {
     const { x, y, width, height, index } = props;
     const entry = chartData[index];
     if (!entry?.total) return null;
@@ -210,45 +209,53 @@ export default function TongQuat() {
         {vnd(entry.total)} đ
       </text>
     );
-  };
+  }, [chartData]);
 
-  // Filtered totals
-  let filteredTotal = { sumGiaBan: 0, sumGiaThu: 0, sumLoiNhuan: 0, sumGiaVon: 0, count: 0 };
-  bySaleStatus.forEach(item => {
-    const sale = item.sale || 'Không xác định';
-    if (selectedSales.length > 0 && !selectedSales.includes(sale)) return;
-    if (!selectedStatuses.includes(item.tinhTrang)) return;
-    filteredTotal.sumGiaBan += Number(item.sumGiaBan || 0);
-    filteredTotal.sumGiaThu += Number(item.sumGiaThu || 0);
-    filteredTotal.sumLoiNhuan += Number(item.sumLoiNhuan || 0);
-    filteredTotal.sumGiaVon += Number(item.sumGiaVon || 0);
-    filteredTotal.count += Number(item.count || 0);
-  });
+  const { filteredTotal, lnSauTruDisplay } = useMemo(() => {
+    const totals = { sumGiaBan: 0, sumGiaThu: 0, sumLoiNhuan: 0, sumLNSauTru: 0, sumGiaVon: 0, count: 0 };
+    bySaleStatus.forEach(item => {
+      const sale = item.sale || 'Không xác định';
+      if (selectedSales.length > 0 && !selectedSales.includes(sale)) return;
+      if (!selectedStatuses.includes(item.tinhTrang)) return;
+      totals.sumGiaBan += Number(item.sumGiaBan || 0);
+      totals.sumGiaThu += Number(item.sumGiaThu || 0);
+      totals.sumLoiNhuan += Number(item.sumLoiNhuan || 0);
+      totals.sumLNSauTru += Number(item.sumLNSauTru || 0);
+      totals.sumGiaVon += Number(item.sumGiaVon || 0);
+      totals.count += Number(item.count || 0);
+    });
+    // Fallback: nếu bySaleStatus chưa có sumLNSauTru (backend chưa deploy query mới)
+    // thì dùng analytics.totals.sumLNSauTru cho trường hợp không lọc theo sale
+    const lnDisplay = totals.sumLNSauTru > 0
+      ? totals.sumLNSauTru
+      : (selectedSales.length === 0 ? Number(analytics?.totals?.sumLNSauTru || 0) : 0);
+    return { filteredTotal: totals, lnSauTruDisplay: lnDisplay };
+  }, [bySaleStatus, selectedSales, selectedStatuses, analytics]);
 
-  // Date chart
-  const dateChartData = byDate.map(d => ({
+  const dateChartData = useMemo(() => byDate.map(d => ({
     date: d.date,
     giaBan: Number(d.sumGiaBan || 0),
     giaThu: Number(d.sumGiaThu || 0),
     loiNhuan: Number(d.sumLoiNhuan || 0),
-  }));
+  })), [byDate]);
 
-  // Channel chart data: side-by-side Lợi Nhuận vs Giá Thu Thực Tế
-  const byPageStatus = analytics?.byPageStatus || [];
-  const pageMap = {};
-  byPageStatus.forEach(item => {
-    const page = item.page || 'Không xác định';
-    if (!selectedStatuses.includes(item.tinhTrang)) return;
-    if (!pageMap[page]) pageMap[page] = { page, giaThu: 0, loiNhuan: 0 };
-    pageMap[page].giaThu += Number(item.sumGiaThu || 0);
-    pageMap[page].loiNhuan += Number(item.sumLoiNhuan || 0);
-  });
-  const channelChartData = Object.values(pageMap).sort((a, b) => b.giaThu - a.giaThu);
+  const channelChartData = useMemo(() => {
+    const pageMap = {};
+    byPageStatus.forEach(item => {
+      const page = item.page || 'Không xác định';
+      if (!selectedStatuses.includes(item.tinhTrang)) return;
+      if (!pageMap[page]) pageMap[page] = { page, giaThu: 0, loiNhuan: 0 };
+      pageMap[page].giaThu += Number(item.sumGiaThu || 0);
+      pageMap[page].loiNhuan += Number(item.sumLoiNhuan || 0);
+    });
+    return Object.values(pageMap).sort((a, b) => b.giaThu - a.giaThu);
+  }, [byPageStatus, selectedStatuses]);
 
-  // Channel chart custom tooltip
-  const channelTooltipFormatter = (value, name) => {
-    return [vndFull(value), name];
-  };
+  const channelTooltipFormatter = useCallback((value, name) => [vndFull(value), name], []);
+
+  if (loading && !analytics) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}><Spin size="large" /></div>;
+  }
 
   return (
     <AnimatedDiv initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="tongquat-page">
@@ -297,25 +304,31 @@ export default function TongQuat() {
 
       {/* KPI Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={12} md={5}>
           <AnimatedDiv className="tq-kpi-card kpi-pink" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaBan)} đ</div>
             <div className="tq-kpi-label">Giá Bán Lên Đơn</div>
           </AnimatedDiv>
         </Col>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={12} md={5}>
           <AnimatedDiv className="tq-kpi-card kpi-blue" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaThu)} đ</div>
             <div className="tq-kpi-label">Giá Thu Thực Tế</div>
           </AnimatedDiv>
         </Col>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={12} md={5}>
           <AnimatedDiv className="tq-kpi-card kpi-purple" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(filteredTotal.sumLoiNhuan)} đ</div>
             <div className="tq-kpi-label">Lợi Nhuận Ước Tính</div>
           </AnimatedDiv>
         </Col>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={12} md={5}>
+          <AnimatedDiv className="tq-kpi-card kpi-teal" whileHover={{ y: -3 }}>
+            <div className="tq-kpi-value">{vnd(lnSauTruDisplay)} đ</div>
+            <div className="tq-kpi-label">Lợi Nhuận Đã Nhận</div>
+          </AnimatedDiv>
+        </Col>
+        <Col xs={24} sm={12} md={4}>
           <AnimatedDiv className="tq-kpi-card kpi-green" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{filteredTotal.count}</div>
             <div className="tq-kpi-label">Tổng đơn hàng</div>

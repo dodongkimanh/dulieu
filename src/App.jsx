@@ -1,16 +1,26 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Spin } from 'antd';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import MainLayout from './layouts/MainLayout';
-import DonHang from './pages/DonHang';
-import KhachHang from './pages/KhachHang';
-import GioiThieu from './pages/GioiThieu';
-import UserManagement from './pages/UserManagement';
-import NhapLieu from './pages/NhapLieu';
-import DoanhSo from './pages/DoanhSo';
-import TongQuat from './pages/TongQuat';
-import KenhTiepThi from './pages/KenhTiepThi';
 import Login from './pages/Login';
 import './App.css';
+
+const DonHang = lazy(() => import('./pages/DonHang'));
+const KhachHang = lazy(() => import('./pages/KhachHang'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+const NhapLieu = lazy(() => import('./pages/NhapLieu'));
+const DoanhSo = lazy(() => import('./pages/DoanhSo'));
+const TongQuat = lazy(() => import('./pages/TongQuat'));
+const KenhTiepThi = lazy(() => import('./pages/KenhTiepThi'));
+const Zalo = lazy(() => import('./pages/Zalo'));
+const TinNhanTongHop = lazy(() => import('./pages/TinNhanTongHop'));
+
+const PageLoader = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+    <Spin size="large" />
+  </div>
+);
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -53,14 +63,15 @@ function App() {
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
             <Route index element={<DefaultRedirect />} />
-            <Route path="don-hang" element={<DonHang />} />
-            <Route path="khach-hang" element={<RoleRoute roles={['ADMIN', 'SALER']}><KhachHang /></RoleRoute>} />
-            <Route path="nhap-lieu" element={<RoleRoute roles={['ADMIN', 'KE_TOAN']}><NhapLieu /></RoleRoute>} />
-            <Route path="doanh-so" element={<RoleRoute roles={['ADMIN', 'SALER']}><DoanhSo /></RoleRoute>} />
-            <Route path="gioi-thieu" element={<RoleRoute roles={['ADMIN', 'SALER']}><GioiThieu /></RoleRoute>} />
-            <Route path="users" element={<RoleRoute roles={['ADMIN']}><UserManagement /></RoleRoute>} />
-            <Route path="tong-quat" element={<RoleRoute roles={['ADMIN']}><TongQuat /></RoleRoute>} />
-            <Route path="kenh-tiep-thi" element={<RoleRoute roles={['ADMIN']}><KenhTiepThi /></RoleRoute>} />
+            <Route path="don-hang" element={<Suspense fallback={<PageLoader />}><DonHang /></Suspense>} />
+            <Route path="zalo" element={<RoleRoute roles={['ADMIN', 'SALER']}><Suspense fallback={<PageLoader />}><Zalo /></Suspense></RoleRoute>} />
+            <Route path="khach-hang" element={<RoleRoute roles={['ADMIN', 'SALER']}><Suspense fallback={<PageLoader />}><KhachHang /></Suspense></RoleRoute>} />
+            <Route path="nhap-lieu" element={<RoleRoute roles={['ADMIN', 'KE_TOAN']}><Suspense fallback={<PageLoader />}><NhapLieu /></Suspense></RoleRoute>} />
+            <Route path="doanh-so" element={<RoleRoute roles={['ADMIN', 'SALER']}><Suspense fallback={<PageLoader />}><DoanhSo /></Suspense></RoleRoute>} />
+            <Route path="users" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><UserManagement /></Suspense></RoleRoute>} />
+            <Route path="tong-quat" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><TongQuat /></Suspense></RoleRoute>} />
+            <Route path="tin-nhan-tong-hop" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><TinNhanTongHop /></Suspense></RoleRoute>} />
+            <Route path="kenh-tiep-thi" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><KenhTiepThi /></Suspense></RoleRoute>} />
           </Route>
         </Routes>
       </AuthProvider>

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox, Badge, Spin, Avatar, Progress } from 'antd';
@@ -33,16 +33,16 @@ import { useAuth } from '../contexts/AuthContext';
 
 const ZALO_SERVICE = import.meta.env.VITE_ZALO_SERVICE || 'http://localhost:3001';
 
-function ZaloIcon({ size = 16, style }) {
+const ZaloIcon = memo(function ZaloIcon({ size = 16, style }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={style}>
       <path d="M24 4C12.95 4 4 12.95 4 24c0 3.9 1.07 7.55 2.93 10.67L4 44l9.6-2.87A19.87 19.87 0 0024 44c11.05 0 20-8.95 20-20S35.05 4 24 4z" fill="#0068FF"/>
       <path d="M33 28.5c-.28-.14-1.63-.8-1.88-.9-.25-.1-.43-.14-.62.14-.18.28-.72.9-.88 1.08-.16.18-.33.2-.61.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.4-1.66-1.56-1.94-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.17.18-.28.28-.47.1-.2.05-.36-.02-.5-.07-.14-.62-1.5-.85-2.05-.22-.54-.45-.46-.62-.47-.16 0-.35-.02-.53-.02-.18 0-.48.07-.74.33-.25.27-.97.95-.97 2.32 0 1.37.99 2.7 1.13 2.88.14.18 1.96 2.99 4.75 4.2.66.28 1.18.45 1.58.58.66.21 1.27.18 1.74.11.53-.08 1.63-.67 1.86-1.3.23-.64.23-1.19.16-1.3-.07-.12-.26-.18-.54-.32z" fill="white"/>
     </svg>
   );
-}
+});
 
-function ZaloAvatar({ name, src, size = 36 }) {
+const ZaloAvatar = memo(function ZaloAvatar({ name, src, size = 36 }) {
   const colors = ['#0068FF', '#00AFFF', '#FF6B35', '#10B981', '#8B5CF6', '#F59E0B'];
   const color = colors[(name?.charCodeAt(0) || 0) % colors.length];
   if (src && !src.includes('undefined'))
@@ -52,7 +52,7 @@ function ZaloAvatar({ name, src, size = 36 }) {
       {name?.charAt(0)?.toUpperCase() || 'Z'}
     </Avatar>
   );
-}
+});
 
 function formatZaloTime(ts) {
   if (!ts) return '';
@@ -95,7 +95,10 @@ export default function KhachHang() {
   const [pinnedRows, setPinnedRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 30, total: 0 });
-  const [filters, setFilters] = useState({ keyword: '', status: null, sale: null });
+  const [filters, setFilters] = useState(() => ({
+    keyword: '', status: null,
+    sale: isSaler ? currentSaleName : null,
+  }));
   const [activeTab, setActiveTab] = useState('all');
   const [dateRange, setDateRange] = useState(null);
   const [hasSdt, setHasSdt] = useState(false);
@@ -120,7 +123,9 @@ export default function KhachHang() {
   const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0 });
   const [zaloPopup, setZaloPopup] = useState({ open: false, record: null, contact: null, messages: [], loading: false });
   const [audioModal, setAudioModal] = useState({ open: false, record: null, recordings: [], loading: false, uploading: false, uploadProgress: 0 });
-  const [recordingCounts, setRecordingCounts] = useState({});
+  const [recordingCounts, setRecordingCounts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('kh_recCounts') || '{}'); } catch { return {}; }
+  });
   const audioUploadRef = useRef(null);
   const [allCrmUsers, setAllCrmUsers] = useState([]);
   const zaloMsgsEndRef = useRef(null);
@@ -230,6 +235,7 @@ export default function KhachHang() {
       setData(newRows);
       setPagination({ current: page, pageSize: size, total: res.data.totalElements });
       fetchZaloContacts(newRows);
+      fetchRecordingCounts(newRows);
     } catch {
       message.error('Không thể tải danh sách khách hàng');
     } finally {
@@ -237,7 +243,7 @@ export default function KhachHang() {
     }
     // Refresh assigned count in background
     fetchAssignedCount();
-  }, [activeTab, dateRange, filters.keyword, filters.sale, filters.status, hasSdt, fetchAssignedCount]); // fetchZaloContacts stable ([] deps) — không cần trong array
+  }, [activeTab, dateRange, filters.keyword, filters.sale, filters.status, hasSdt, fetchAssignedCount]); // fetchZaloContacts, fetchRecordingCounts stable ([] deps) — không cần trong array
 
   const fetchMeta = useCallback(async () => {
     try {
@@ -253,6 +259,21 @@ export default function KhachHang() {
     try {
       const res = await authApi.getUsers();
       setAllCrmUsers(res.data || []);
+    } catch {}
+  }, []);
+
+  const fetchRecordingCounts = useCallback(async (rows) => {
+    const ids = (rows || []).map(r => r.id).filter(Boolean);
+    if (!ids.length) return;
+    try {
+      const res = await callRecordingApi.getCounts(ids);
+      const counts = res.data || {};
+      setRecordingCounts(prev => {
+        const next = { ...prev };
+        ids.forEach(id => { next[id] = Number(counts[String(id)] ?? counts[id] ?? 0); });
+        try { localStorage.setItem('kh_recCounts', JSON.stringify(next)); } catch {}
+        return next;
+      });
     } catch {}
   }, []);
 
@@ -293,17 +314,18 @@ export default function KhachHang() {
     fetchPinnedRows();
     fetchMeta();
     fetchChannels();
-    fetchAllCrmUsers();
+    if (isAdmin) fetchAllCrmUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleTableChange = (pag) => fetchData(pag.current, pag.pageSize);
   const handleSearch = () => { fetchData(1, pagination.pageSize); fetchPinnedRows(); };
   const handleReset = () => {
-    setFilters({ keyword: '', status: null, sale: null });
+    const saleFilter = isSaler ? currentSaleName : null;
+    setFilters({ keyword: '', status: null, sale: saleFilter });
     setDateRange(null);
     setHasSdt(false);
-    const extra = { keyword: '', status: null, sale: null, dateRange: null, hasSdt: false };
+    const extra = { keyword: '', status: null, sale: saleFilter, dateRange: null, hasSdt: false };
     fetchData(1, pagination.pageSize, extra);
     fetchPinnedRows(extra);
   };
@@ -453,7 +475,7 @@ export default function KhachHang() {
       setSyncProgress({ current: i + 1, total: selectedWithPhone.length });
       const normStr = s => (s || '').replace(/\s+/g, ' ').trim();
       const saleUser = allCrmUsers.find(u => normStr(u.fullName) === normStr(customer.sale));
-      const sessionId = saleUser?.username || customer.sale || 'default';
+      const sessionId = saleUser?.username || (isSaler ? user?.username : null) || customer.sale || 'default';
 
       try {
         const resp = await fetch(
@@ -541,7 +563,11 @@ export default function KhachHang() {
       const res = await callRecordingApi.getByKhachHang(record.id);
       const recs = res.data || [];
       setAudioModal(prev => ({ ...prev, recordings: recs, loading: false }));
-      setRecordingCounts(prev => ({ ...prev, [record.id]: recs.length }));
+      setRecordingCounts(prev => {
+        const next = { ...prev, [record.id]: recs.length };
+        try { localStorage.setItem('kh_recCounts', JSON.stringify(next)); } catch {}
+        return next;
+      });
     } catch {
       message.error('Không thể tải danh sách bản ghi âm');
       setAudioModal(prev => ({ ...prev, loading: false }));
@@ -568,7 +594,11 @@ export default function KhachHang() {
       const res = await callRecordingApi.getByKhachHang(record.id);
       const recs = res.data || [];
       setAudioModal(prev => ({ ...prev, recordings: recs, uploading: false, uploadProgress: 0 }));
-      setRecordingCounts(prev => ({ ...prev, [record.id]: recs.length }));
+      setRecordingCounts(prev => {
+        const next = { ...prev, [record.id]: recs.length };
+        try { localStorage.setItem('kh_recCounts', JSON.stringify(next)); } catch {}
+        return next;
+      });
     } catch (err) {
       const msg = err?.response?.data?.error || 'Tải lên thất bại';
       message.error(msg);
@@ -581,7 +611,11 @@ export default function KhachHang() {
       await callRecordingApi.delete(id);
       setAudioModal(prev => {
         const recs = prev.recordings.filter(r => r.id !== id);
-        setRecordingCounts(c => ({ ...c, [prev.record?.id]: recs.length }));
+        setRecordingCounts(c => {
+          const next = { ...c, [prev.record?.id]: recs.length };
+          try { localStorage.setItem('kh_recCounts', JSON.stringify(next)); } catch {}
+          return next;
+        });
         return { ...prev, recordings: recs };
       });
       message.success('Đã xóa bản ghi âm');
@@ -606,7 +640,7 @@ export default function KhachHang() {
     selectedWithPhone.forEach(c => {
       const normStr = s => (s || '').replace(/\s+/g, ' ').trim();
       const saleUser = allCrmUsers.find(u => normStr(u.fullName) === normStr(c.sale));
-      const sessionId = saleUser?.username || c.sale || 'default';
+      const sessionId = saleUser?.username || (isSaler ? user?.username : null) || c.sale || 'default';
       if (!groups[sessionId]) groups[sessionId] = [];
       groups[sessionId].push({
         id: String(c.id),
