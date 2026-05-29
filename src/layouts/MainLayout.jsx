@@ -1,10 +1,8 @@
-﻿import { useState } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+﻿import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Tooltip, Dropdown, Badge } from 'antd';
 import {
   ShoppingCartOutlined,
   TeamOutlined,
-  InfoCircleOutlined,
   LogoutOutlined,
   BellOutlined,
   UserOutlined,
@@ -13,30 +11,42 @@ import {
   BarChartOutlined,
   FundOutlined,
   AppstoreOutlined,
+  InboxOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 
+function ZaloIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" fill="none">
+      <path d="M24 4C12.95 4 4 12.95 4 24c0 3.9 1.07 7.55 2.93 10.67L4 44l9.6-2.87A19.87 19.87 0 0024 44c11.05 0 20-8.95 20-20S35.05 4 24 4z" fill="currentColor"/>
+      <path d="M33 28.5c-.28-.14-1.63-.8-1.88-.9-.25-.1-.43-.14-.62.14-.18.28-.72.9-.88 1.08-.16.18-.33.2-.61.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.4-1.66-1.56-1.94-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.17.18-.28.28-.47.1-.2.05-.36-.02-.5-.07-.14-.62-1.5-.85-2.05-.22-.54-.45-.46-.62-.47-.16 0-.35-.02-.53-.02-.18 0-.48.07-.74.33-.25.27-.97.95-.97 2.32 0 1.37.99 2.7 1.13 2.88.14.18 1.96 2.99 4.75 4.2.66.28 1.18.45 1.58.58.66.21 1.27.18 1.74.11.53-.08 1.63-.67 1.86-1.3.23-.64.23-1.19.16-1.3-.07-.12-.26-.18-.54-.32z" fill="white"/>
+    </svg>
+  );
+}
+
 const allSidebarItems = [
   { key: '/tong-quat', icon: <FundOutlined />, label: 'Phân tích tổng quan', roles: ['ADMIN'] },
+  { key: '/tin-nhan-tong-hop', icon: <InboxOutlined />, label: 'Tin nhắn tổng hợp', roles: ['ADMIN'] },
   { key: '/doanh-so', icon: <BarChartOutlined />, label: 'Doanh số & Mess', roles: ['ADMIN', 'SALER'] },
-  { key: '/don-hang', icon: <ShoppingCartOutlined />, label: 'Đơn hàng' },
+  { key: '/don-hang', icon: <ShoppingCartOutlined />, label: 'Đơn hàng', roles: ['ADMIN', 'KE_TOAN', 'SALER'] },
+  { key: '/zalo', icon: <ZaloIcon />, label: 'Zalo', roles: ['ADMIN', 'SALER'] },
   { key: '/khach-hang', icon: <TeamOutlined />, label: 'Khách hàng', roles: ['ADMIN', 'SALER'] },
   { key: '/nhap-lieu', icon: <TableOutlined />, label: 'Nhập liệu kế toán', roles: ['ADMIN', 'KE_TOAN'] },
   { key: '/kenh-tiep-thi', icon: <AppstoreOutlined />, label: 'Kênh tiếp thị', roles: ['ADMIN'] },
   { key: '/users', icon: <UserOutlined />, label: 'Quản lý tài khoản', roles: ['ADMIN'] },
-  { key: '/gioi-thieu', icon: <InfoCircleOutlined />, label: 'Giới thiệu', roles: ['ADMIN', 'SALER'] },
 ];
 
 const pageTitles = {
+  '/tin-nhan-tong-hop': 'Tin nhắn tổng hợp',
   '/doanh-so': 'Doanh số & Mess',
   '/don-hang': 'Quản lý Đơn hàng',
+  '/zalo': 'Zalo',
   '/khach-hang': 'Quản lý Khách hàng',
   '/nhap-lieu': 'Nhập liệu kế toán',
   '/tong-quat': 'Phân tích tổng quan',
   '/kenh-tiep-thi': 'Quản lý Kênh tiếp thị',
   '/users': 'Quản lý Tài khoản',
-  '/gioi-thieu': 'Giới thiệu hệ thống',
 };
 
 export default function MainLayout() {
@@ -113,6 +123,25 @@ export default function MainLayout() {
           <h1 className="sg-header-title">{pageTitles[location.pathname] || 'CRM'}</h1>
 
           <div className="sg-header-right">
+            {user?.role === 'ADMIN' && (
+              <Tooltip title="Mở Zalo VPS" placement="bottom">
+                <motion.button
+                  onClick={() => navigate('/zalo')}
+                  whileHover={{ scale: 1.07 }}
+                  whileTap={{ scale: 0.95 }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: location.pathname === '/zalo' ? '#0052cc' : '#0068ff',
+                    color: 'white', border: 'none', borderRadius: 8,
+                    padding: '6px 12px', cursor: 'pointer', fontSize: 13,
+                    fontWeight: 600, boxShadow: '0 2px 8px rgba(0,104,255,0.35)',
+                  }}
+                >
+                  <ZaloIcon />
+                  Zalo VPS
+                </motion.button>
+              </Tooltip>
+            )}
             <div className="sg-status-badge">
               <span className="sg-status-dot" />
               Active
