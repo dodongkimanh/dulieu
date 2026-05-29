@@ -1,18 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Button, Input, Spin, Avatar, Tooltip, Tag,
-  message as antMessage, Checkbox, InputNumber, Radio, Select, Modal, Upload, Alert,
+  message as antMessage, Checkbox, InputNumber, Radio, Select, Modal, Alert,
 } from 'antd';
 import {
   PoweroffOutlined, ReloadOutlined, SendOutlined, SearchOutlined,
   MessageOutlined, WifiOutlined, DisconnectOutlined, TeamOutlined,
   PhoneOutlined, BulbOutlined, PlusOutlined,
   EditOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined,
-  SyncOutlined, UploadOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { authApi, zaloServiceApi } from '../api';
+import { authApi } from '../api';
 import QRCode from 'qrcode';
 
 const SERVICE_BASE = import.meta.env.VITE_ZALO_SERVICE || 'http://localhost:3001';
@@ -832,48 +832,37 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
   );
 }
 
-// ── Modal đồng bộ Zalo PC (dùng chung ở mọi màn hình) ────────────────────────
-function ZaloSyncModal({ syncTarget, syncLoading, onClose, onFile }) {
+// ── Modal hướng dẫn đăng nhập qua Chrome Extension ───────────────────────────
+function ZaloSyncModal({ syncTarget, onClose }) {
   if (!syncTarget) return null;
   return (
     <Modal
-      title={<span><SyncOutlined style={{ color: '#0068FF', marginRight: 8 }} />Đồng bộ Zalo PC — {syncTarget.label}</span>}
+      title={<span><SyncOutlined style={{ color: '#0068FF', marginRight: 8 }} />Đăng nhập lại — {syncTarget.label}</span>}
       open
       onCancel={onClose}
-      footer={null}
-      width={520}
+      footer={<button onClick={onClose} style={{ padding: '6px 20px', background: '#0068FF', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>Đóng</button>}
+      width={480}
       destroyOnClose
     >
-      <div style={{ padding: '8px 0 16px' }}>
+      <div style={{ padding: '8px 0 4px' }}>
         <Alert
           type="info"
           style={{ marginBottom: 16, fontSize: 12 }}
-          message={<b>Cách lấy file profile Zalo PC</b>}
+          message={<b>Cách đăng nhập Zalo lên VPS</b>}
           description={
-            <ol style={{ margin: '6px 0 0', paddingLeft: 20, lineHeight: 2 }}>
-              <li>Cài <b>extension Zalo CRM</b> vào Chrome (xin file <code>.zip</code> từ Admin)</li>
-              <li>Mở <b>chat.zalo.me</b> trong Chrome và đăng nhập Zalo của bạn</li>
-              <li>Click icon extension → nhập Session ID: <b style={{ color: '#0068FF' }}>{syncTarget.sessionId}</b></li>
-              <li>Nhấn <b>"Xuất session"</b> → tải về file <code>zalo-profile.json</code></li>
-              <li>Upload file vừa tải về ở đây</li>
+            <ol style={{ margin: '6px 0 0', paddingLeft: 20, lineHeight: 2.2 }}>
+              <li>Cài <b>Extension "Zalo CRM"</b> vào Chrome (xin file <code>.zip</code> từ Admin)</li>
+              <li>Mở <b>chat.zalo.me</b> trong Chrome và đăng nhập bằng điện thoại</li>
+              <li>Click icon extension → nhập Session ID: <b style={{ color: '#0068FF', fontSize: 13 }}>{syncTarget.sessionId}</b></li>
+              <li>Nhấn <b>"Xuất session lên VPS"</b> → xong ✓</li>
             </ol>
           }
         />
-        <Upload.Dragger
-          accept=".json"
-          showUploadList={false}
-          multiple={false}
-          beforeUpload={(file) => { onFile(file); return false; }}
-          disabled={syncLoading}
-          style={{ borderRadius: 10 }}
-        >
-          <div style={{ padding: '16px 0' }}>
-            {syncLoading
-              ? <><SyncOutlined spin style={{ fontSize: 30, color: '#0068FF' }} /><p style={{ marginTop: 12, color: '#0068FF', fontWeight: 600 }}>Đang đồng bộ lên VPS...</p></>
-              : <><UploadOutlined style={{ fontSize: 30, color: '#0068FF' }} /><p style={{ marginTop: 12, fontWeight: 600 }}>Kéo file vào đây hoặc click để chọn</p><p style={{ fontSize: 12, color: '#6B7280' }}>Chấp nhận file .json từ Chrome Extension Zalo CRM</p></>
-            }
-          </div>
-        </Upload.Dragger>
+        <div style={{ background: '#f0f7ff', border: '1px solid #bdd7ff', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: 12, color: '#555' }}>Session ID của bạn:</p>
+          <p style={{ margin: '4px 0 0', fontSize: 18, fontWeight: 700, color: '#0068FF', letterSpacing: 1 }}>{syncTarget.sessionId}</p>
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#888' }}>Nhập chính xác ID này vào Extension</p>
+        </div>
       </div>
     </Modal>
   );
@@ -923,7 +912,6 @@ export default function Zalo() {
   const [friendReqLoading, setFriendReqLoading] = useState({});
   const [crmAllGroups, setCrmAllGroups] = useState({});
   const [syncTarget, setSyncTarget] = useState(null); // { sessionId, label }
-  const [syncLoading, setSyncLoading] = useState(false);
   const wsRef = useRef(null);
   const messagesEndRef = useRef(null);
   const reconnectTimer = useRef(null);
@@ -1251,34 +1239,9 @@ export default function Zalo() {
 
   const handleSyncOpen = (sessionId, label) => {
     setSyncTarget({ sessionId: sessionId || effectiveSessionId, label: label || sessionId || effectiveSessionId });
-    setSyncLoading(false);
   };
 
   const handleSyncClose = () => setSyncTarget(null);
-
-  const handleSyncFile = async (file) => {
-    if (!syncTarget) return;
-    setSyncLoading(true);
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      let cookies, storage;
-      if (Array.isArray(data)) {
-        cookies = data; storage = {};
-      } else if (data.cookies && Array.isArray(data.cookies)) {
-        cookies = data.cookies; storage = data.localStorage || {};
-      } else {
-        throw new Error('Định dạng file không hợp lệ. Cần file JSON có trường "cookies"');
-      }
-      if (!cookies.length) throw new Error('File không chứa cookies nào');
-      await zaloServiceApi.syncProfile(syncTarget.sessionId, cookies, storage);
-      antMessage.success(`✓ Đồng bộ thành công! ${cookies.length} cookies đã gửi lên VPS.`);
-      handleSyncClose();
-    } catch (err) {
-      antMessage.error(err.message || 'Lỗi khi đồng bộ');
-    }
-    setSyncLoading(false);
-  };
 
   const totalUnread = contacts.reduce((sum, c) => sum + (c.unread || 0), 0);
 
@@ -1317,21 +1280,18 @@ export default function Zalo() {
             <Tag color="blue" style={{ fontSize: 13, padding: '2px 10px', marginBottom: 8 }}>
               Tài khoản: <strong>{effectiveSessionId}</strong>
             </Tag>
-            <p style={{ color: '#6B7280' }}>Bấm bên dưới để mở ứng dụng <strong>Zalo Login Manager</strong> trên máy tính và đồng bộ tự động</p>
-            <Button type="primary" size="large" icon={<PoweroffOutlined />} onClick={startService} className="zalo-start-btn">
-              Khởi động Zalo
-            </Button>
+            <p style={{ color: '#6B7280' }}>Dùng <strong>Chrome Extension "Zalo CRM"</strong> để đăng nhập Zalo lên VPS</p>
             <Button
               size="middle"
               icon={<SyncOutlined />}
               onClick={() => handleSyncOpen(effectiveSessionId, effectiveSessionId)}
-              style={{ marginTop: 10, color: '#0068FF', borderColor: '#0068FF' }}
+              style={{ marginTop: 4, color: '#0068FF', borderColor: '#0068FF' }}
             >
-              Đồng bộ từ Zalo PC
+              Xem hướng dẫn đăng nhập
             </Button>
           </div>
         </motion.div>
-        <ZaloSyncModal syncTarget={syncTarget} syncLoading={syncLoading} onClose={handleSyncClose} onFile={handleSyncFile} />
+        <ZaloSyncModal syncTarget={syncTarget} onClose={handleSyncClose} />
       </>
     );
   }
@@ -1358,7 +1318,7 @@ export default function Zalo() {
             <div className="zalo-start-hint">Chạy lệnh: <code>cd zalo-service &amp;&amp; node server.js</code></div>
           </div>
         </motion.div>
-        <ZaloSyncModal syncTarget={syncTarget} syncLoading={syncLoading} onClose={handleSyncClose} onFile={handleSyncFile} />
+        <ZaloSyncModal syncTarget={syncTarget} onClose={handleSyncClose} />
       </>
     );
   }
@@ -1392,7 +1352,7 @@ export default function Zalo() {
             )}
           </div>
         </motion.div>
-        <ZaloSyncModal syncTarget={syncTarget} syncLoading={syncLoading} onClose={handleSyncClose} onFile={handleSyncFile} />
+        <ZaloSyncModal syncTarget={syncTarget} onClose={handleSyncClose} />
       </>
     );
   }
@@ -1495,16 +1455,13 @@ export default function Zalo() {
                   </Button>
                 </div>
 
-                {/* Cách 3: Đồng bộ file profile Zalo PC */}
+                {/* Cách 3: Xem lại hướng dẫn */}
                 <div style={{
                   background: '#f0fff4', border: '1px solid #bbf7d0', borderRadius: 8,
                   padding: '10px 12px'
                 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#059669', margin: '0 0 6px' }}>
-                    💻 Cách 3: Đồng bộ từ file Zalo PC (máy tính của bạn)
-                  </p>
-                  <p style={{ fontSize: 11, color: '#444', margin: '0 0 6px', lineHeight: 1.5 }}>
-                    Nếu Zalo PC đang đăng nhập trên máy tính, xuất file profile và upload lên đây
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#059669', margin: '0 0 4px' }}>
+                    ❓ Cần trợ giúp?
                   </p>
                   <Button
                     size="small"
@@ -1512,7 +1469,7 @@ export default function Zalo() {
                     style={{ fontSize: 12, color: '#059669', borderColor: '#059669' }}
                     onClick={() => handleSyncOpen(effectiveSessionId, effectiveSessionId)}
                   >
-                    Đồng bộ từ Zalo PC
+                    Xem hướng dẫn đăng nhập
                   </Button>
                 </div>
               </div>
@@ -1538,7 +1495,7 @@ export default function Zalo() {
           </div>
         </div>
       </motion.div>
-      <ZaloSyncModal syncTarget={syncTarget} syncLoading={syncLoading} onClose={handleSyncClose} onFile={handleSyncFile} />
+      <ZaloSyncModal syncTarget={syncTarget} onClose={handleSyncClose} />
       </>
     );
   }
@@ -1588,7 +1545,7 @@ export default function Zalo() {
                   {wsConnected ? 'Online' : 'Offline'}
                 </Tag>
               </Tooltip>
-              <Tooltip title="Đồng bộ lại từ Zalo PC (cập nhật cookies)">
+              <Tooltip title="Hướng dẫn đăng nhập lại">
                 <Button
                   size="small"
                   icon={<SyncOutlined />}
@@ -2095,7 +2052,7 @@ export default function Zalo() {
           </div>
       </div>    {/* zalo-chat-layout */}
 
-      <ZaloSyncModal syncTarget={syncTarget} syncLoading={syncLoading} onClose={handleSyncClose} onFile={handleSyncFile} />
+      <ZaloSyncModal syncTarget={syncTarget} onClose={handleSyncClose} />
     </motion.div>
   );
 }
