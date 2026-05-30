@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Form, Input, Button, Checkbox, message } from 'antd';
 import { MailOutlined, LockOutlined, ArrowRightOutlined, SyncOutlined, ApiOutlined, BarChartOutlined, TeamOutlined } from '@ant-design/icons';
 import { motion } from 'framer-motion';
@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
 
   const onFinish = async (values) => {
@@ -15,8 +16,9 @@ export default function Login() {
     try {
       const userData = await login(values.username, values.password);
       message.success('Đăng nhập thành công!');
-      const target = userData.role === 'ADMIN' ? '/tong-quat' : userData.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
-      navigate(target);
+      const defaultTarget = userData.role === 'ADMIN' ? '/tong-quat' : userData.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
+      const target = location.state?.from?.pathname || defaultTarget;
+      navigate(target, { replace: true });
     } catch (err) {
       message.error(err.response?.data?.error || 'Sai tài khoản hoặc mật khẩu');
     } finally {

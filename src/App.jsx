@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Spin } from 'antd';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import MainLayout from './layouts/MainLayout';
@@ -25,8 +25,9 @@ const PageLoader = () => (
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return null;
-  return user ? children : <Navigate to="/login" replace />;
+  return user ? children : <Navigate to="/login" state={{ from: location }} replace />;
 }
 
 function PublicRoute({ children }) {
@@ -41,8 +42,9 @@ function PublicRoute({ children }) {
 
 function RoleRoute({ children, roles }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
   if (!roles.includes(user.role)) {
     const fallback = user.role === 'ADMIN' ? '/tong-quat' : user.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
     return <Navigate to={fallback} replace />;
