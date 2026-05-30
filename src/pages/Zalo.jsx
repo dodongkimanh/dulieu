@@ -1987,7 +1987,7 @@ export default function Zalo() {
                     >
                       <ZaloAvatar name={c.name} src={c.avatar} size={42} />
                       <div className="zalo-contact-info">
-                        <div className="zalo-contact-name">{c.name}</div>
+                        <div className="zalo-contact-name" style={{ color: '#16a34a' }}>{c.name}</div>
                         {c.phone ? (
                           <div className="zalo-contact-phone">
                             <PhoneOutlined style={{ fontSize: 11, marginRight: 4 }} />{c.phone}
