@@ -20,6 +20,17 @@ import dayjs from 'dayjs';
 
 const { Option } = Select;
 
+function ZaloPasswordDisplay({ value }) {
+  const [show, setShow] = useState(false);
+  if (!value) return <span style={{ color: '#CBD5E1', lineHeight: '32px', display: 'inline-block' }}>Chưa đặt</span>;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '4px 10px', minHeight: 32 }}>
+      <span style={{ fontFamily: 'monospace', fontSize: 13, flex: 1, letterSpacing: show ? 0 : 2 }}>{show ? value : '•'.repeat(value.length)}</span>
+      <Button type="text" size="small" icon={show ? <EyeInvisibleOutlined /> : <EyeOutlined />} style={{ color: '#94A3B8', padding: 0, minWidth: 20, height: 20 }} onClick={() => setShow(v => !v)} />
+    </div>
+  );
+}
+
 const roleLabels = {
   ADMIN: { label: 'Quản trị viên', color: '#7C3AED', bg: '#EDE9FE' },
   KE_TOAN: { label: 'Kế toán', color: '#2563EB', bg: '#DBEAFE' },
@@ -116,7 +127,7 @@ export default function UserManagement() {
   const handleEditSubmit = async () => {
     try {
       const values = await editForm.validateFields();
-      const data = { fullName: values.fullName, username: values.username, zalo: values.zalo || '', zaloPassword: values.zaloPassword || '', sim: values.sim || '' };
+      const data = { fullName: values.fullName, username: values.username, zalo: values.zalo || '', sim: values.sim || '' };
       const pw = values.password?.trim();
       if (pw) data.password = pw;
       const res = await authApi.updateUser(editingUser.id, data);
@@ -416,9 +427,10 @@ export default function UserManagement() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="zaloPassword" label="Mật khẩu Zalo">
-                <Input placeholder="Mật khẩu Zalo" />
-              </Form.Item>
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 14, color: '#374151', marginBottom: 8 }}>Mật khẩu Zalo</div>
+                <ZaloPasswordDisplay value={editingUser?.zaloPassword} />
+              </div>
             </Col>
           </Row>
           <Form.Item name="sim" label="Sim">
