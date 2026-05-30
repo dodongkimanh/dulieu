@@ -562,7 +562,7 @@ public class DonHangService {
                 "Giá Vốn", "Tổng Tiền\n(Niêm Yết)", "Giá Bán\nLên Đơn", "Cước\nPhụ Trội",
                 "Giá Thu\nThực Tế", "Tỷ Lệ CK %", "Lợi Nhuận\nƯớc Tính", "Tình Trạng",
                 "Mã Vận Đơn", "CP Vận\nChuyển", "ĐS Vận\nChuyển", "Đặt Cọc/CK",
-                "Thu Bán\nTrực Tiếp", "Tổng Thu\nKhách", "LN Sau Trừ\nVốn & VC",
+                "Thu Bán\nTrực Tiếp", "Tổng Thu\nKhách", "Lợi Nhuận\nThực",
                 "Page", "Mã ID Bài\nQuảng Cáo", "Ghi Chú"
             };
             Row headerRow = sheet.createRow(4);

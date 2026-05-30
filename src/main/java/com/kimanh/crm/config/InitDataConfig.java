@@ -96,14 +96,17 @@ public class InitDataConfig {
             log.warn("Could not seed SALER accounts from data_dulieukhach: {}", e.getMessage());
         }
 
-        // 3. Repair any users with null/corrupted passwords
+        // 3. Repair any users with null/corrupted passwords (skip already-hashed passwords)
         try {
             List<User> allUsers = userRepository.findAll();
             for (User user : allUsers) {
-                if (user.getPassword() == null || user.getPassword().isBlank()) {
+                String pw = user.getPassword();
+                boolean needsRepair = pw == null || pw.isBlank()
+                        || (!pw.startsWith("$2a$") && !pw.startsWith("$2b$") && !pw.startsWith("$2y$"));
+                if (needsRepair) {
                     user.setPassword(passwordEncoder.encode(DEFAULT_SALER_PASSWORD));
                     userRepository.save(user);
-                    log.warn("Repaired null password for user: {} ({}). Reset to default.",
+                    log.warn("Repaired invalid password for user: {} ({}). Reset to default.",
                             user.getUsername(), user.getFullName());
                 }
             }

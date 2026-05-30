@@ -92,6 +92,7 @@ public class KhachHangService {
         }
     }
 
+    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "khachHang", key = "#id"),
         @CacheEvict(value = "khachHang_pages", allEntries = true),
@@ -114,6 +115,7 @@ public class KhachHangService {
         return repository.save(existing);
     }
 
+    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "khachHang", key = "#id")
     })
@@ -123,6 +125,7 @@ public class KhachHangService {
         return repository.save(existing);
     }
 
+    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "khachHang", key = "#id"),
         @CacheEvict(value = "khachHang_sales", allEntries = true),
@@ -155,6 +158,7 @@ public class KhachHangService {
         return customers.size();
     }
 
+    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "khachHang", key = "#id")
     })
@@ -164,6 +168,7 @@ public class KhachHangService {
         return repository.save(existing);
     }
 
+    @Transactional
     @Caching(evict = {
         @CacheEvict(value = "khachHang", key = "#id"),
         @CacheEvict(value = "mess_stats", allEntries = true)

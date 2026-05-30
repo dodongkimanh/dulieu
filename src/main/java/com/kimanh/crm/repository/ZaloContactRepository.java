@@ -13,4 +13,6 @@ public interface ZaloContactRepository extends JpaRepository<ZaloContact, Long> 
     List<ZaloContact> findByKhachHangIdIn(List<Long> khachHangIds);
 
     Optional<ZaloContact> findByKhachHangIdAndSessionId(Long khachHangId, String sessionId);
+
+    Optional<ZaloContact> findBySessionIdAndZaloId(String sessionId, String zaloId);
 }

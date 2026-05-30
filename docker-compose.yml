@@ -11,10 +11,10 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       PORT: 8080
 
-      # Database (Supabase Pooler)
-      DATABASE_URL: jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0
-      DATABASE_USERNAME: postgres.aamzezukxjcnwoostttd
-      DATABASE_PASSWORD: Trungkienak@123
+      # Database (Supabase Shared Pooler - IPv4 compatible, port 6543)
+      DATABASE_URL: jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0
+      DATABASE_USERNAME: postgres.kkfmxlfgizzsaulvkjvo
+      DATABASE_PASSWORD: xhnGVyfeXxsUqoDn
 
       # JWT
       JWT_SECRET: KimAnhCRM2024SecretKeyForJWTAuthenticationSystemVeryLongAndSecure256Bits!!
@@ -26,8 +26,8 @@ services:
       REDIS_USERNAME: default
       REDIS_PASSWORD: gQAAAAAAASAdAAIncDI1Zjc1YjY1N2FjODE0NTJkYTMxZDI3NGY3YzJjZWI2YXAyNzM3NTc
 
-      # CORS - cho phép frontend Vercel + IP VPS nếu cần
-      CORS_ORIGINS: https://dodongkimanh.vercel.app
+      # CORS
+      CORS_ORIGINS: https://crm-kimanh.io.vn,https://dodongkimanh.vercel.app,https://frontend-two-hazel-80.vercel.app
 
       # Keep-alive tự ping (thay URL Render bằng IP VPS)
       RENDER_EXTERNAL_URL: http://66.42.61.149:8080

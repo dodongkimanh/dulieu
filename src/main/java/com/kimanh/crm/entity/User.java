@@ -39,6 +39,9 @@ public class User {
     @Column
     private String zalo;
 
+    @Column(name = "zalo_password")
+    private String zaloPassword;
+
     @Column
     private String sim;
 

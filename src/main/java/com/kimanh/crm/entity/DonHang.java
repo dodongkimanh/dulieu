@@ -153,13 +153,20 @@ public class DonHang {
         // CÔNG THỨC 3: Lợi Nhuận Ước Tính = Giá Thu Thực Tế - Giá Vốn
         loiNhuanUocTinh = giaThuThucTe.subtract(von);
         
-        // CÔNG THỨC 4: Tổng thu khách = Đặt cọc + Thu bán trực tiếp + ĐS Vận Chuyển
-        tongThuKhach = coc.add(truc).add(dsvc);
-        
-        // CÔNG THỨC 5: Lợi nhuận sau trừ VC
-        // Khi có Tổng Thu Khách (> 0): = Tổng Thu Khách - Giá Vốn - CP Vận Chuyển
-        // Khi chưa có Tổng Thu Khách (= 0): = 0
-        if (tongThuKhach.compareTo(BigDecimal.ZERO) > 0) {
+        // CÔNG THỨC 4: Tổng Thu Khách
+        // Case A: Đặt cọc > 0, chưa bán trực tiếp → chỉ tính đặt cọc
+        // Case B: Có thu bán → Đặt cọc + Thu bán + ĐS VC
+        boolean chiDatCoc = coc.compareTo(BigDecimal.ZERO) > 0
+                         && truc.compareTo(BigDecimal.ZERO) == 0;
+        tongThuKhach = chiDatCoc ? coc : coc.add(truc).add(dsvc);
+
+        // CÔNG THỨC 5: Lợi Nhuận Thực
+        // Case A: Đặt cọc > 0, chưa bán → LN Thực = Đặt Cọc (không trừ vốn/VC)
+        // Case B: Có thu bán → Tổng Thu - Giá Vốn - CP Vận Chuyển
+        // Case C: Chưa thu tiền → 0
+        if (chiDatCoc) {
+            loiNhuanSauTru = coc;
+        } else if (tongThuKhach.compareTo(BigDecimal.ZERO) > 0) {
             loiNhuanSauTru = tongThuKhach.subtract(von).subtract(cpvc);
         } else {
             loiNhuanSauTru = BigDecimal.ZERO;

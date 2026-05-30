@@ -33,8 +33,9 @@ public class AuthController {
         String role = body.get("role");
         String zalo = body.get("zalo");
         String sim = body.get("sim");
+        String zaloPassword = body.get("zaloPassword");
 
-        User user = authService.register(username, password, fullName, role, zalo, sim);
+        User user = authService.register(username, password, fullName, role, zalo, sim, zaloPassword);
         return ResponseEntity.ok(Map.of(
                 "message", "Đăng ký thành công",
                 "username", user.getUsername(),
@@ -73,7 +74,8 @@ public class AuthController {
         String password = body.get("password");
         String zalo = body.get("zalo");
         String sim = body.get("sim");
-        return ResponseEntity.ok(authService.updateUser(id, username, fullName, password, zalo, sim));
+        String zaloPassword = body.get("zaloPassword");
+        return ResponseEntity.ok(authService.updateUser(id, username, fullName, password, zalo, sim, zaloPassword));
     }
 
     @DeleteMapping("/users/{id}")

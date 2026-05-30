@@ -25,17 +25,28 @@ public class ZaloContactService {
     @Transactional
     public void upsertBatch(List<ZaloContact> contacts) {
         for (ZaloContact c : contacts) {
-            repo.findByKhachHangIdAndSessionId(c.getKhachHangId(), c.getSessionId())
-                .ifPresentOrElse(existing -> {
-                    existing.setZaloId(c.getZaloId());
-                    existing.setDisplayName(c.getDisplayName());
-                    existing.setAvatar(c.getAvatar());
-                    existing.setSyncedAt(OffsetDateTime.now(VN_ZONE));
-                    repo.save(existing);
-                }, () -> {
-                    c.setSyncedAt(OffsetDateTime.now(VN_ZONE));
-                    repo.save(c);
-                });
+            // Ưu tiên tìm theo (sessionId, zaloId): tránh map cùng 1 Zalo user vào 2 khách khác nhau
+            boolean hasZaloId = c.getZaloId() != null && !c.getZaloId().isBlank();
+            java.util.Optional<ZaloContact> existing = hasZaloId
+                ? repo.findBySessionIdAndZaloId(c.getSessionId(), c.getZaloId())
+                : repo.findByKhachHangIdAndSessionId(c.getKhachHangId(), c.getSessionId());
+
+            // Fallback: nếu không tìm thấy theo zaloId, thử theo khachHangId+sessionId
+            if (existing.isEmpty() && hasZaloId) {
+                existing = repo.findByKhachHangIdAndSessionId(c.getKhachHangId(), c.getSessionId());
+            }
+
+            existing.ifPresentOrElse(e -> {
+                e.setKhachHangId(c.getKhachHangId());
+                e.setZaloId(c.getZaloId());
+                e.setDisplayName(c.getDisplayName());
+                e.setAvatar(c.getAvatar());
+                e.setSyncedAt(OffsetDateTime.now(VN_ZONE));
+                repo.save(e);
+            }, () -> {
+                c.setSyncedAt(OffsetDateTime.now(VN_ZONE));
+                repo.save(c);
+            });
         }
     }
 }
