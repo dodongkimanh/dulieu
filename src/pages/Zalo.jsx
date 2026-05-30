@@ -2211,29 +2211,30 @@ export default function Zalo() {
                             <ZaloAvatar name={activeContact.name} src={activeContact.avatar} size={28} />
                           )}
                           <div className={`zalo-msg-bubble ${isSelf ? 'self' : 'other'}`}>
-                            {m.imageUrl && (
-                              <img
-                                src={m.imageUrl}
-                                alt="Hình ảnh"
-                                style={{ maxWidth: 220, maxHeight: 300, borderRadius: 8, display: 'block', marginBottom: m.content ? 4 : 0, cursor: 'pointer' }}
-                                onClick={() => {
-                                  const url = m.imageUrl;
-                                  if (!url) return;
-                                  if (url.startsWith('data:')) {
-                                    // data URL — mở trong tab mới bằng cách write vào document
-                                    const win = window.open('about:blank', '_blank');
-                                    if (win) {
-                                      win.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${url}" style="max-width:100%;max-height:100vh;object-fit:contain"></body></html>`);
-                                      win.document.close();
+                            {(() => {
+                              const imgUrl = m.imageUrl || m.images?.[0]?.url || null;
+                              if (!imgUrl) return null;
+                              return (
+                                <img
+                                  src={imgUrl}
+                                  alt="Hình ảnh"
+                                  style={{ maxWidth: 220, maxHeight: 300, borderRadius: 8, display: 'block', marginBottom: m.content ? 4 : 0, cursor: 'pointer' }}
+                                  onClick={() => {
+                                    if (imgUrl.startsWith('data:')) {
+                                      const win = window.open('about:blank', '_blank');
+                                      if (win) {
+                                        win.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${imgUrl}" style="max-width:100%;max-height:100vh;object-fit:contain"></body></html>`);
+                                        win.document.close();
+                                      }
+                                    } else {
+                                      window.open(imgUrl, '_blank', 'noopener,noreferrer');
                                     }
-                                  } else {
-                                    window.open(url, '_blank', 'noopener,noreferrer');
-                                  }
-                                }}
-                                onError={(e) => { e.target.style.display = 'none'; }}
-                              />
-                            )}
-                            {m.content && <div className="zalo-msg-content">{m.content}</div>}
+                                  }}
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              );
+                            })()}
+                            {m.content && m.msgType !== 'image' && <div className="zalo-msg-content">{m.content}</div>}
                             <span className="zalo-msg-time">{formatTime(m.time)}</span>
                           </div>
                         </div>
