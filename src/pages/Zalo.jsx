@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Button, Input, Spin, Avatar, Tooltip, Tag,
   message as antMessage, Checkbox, InputNumber, Radio, Select, Modal, Alert,
@@ -910,9 +911,12 @@ function ZaloSyncModal({ syncTarget, onClose }) {
 export default function Zalo() {
   const { user, isAdmin } = useAuth();
   const ownSessionId = user?.username || 'default';
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Admin có thể chọn xem session của bất kỳ nhân viên nào
-  const [adminViewSession, setAdminViewSession] = useState(null);
+  // Admin có thể chọn xem session của bất kỳ nhân viên nào; persist qua URL param ?session=xxx
+  const [adminViewSession, setAdminViewSession] = useState(() =>
+    isAdmin ? (searchParams.get('session') || null) : null
+  );
   const effectiveSessionId = (isAdmin && adminViewSession) ? adminViewSession : ownSessionId;
 
   // Ref luôn giữ URL mới nhất để connectWS không bị stale closure
@@ -1246,6 +1250,7 @@ export default function Zalo() {
     setSessionLoadText('Đang kết nối tài khoản mới...');
     setSessionLoadHistory([]);
     setAdminViewSession(username);
+    setSearchParams({ session: username }, { replace: true });
   };
 
   const refreshQR = async () => {
