@@ -15,6 +15,7 @@ const TongQuat = lazy(() => import('./pages/TongQuat'));
 const KenhTiepThi = lazy(() => import('./pages/KenhTiepThi'));
 const Zalo = lazy(() => import('./pages/Zalo'));
 const TinNhanTongHop = lazy(() => import('./pages/TinNhanTongHop'));
+const HopThuZalo = lazy(() => import('./pages/HopThuZalo'));
 
 const PageLoader = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
@@ -71,6 +72,7 @@ function App() {
             <Route path="users" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><UserManagement /></Suspense></RoleRoute>} />
             <Route path="tong-quat" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><TongQuat /></Suspense></RoleRoute>} />
             <Route path="tin-nhan-tong-hop" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><TinNhanTongHop /></Suspense></RoleRoute>} />
+            <Route path="hop-thu-zalo" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><HopThuZalo /></Suspense></RoleRoute>} />
             <Route path="kenh-tiep-thi" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><KenhTiepThi /></Suspense></RoleRoute>} />
           </Route>
         </Routes>

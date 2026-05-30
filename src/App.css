@@ -2643,6 +2643,7 @@ textarea.ant-input { min-height: 80px !important; }
 .zb-friend-row.active { background: #dbeafe; }
 .zb-friend-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .zb-friend-name { font-size: 12px; font-weight: 500; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zb-friend-remark { font-weight: 400; color: #64748b; }
 .zb-friend-phone { font-size: 11px; color: #94a3b8; }
 .zb-empty {
   display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -2852,6 +2853,16 @@ textarea.ant-input { min-height: 80px !important; }
   color: #92400E;
   background: #FFFBEB;
 }
+.zadmin-pill.zca-disconnected {
+  border-color: #EF4444;
+  color: #991B1B;
+  background: #FEF2F2;
+  animation: pulse-red 2s infinite;
+}
+@keyframes pulse-red {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(239,68,68,0); }
+}
 .zadmin-pill.active {
   background: #10B981;
   color: #fff;
@@ -2868,6 +2879,7 @@ textarea.ant-input { min-height: 80px !important; }
 }
 .zadmin-pill.online .zadmin-pill-dot { background: #10B981; }
 .zadmin-pill.waiting .zadmin-pill-dot { background: #F59E0B; }
+.zadmin-pill.zca-disconnected .zadmin-pill-dot { background: #EF4444; }
 .zadmin-pill.active .zadmin-pill-dot { background: rgba(255,255,255,0.8); }
 
 .zadmin-pill-name {

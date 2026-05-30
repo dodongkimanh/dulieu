@@ -11,6 +11,8 @@ import {
   ExclamationCircleOutlined,
   SyncOutlined,
   UploadOutlined,
+  EyeOutlined,
+  EyeInvisibleOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { authApi, zaloServiceApi } from '../api';
@@ -39,6 +41,9 @@ export default function UserManagement() {
   const [syncModal, setSyncModal] = useState({ open: false, username: '', label: '' });
   const [syncLoading, setSyncLoading] = useState(false);
   const syncFileRef = useRef(null);
+  const [visiblePasswords, setVisiblePasswords] = useState({});
+
+  const togglePasswordVisible = (id) => setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
 
   const ROLE_ORDER = { ADMIN: 0, KE_TOAN: 1, SALER: 2 };
 
@@ -104,14 +109,14 @@ export default function UserManagement() {
   const handleEdit = (record) => {
     setEditingUser(record);
     editForm.resetFields();
-    editForm.setFieldsValue({ username: record.username, fullName: record.fullName, zalo: record.zalo, sim: record.sim });
+    editForm.setFieldsValue({ username: record.username, fullName: record.fullName, zalo: record.zalo, zaloPassword: record.zaloPassword, sim: record.sim });
     setEditModalOpen(true);
   };
 
   const handleEditSubmit = async () => {
     try {
       const values = await editForm.validateFields();
-      const data = { fullName: values.fullName, username: values.username, zalo: values.zalo || '', sim: values.sim || '' };
+      const data = { fullName: values.fullName, username: values.username, zalo: values.zalo || '', zaloPassword: values.zaloPassword || '', sim: values.sim || '' };
       const pw = values.password?.trim();
       if (pw) data.password = pw;
       const res = await authApi.updateUser(editingUser.id, data);
@@ -179,6 +184,16 @@ export default function UserManagement() {
     { title: 'Tài khoản', dataIndex: 'username', width: 170, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
     { title: 'Họ tên', dataIndex: 'fullName', width: 170 },
     { title: 'Zalo', dataIndex: 'zalo', width: 120, render: (v) => v || <span style={{ color: '#CBD5E1' }}>—</span> },
+    { title: 'MK Zalo', dataIndex: 'zaloPassword', width: 140, render: (v, record) => {
+      if (!v) return <span style={{ color: '#CBD5E1' }}>—</span>;
+      const visible = visiblePasswords[record.id];
+      return (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{visible ? v : '••••••••'}</span>
+          <Button type="text" size="small" icon={visible ? <EyeInvisibleOutlined /> : <EyeOutlined />} style={{ color: '#94A3B8', padding: 0, minWidth: 20, height: 20 }} onClick={() => togglePasswordVisible(record.id)} />
+        </span>
+      );
+    }},
     { title: 'Sim', dataIndex: 'sim', width: 120, render: (v) => v || <span style={{ color: '#CBD5E1' }}>—</span> },
     { title: 'Vai trò', dataIndex: 'role', width: 150, render: (v) => {
       const r = roleLabels[v] || { label: v, color: '#64748B', bg: '#F1F5F9' };
@@ -311,11 +326,14 @@ export default function UserManagement() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="sim" label="Sim">
-                <Input placeholder="Số điện thoại Sim" />
+              <Form.Item name="zaloPassword" label="Mật khẩu Zalo">
+                <Input placeholder="Mật khẩu Zalo" />
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item name="sim" label="Sim">
+            <Input placeholder="Số điện thoại Sim" />
+          </Form.Item>
           <Form.Item name="role" label="Vai trò">
             <Select>
               <Option value="SALER">Nhân viên Sale</Option>
@@ -398,11 +416,14 @@ export default function UserManagement() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="sim" label="Sim">
-                <Input placeholder="Số điện thoại Sim" />
+              <Form.Item name="zaloPassword" label="Mật khẩu Zalo">
+                <Input placeholder="Mật khẩu Zalo" />
               </Form.Item>
             </Col>
           </Row>
+          <Form.Item name="sim" label="Sim">
+            <Input placeholder="Số điện thoại Sim" />
+          </Form.Item>
           <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 16px 4px', marginBottom: 16, border: '1px solid #E2E8F0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <LockOutlined style={{ color: '#F59E0B', fontSize: 16 }} />

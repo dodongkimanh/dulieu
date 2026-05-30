@@ -34,6 +34,7 @@ function ZaloIcon() {
 const allSidebarItems = [
   { key: '/tong-quat', icon: <FundOutlined />, label: 'Phân tích tổng quan', roles: ['ADMIN'] },
   { key: '/tin-nhan-tong-hop', icon: <InboxOutlined />, label: 'Tin nhắn tổng hợp', roles: ['ADMIN'] },
+  { key: '/hop-thu-zalo', icon: <ZaloIcon />, label: 'Hộp thư Zalo', roles: ['ADMIN'] },
   { key: '/doanh-so', icon: <BarChartOutlined />, label: 'Doanh số & Mess', roles: ['ADMIN', 'SALER'] },
   { key: '/don-hang', icon: <ShoppingCartOutlined />, label: 'Đơn hàng', roles: ['ADMIN', 'KE_TOAN', 'SALER'] },
   { key: '/zalo', icon: <ZaloIcon />, label: 'Zalo', roles: ['ADMIN', 'SALER'] },
@@ -45,6 +46,7 @@ const allSidebarItems = [
 
 const pageTitles = {
   '/tin-nhan-tong-hop': 'Tin nhắn tổng hợp',
+  '/hop-thu-zalo': 'Hộp thư Zalo',
   '/doanh-so': 'Doanh số & Mess',
   '/don-hang': 'Quản lý Đơn hàng',
   '/zalo': 'Zalo',

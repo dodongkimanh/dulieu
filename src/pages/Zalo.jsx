@@ -8,11 +8,12 @@ import {
   MessageOutlined, WifiOutlined, DisconnectOutlined, TeamOutlined,
   PhoneOutlined, BulbOutlined, PlusOutlined,
   EditOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined,
-  SyncOutlined,
+  SyncOutlined, QrcodeOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api';
+import api from '../api';
 import QRCode from 'qrcode';
 
 const SERVICE_BASE = import.meta.env.VITE_ZALO_SERVICE || 'http://localhost:3001';
@@ -363,7 +364,12 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
                 <Checkbox checked={selected.has(c.id)} onChange={() => {}} style={{ pointerEvents: 'none', flexShrink: 0 }} />
                 <ZaloAvatar name={c.name} src={c.avatar} size={28} />
                 <div className="zb-friend-info">
-                  <span className="zb-friend-name">{i + 1}. {c.name}</span>
+                  <span className="zb-friend-name">
+                    {i + 1}.{' '}
+                    {c.remarkName && c.displayName && c.remarkName !== c.displayName
+                      ? <>{c.displayName} <span className="zb-friend-remark">/ {c.remarkName}</span></>
+                      : (c.displayName || c.name)}
+                  </span>
                   {c.phone && <span className="zb-friend-phone">{c.phone}</span>}
                 </div>
               </div>
@@ -755,14 +761,24 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
       phone: live?.phone || null,
       status: live?.status || 'idle',
       phonebookCount: live?.phonebookCount || 0,
+      zcaMode: live?.zcaMode || false,
+      zcaConnected: live?.zcaConnected ?? null,
+      zcaLastPing: live?.zcaLastPing || null,
     };
   });
 
-  const statusClass = (s) =>
-    s === 'logged_in' ? 'online' : s === 'waiting_qr' || s === 'loading' ? 'waiting' : 'offline';
+  // zcaMode + zcaConnected=false → disconnected (đỏ)
+  const statusClass = (u) => {
+    if (u.zcaMode && u.zcaConnected === false) return 'zca-disconnected';
+    const s = u.status;
+    return s === 'logged_in' ? 'online' : s === 'waiting_qr' || s === 'loading' ? 'waiting' : 'offline';
+  };
 
-  const statusText = (s) =>
-    s === 'logged_in' ? 'Online' : s === 'waiting_qr' ? 'Chờ QR' : s === 'loading' ? 'Đang tải' : 'Offline';
+  const statusText = (u) => {
+    if (u.zcaMode && u.zcaConnected === false) return 'Mất kết nối';
+    const s = u.status;
+    return s === 'logged_in' ? 'Online' : s === 'waiting_qr' ? 'Chờ QR' : s === 'loading' ? 'Đang tải' : 'Offline';
+  };
 
   const handleRefreshMyInfo = async (e, username) => {
     e.stopPropagation();
@@ -785,14 +801,15 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
     <div className="zadmin-strip">
       {merged.map((u) => {
         const isActive = selectedSession === u.username;
-        const sc = statusClass(u.status);
+        const sc = statusClass(u);
         const crmCount = (crmGroups[u.username] || []).length;
+        const disconnected = u.zcaMode && u.zcaConnected === false;
         return (
           <button
             key={u.username}
             className={`zadmin-pill${isActive ? ' active' : ''} ${sc}`}
             onClick={() => onSelect(u.username)}
-            title={[u.label, u.phone].filter(Boolean).join(' · ')}
+            title={disconnected ? 'Mất kết nối zca-js — click để xem' : [u.label, u.phone].filter(Boolean).join(' · ')}
           >
             <span className="zadmin-pill-dot" />
             <span className="zadmin-pill-name">
@@ -805,7 +822,7 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
             {crmCount > 0 && (
               <span className="zadmin-pill-crm">{crmCount} CRM</span>
             )}
-            <span className="zadmin-pill-status">{statusText(u.status)}</span>
+            <span className="zadmin-pill-status">{statusText(u)}</span>
             {u.status === 'logged_in' && (
               <span
                 className="zadmin-pill-refresh"
@@ -900,6 +917,7 @@ export default function Zalo() {
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
+  const [zcaDisconnected, setZcaDisconnected] = useState(false);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [msgLoadingStatus, setMsgLoadingStatus] = useState(null);
@@ -921,6 +939,54 @@ export default function Zalo() {
   const inputRef = useRef(null);
   const searchTimer = useRef(null);
   const loadingTimerRef = useRef(null);
+
+  // Load danh bạ từ Supabase (nhanh, không cần quét DOM)
+  useEffect(() => {
+    if (!effectiveSessionId) return;
+    api.get('/zalo-chat/contacts', { params: { session: effectiveSessionId, size: 1000 } })
+      .then(r => {
+        const list = r.data?.content || [];
+        if (list.length > 0) {
+          setPhonebook(list.map(c => ({
+            id: c.zaloUid,
+            name: c.name || c.zaloUid,
+            avatar: c.avatar || null,
+            phone: '',
+          })));
+        }
+      }).catch(() => {});
+  }, [effectiveSessionId]);
+
+  // Load hội thoại từ Supabase cho tab Tin nhắn
+  useEffect(() => {
+    if (!effectiveSessionId) return;
+    api.get('/zalo-chat/inbox', { params: { session: effectiveSessionId, size: 100 } })
+      .then(r => {
+        const list = r.data?.content || [];
+        if (list.length > 0) {
+          setContacts(prev => {
+            const wsMap = new Map(prev.map(c => [c.id, c]));
+            const merged = new Map();
+            list.forEach(conv => {
+              const uid = conv.zaloUid;
+              const ws = wsMap.get(uid) || {};
+              merged.set(uid, {
+                id: uid,
+                name: conv.contactName && conv.contactName !== uid ? conv.contactName : (ws.name || uid),
+                avatar: conv.avatar || ws.avatar || null,
+                lastMsg: conv.lastMessage || ws.lastMsg || '',
+                time: conv.updatedAt ? new Date(conv.updatedAt).getTime() : (ws.time || 0),
+                unread: ws.unread || 0,
+                _convId: conv.conversationId,
+              });
+            });
+            // Giữ lại WS contacts có unread mà DB chưa có
+            prev.forEach(c => { if (!merged.has(c.id)) merged.set(c.id, c); });
+            return Array.from(merged.values()).sort((a, b) => (b.time || 0) - (a.time || 0));
+          });
+        }
+      }).catch(() => {});
+  }, [effectiveSessionId]);
 
   const connectWS = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -944,6 +1010,13 @@ export default function Zalo() {
         const msg = JSON.parse(e.data);
         if (msg.type === 'status') {
           setStatus(msg.status);
+          if (msg.status === 'logged_in') setZcaDisconnected(false);
+        }
+        if (msg.type === 'zca_disconnected') {
+          setZcaDisconnected(true);
+        }
+        if (msg.type === 'zca_connected') {
+          setZcaDisconnected(false);
         }
         if (msg.type === 'qr') {
           setQrData(msg.data);
@@ -966,7 +1039,18 @@ export default function Zalo() {
           setLookupLoading(false);
           setLookupResults((prev) => prev ? { ...prev, zalo: msg.data || [] } : prev);
         }
-        if (msg.type === 'messages') setMessages(msg.data || []);
+        if (msg.type === 'messages') {
+          const wsMsgs = msg.data || [];
+          setMessages(prev => {
+            // Nếu không có DB messages, dùng WS hoàn toàn
+            if (!prev.some(m => m._fromDB)) return wsMsgs;
+            // Merge: giữ DB messages, thêm WS messages chưa có
+            const existingIds = new Set(prev.map(m => m.id || m.msgId));
+            const newWs = wsMsgs.filter(m => !existingIds.has(m.id || m.msgId));
+            const merged = [...prev, ...newWs];
+            return merged.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          });
+        }
         if (msg.type === 'loading_status') {
           setMsgLoadingStatus(msg.step === 'done' ? null : { step: msg.step, text: msg.text });
         }
@@ -1175,6 +1259,15 @@ export default function Zalo() {
     setTimeout(() => connectWS(), 3000);
   };
 
+  const handleZcaQrLogin = async () => {
+    setStatus('waiting_qr');
+    setQrData(null);
+    setQrCanvas(null);
+    try {
+      await fetch(`${SERVICE_BASE}/zca-qr-login${qp}`, { method: 'POST' });
+    } catch { /* ignore */ }
+  };
+
   // Dừng từ màn QR → về idle chờ kết nối
   const cancelService = async () => {
     await fetch(`${SERVICE_BASE}/stop${qp}`, { method: 'POST' }).catch(() => {});
@@ -1189,11 +1282,39 @@ export default function Zalo() {
     setStatus('idle');
   };
 
-  const openContact = (contact) => {
+  const openContact = async (contact) => {
     setActiveContact(contact);
     setMessages([]);
     setMsgLoadingStatus(null);
     setInputText('');
+
+    // Load tin nhắn từ Supabase trước (nhanh, hiển thị ngay)
+    try {
+      let convId = contact._convId;
+      if (!convId) {
+        const r = await api.get('/zalo-chat/conversation', {
+          params: { session: effectiveSessionId, uid: contact.id }
+        });
+        convId = r.data?.conversationId;
+      }
+      if (convId) {
+        const r2 = await api.get(`/zalo-chat/messages/${convId}`, { params: { size: 100 } });
+        const dbMsgs = (r2.data?.content || []).map(m => ({
+          id:        String(m.id),
+          msgId:     String(m.id),
+          content:   m.text || '',
+          isSelf:    m.isSelf,
+          timestamp: m.timestamp ? new Date(m.timestamp).getTime() : 0,
+          type:      m.type,
+          imageUrl:  m.imageUrl || null,
+          callInfo:  m.callInfo || null,
+          _fromDB:   true,
+        }));
+        if (dbMsgs.length > 0) setMessages(dbMsgs);
+      }
+    } catch {}
+
+    // WS tiếp tục để nhận tin nhắn mới real-time
     wsRef.current?.send(JSON.stringify({ type: 'open_contact', id: contact.id, name: contact.name, phone: contact.phone }));
   };
 
@@ -1313,28 +1434,32 @@ export default function Zalo() {
                 <path d="M33 28.5c-.28-.14-1.63-.8-1.88-.9-.25-.1-.43-.14-.62.14-.18.28-.72.9-.88 1.08-.16.18-.33.2-.61.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.4-1.66-1.56-1.94-.16-.28-.02-.43.12-.57.13-.13.28-.33.42-.5.14-.17.18-.28.28-.47.1-.2.05-.36-.02-.5-.07-.14-.62-1.5-.85-2.05-.22-.54-.45-.46-.62-.47-.16 0-.35-.02-.53-.02-.18 0-.48.07-.74.33-.25.27-.97.95-.97 2.32 0 1.37.99 2.7 1.13 2.88.14.18 1.96 2.99 4.75 4.2.66.28 1.18.45 1.58.58.66.21 1.27.18 1.74.11.53-.08 1.63-.67 1.86-1.3.23-.64.23-1.19.16-1.3-.07-.12-.26-.18-.54-.32z" fill="#0068FF"/>
               </svg>
             </div>
-            <h2 style={{ marginBottom: 4 }}>Dịch vụ Zalo đã dừng</h2>
-            <Tag color="blue" style={{ fontSize: 13, padding: '2px 10px', marginBottom: 16 }}>
+            <h2 style={{ marginBottom: 4 }}>Đăng nhập Zalo</h2>
+            <Tag color="blue" style={{ fontSize: 13, padding: '2px 10px', marginBottom: 20 }}>
               Tài khoản: <strong>{effectiveSessionId}</strong>
             </Tag>
             <Button
               type="primary"
               size="large"
-              icon={<PlayCircleOutlined />}
-              onClick={handleStartServer}
+              icon={<QrcodeOutlined />}
+              onClick={handleZcaQrLogin}
               className="zalo-start-btn"
+              style={{ background: '#0068FF', borderColor: '#0068FF' }}
             >
-              Khởi động server
+              Đăng nhập bằng QR
             </Button>
-            <div className="zalo-start-hint">Khởi động lại máy chủ ảo trên VPS</div>
-            <Button
-              size="small"
-              icon={<SyncOutlined />}
-              onClick={() => handleSyncOpen(effectiveSessionId, effectiveSessionId)}
-              style={{ marginTop: 12, color: '#6B7280', borderColor: '#D1D5DB', fontSize: 12 }}
-            >
-              Cần đăng nhập lại? Xem hướng dẫn
-            </Button>
+            <div className="zalo-start-hint">Mở Zalo mobile → Quét QR → Đăng nhập ngay</div>
+            <div style={{ marginTop: 20, borderTop: '1px solid #f0f0f0', paddingTop: 16, width: '100%', textAlign: 'center' }}>
+              <span style={{ fontSize: 11, color: '#9CA3AF' }}>Dùng Puppeteer (cũ): </span>
+              <Button
+                size="small"
+                icon={<PlayCircleOutlined />}
+                onClick={handleStartServer}
+                style={{ fontSize: 11, color: '#9CA3AF', borderColor: '#E5E7EB' }}
+              >
+                Khởi động server ảo
+              </Button>
+            </div>
           </div>
         </motion.div>
         <ZaloSyncModal syncTarget={syncTarget} onClose={handleSyncClose} />
@@ -1603,6 +1728,13 @@ export default function Zalo() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+              {zcaDisconnected && (
+                <Tooltip title="zca-js mất kết nối với Zalo — tin nhắn có thể bị trễ. Đang tự động thử lại...">
+                  <Tag icon={<DisconnectOutlined />} color="error" style={{ margin: 0, cursor: 'default', fontSize: 11, animation: 'pulse-red 2s infinite' }}>
+                    Mất kết nối Zalo
+                  </Tag>
+                </Tooltip>
+              )}
               <Tooltip title={wsConnected ? 'Đang kết nối' : 'Mất kết nối'}>
                 <Tag
                   icon={wsConnected ? <WifiOutlined /> : <DisconnectOutlined />}
@@ -1704,7 +1836,7 @@ export default function Zalo() {
             <div className="zalo-contact-list">
               <div className="zalo-phonebook-toolbar">
                 <span style={{ color: '#6B7280', fontSize: 12 }}>
-                  {contacts.length > 0 ? `${contacts.length} hội thoại` : 'Đang tải...'}
+                  {contacts.length > 0 ? `${contacts.length} hội thoại` : 'Chưa có hội thoại'}
                 </span>
                 <Button size="small" icon={<ReloadOutlined />} loading={contactsRefreshing} onClick={handleRefreshContacts}>
                   Làm mới
@@ -1762,7 +1894,7 @@ export default function Zalo() {
             <div className="zalo-contact-list">
               <div className="zalo-phonebook-toolbar">
                 <span style={{ color: '#6B7280', fontSize: 12 }}>
-                  {phonebook.length > 0 ? `${phonebook.length} bạn bè` : 'Đang tải...'}
+                  {phonebook.length > 0 ? `${phonebook.length} bạn bè` : (phonebookLoading ? 'Đang tải...' : 'Chưa có dữ liệu')}
                 </span>
                 <Button size="small" icon={<ReloadOutlined />} loading={phonebookLoading} onClick={handleRefreshPhonebook}>
                   Làm mới
@@ -1809,9 +1941,10 @@ export default function Zalo() {
 
               {phonebook.length === 0 ? (
                 <div className="zalo-empty-contacts">
-                  <Spin size="small" style={{ marginBottom: 8 }} />
-                  <p style={{ color: '#9CA3AF', fontSize: 13 }}>Đang quét danh sách bạn bè từ Zalo...</p>
-                  <p style={{ color: '#9CA3AF', fontSize: 12 }}>Quá trình này mất 5–20 giây</p>
+                  {phonebookLoading
+                    ? <><Spin size="small" style={{ marginBottom: 8 }} /><p style={{ color: '#9CA3AF', fontSize: 13 }}>Đang tải danh bạ...</p></>
+                    : <p style={{ color: '#9CA3AF', fontSize: 13 }}>Chưa có dữ liệu danh bạ</p>
+                  }
                 </div>
               ) : filteredPhonebook.length === 0 && !showPhoneResults ? (
                 <div className="zalo-empty-contacts">
