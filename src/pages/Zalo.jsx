@@ -1063,13 +1063,9 @@ export default function Zalo() {
         if (msg.type === 'messages') {
           const wsMsgs = msg.data || [];
           setMessages(prev => {
-            // Nếu không có DB messages, dùng WS hoàn toàn
-            if (!prev.some(m => m._fromDB)) return wsMsgs;
-            // Merge: giữ DB messages, thêm WS messages chưa có
-            const existingIds = new Set(prev.map(m => m.id || m.msgId));
-            const newWs = wsMsgs.filter(m => !existingIds.has(m.id || m.msgId));
-            const merged = [...prev, ...newWs];
-            return merged.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            // Đã có messages từ Spring Boot API → bỏ qua messages từ zalo-service (tránh trùng)
+            if (prev.some(m => m._fromDB)) return prev;
+            return wsMsgs;
           });
         }
         if (msg.type === 'loading_status') {
@@ -1987,13 +1983,13 @@ export default function Zalo() {
                     >
                       <ZaloAvatar name={c.name} src={c.avatar} size={42} />
                       <div className="zalo-contact-info">
-                        <div className="zalo-contact-name" style={{ color: '#16a34a' }}>{c.name}</div>
+                        <div className="zalo-contact-name">{c.name}</div>
                         {c.phone ? (
                           <div className="zalo-contact-phone">
                             <PhoneOutlined style={{ fontSize: 11, marginRight: 4 }} />{c.phone}
                           </div>
                         ) : (
-                          <div className="zalo-contact-last" style={{ color: '#9CA3AF' }}>
+                          <div className="zalo-contact-last" style={{ color: '#16a34a' }}>
                             {c.displayName || ''}
                           </div>
                         )}
