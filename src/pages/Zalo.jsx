@@ -734,6 +734,7 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
   const [crmUsers, setCrmUsers] = useState([]);
   const [liveSessions, setLiveSessions] = useState([]);
   const [refreshingMyInfo, setRefreshingMyInfo] = useState({});
+  const [reloadingSession, setReloadingSession] = useState({});
 
   useEffect(() => {
     authApi.getUsers()
@@ -795,6 +796,23 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
     setTimeout(() => setRefreshingMyInfo((prev) => ({ ...prev, [username]: false })), 2000);
   };
 
+  const handleReloadSession = async (e, username) => {
+    e.stopPropagation();
+    setReloadingSession((prev) => ({ ...prev, [username]: true }));
+    try {
+      const res = await fetch(`${SERVICE_BASE}/reload-page?session=${encodeURIComponent(username)}`, { method: 'POST' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        antMessage.error(`Không thể kết nối lại: ${d.error || res.statusText}`);
+      } else {
+        antMessage.success('Đang kết nối lại Zalo...');
+      }
+    } catch (err) {
+      antMessage.error(`Lỗi: ${err.message}`);
+    }
+    setTimeout(() => setReloadingSession((prev) => ({ ...prev, [username]: false })), 4000);
+  };
+
   if (merged.length === 0) return null;
 
   return (
@@ -826,10 +844,13 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
             {u.status === 'logged_in' && (
               <span
                 className="zadmin-pill-refresh"
-                title="Lấy lại tên & SĐT Zalo"
-                onClick={(e) => handleRefreshMyInfo(e, u.username)}
+                title={disconnected ? 'Kết nối lại Zalo (reload trang VPS)' : 'Lấy lại tên & SĐT Zalo'}
+                onClick={(e) => disconnected
+                  ? handleReloadSession(e, u.username)
+                  : handleRefreshMyInfo(e, u.username)
+                }
               >
-                {refreshingMyInfo[u.username] ? '⟳' : '↻'}
+                {(reloadingSession[u.username] || refreshingMyInfo[u.username]) ? '⟳' : '↻'}
               </span>
             )}
             {onSync && (
