@@ -1114,8 +1114,12 @@ export default function Zalo() {
           antMessage.info(msg.reason || 'Tạm dừng gửi tin', 5);
         }
         if (msg.type === 'friend_request_result') {
-          const key = msg.query || '';
-          setFriendReqLoading((prev) => { const n = { ...prev }; delete n[key]; return n; });
+          setFriendReqLoading((prev) => {
+            const n = { ...prev };
+            delete n[msg.userId || msg.query || ''];
+            delete n[msg.query || ''];
+            return n;
+          });
           if (msg.ok) antMessage.success(msg.message || 'Đã gửi lời mời kết bạn');
           else antMessage.error(msg.error || 'Không thể gửi lời mời kết bạn');
         }
@@ -1415,9 +1419,10 @@ export default function Zalo() {
     // setLookupLoading will be cleared when search_results arrives
   };
 
-  const handleSendFriendRequest = (query) => {
-    setFriendReqLoading((prev) => ({ ...prev, [query]: true }));
-    wsRef.current?.send(JSON.stringify({ type: 'send_friend_request', query }));
+  const handleSendFriendRequest = (query, userId) => {
+    const key = userId || query;
+    setFriendReqLoading((prev) => ({ ...prev, [key]: true }));
+    wsRef.current?.send(JSON.stringify({ type: 'send_friend_request', query, userId }));
   };
 
   const handleSyncOpen = (sessionId, label) => {
@@ -2103,7 +2108,7 @@ export default function Zalo() {
                                   size="small"
                                   loading={!!friendReqLoading[reqKey]}
                                   style={{ fontSize: 11, height: 22, padding: '0 6px' }}
-                                  onClick={() => handleSendFriendRequest(lookupResults.query)}
+                                  onClick={() => handleSendFriendRequest(lookupResults.query, c.id)}
                                 >
                                   Kết bạn
                                 </Button>
