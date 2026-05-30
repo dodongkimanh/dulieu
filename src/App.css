@@ -2869,6 +2869,13 @@ textarea.ant-input { min-height: 80px !important; }
   border-color: #10B981;
   box-shadow: 0 2px 8px rgba(16,185,129,0.32);
 }
+.zadmin-pill.active.zca-disconnected {
+  background: #DC2626;
+  color: #fff;
+  border-color: #DC2626;
+  box-shadow: 0 2px 8px rgba(220,38,38,0.4);
+  animation: pulse-red 2s infinite;
+}
 
 .zadmin-pill-dot {
   width: 7px;
@@ -2881,6 +2888,7 @@ textarea.ant-input { min-height: 80px !important; }
 .zadmin-pill.waiting .zadmin-pill-dot { background: #F59E0B; }
 .zadmin-pill.zca-disconnected .zadmin-pill-dot { background: #EF4444; }
 .zadmin-pill.active .zadmin-pill-dot { background: rgba(255,255,255,0.8); }
+.zadmin-pill.active.zca-disconnected .zadmin-pill-dot { background: rgba(255,255,255,0.9); }
 
 .zadmin-pill-name {
   font-size: 12.5px;
