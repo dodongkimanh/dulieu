@@ -120,14 +120,14 @@ export default function UserManagement() {
   const handleEdit = (record) => {
     setEditingUser(record);
     editForm.resetFields();
-    editForm.setFieldsValue({ username: record.username, fullName: record.fullName, zalo: record.zalo, zaloPassword: record.zaloPassword, sim: record.sim });
+    editForm.setFieldsValue({ username: record.username, fullName: record.fullName, zalo: record.zalo, zaloPassword: record.zaloPassword || '', sim: record.sim });
     setEditModalOpen(true);
   };
 
   const handleEditSubmit = async () => {
     try {
       const values = await editForm.validateFields();
-      const data = { fullName: values.fullName, username: values.username, zalo: values.zalo || '', sim: values.sim || '' };
+      const data = { fullName: values.fullName, username: values.username, zalo: values.zalo || '', zaloPassword: values.zaloPassword || '', sim: values.sim || '' };
       const pw = values.password?.trim();
       if (pw) data.password = pw;
       const res = await authApi.updateUser(editingUser.id, data);
@@ -427,34 +427,14 @@ export default function UserManagement() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 14, color: '#374151', marginBottom: 8 }}>Mật khẩu Zalo</div>
-                <ZaloPasswordDisplay value={editingUser?.zaloPassword} />
-              </div>
+              <Form.Item name="zaloPassword" label="Mật khẩu Zalo">
+                <Input placeholder="Mật khẩu Zalo" />
+              </Form.Item>
             </Col>
           </Row>
           <Form.Item name="sim" label="Sim">
             <Input placeholder="Số điện thoại Sim" />
           </Form.Item>
-          <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px 16px 4px', marginBottom: 16, border: '1px solid #E2E8F0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <LockOutlined style={{ color: '#F59E0B', fontSize: 16 }} />
-              <span style={{ fontWeight: 600, color: '#374151', fontSize: 13 }}>Đặt lại mật khẩu</span>
-              <span style={{ fontSize: 11, color: '#94A3B8', fontStyle: 'italic' }}>— Để trống nếu không đổi</span>
-            </div>
-            <Form.Item
-              name="password"
-              rules={[{
-                validator: (_, value) => {
-                  if (!value || !value.trim()) return Promise.resolve();
-                  return value.trim().length >= 6 ? Promise.resolve() : Promise.reject('Mật khẩu mới phải có ít nhất 6 ký tự');
-                }
-              }]}
-              style={{ marginBottom: 12 }}
-            >
-              <Input.Password prefix={<LockOutlined />} placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)" autoComplete="new-password" />
-            </Form.Item>
-          </div>
         </Form>
       </Modal>
     </motion.div>
