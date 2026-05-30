@@ -149,7 +149,13 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
   const [modalImages, setModalImages] = useState([]);
 
   const filteredPb = phonebook.filter((c) => {
-    if (filter.keyword && !c.name?.toLowerCase().includes(filter.keyword.toLowerCase())) return false;
+    if (filter.keyword) {
+      const kw = filter.keyword.toLowerCase();
+      const matchName = c.name?.toLowerCase().includes(kw);
+      const matchDisplay = c.displayName?.toLowerCase().includes(kw);
+      const matchPhone = c.phone?.includes(filter.keyword);
+      if (!matchName && !matchDisplay && !matchPhone) return false;
+    }
     return true;
   });
 
@@ -367,9 +373,11 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
                 <div className="zb-friend-info">
                   <span className="zb-friend-name">
                     {i + 1}.{' '}
-                    {c.remarkName && c.displayName && c.remarkName !== c.displayName
-                      ? <>{c.displayName} <span className="zb-friend-remark">/ {c.remarkName}</span></>
-                      : (c.displayName || c.name)}
+                    {c.name && c.displayName && c.name !== c.displayName
+                      ? <Tooltip title={`Tên Zalo: ${c.displayName}`} mouseEnterDelay={0.5}>
+                          {c.name} <span className="zb-friend-remark">({c.displayName})</span>
+                        </Tooltip>
+                      : (c.name || c.displayName)}
                   </span>
                   {c.phone && <span className="zb-friend-phone">{c.phone}</span>}
                 </div>
@@ -720,7 +728,7 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
             </div>
             {modalImages.length > 0 && (
               <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
-                Hỗ trợ link URL (https://...) hoặc đường dẫn file trên máy. Mỗi lần gửi sẽ random 1 ảnh.
+                Hỗ trợ link URL (https://...) hoặc đường dẫn file trên VPS. Tất cả ảnh sẽ được gửi theo thứ tự.
               </div>
             )}
           </div>
