@@ -768,15 +768,15 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
     };
   });
 
-  // zcaMode + zcaConnected=false → disconnected (đỏ)
+  // zcaMode + zcaConnected=false → disconnected (đỏ), nhưng nếu Puppeteer vẫn logged_in thì vẫn Online
   const statusClass = (u) => {
-    if (u.zcaMode && u.zcaConnected === false) return 'zca-disconnected';
+    if (u.zcaMode && u.zcaConnected === false && u.status !== 'logged_in') return 'zca-disconnected';
     const s = u.status;
     return s === 'logged_in' ? 'online' : s === 'waiting_qr' || s === 'loading' ? 'waiting' : 'offline';
   };
 
   const statusText = (u) => {
-    if (u.zcaMode && u.zcaConnected === false) return 'Mất kết nối';
+    if (u.zcaMode && u.zcaConnected === false && u.status !== 'logged_in') return 'Mất kết nối';
     const s = u.status;
     return s === 'logged_in' ? 'Online' : s === 'waiting_qr' ? 'Chờ QR' : s === 'loading' ? 'Đang tải' : 'Offline';
   };
@@ -1993,7 +1993,9 @@ export default function Zalo() {
                             <PhoneOutlined style={{ fontSize: 11, marginRight: 4 }} />{c.phone}
                           </div>
                         ) : (
-                          <div className="zalo-contact-last">Bạn bè Zalo</div>
+                          <div className="zalo-contact-last" style={{ color: '#9CA3AF' }}>
+                            {c.displayName || ''}
+                          </div>
                         )}
                       </div>
                     </div>
