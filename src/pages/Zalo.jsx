@@ -247,6 +247,35 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
   const running = bulkRunning;
   const uploadListRef = useRef(null);
 
+  const [panelWidths, setPanelWidths] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('zb_panelWidths') || '{}'); } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('zb_panelWidths', JSON.stringify(panelWidths)); } catch {}
+  }, [panelWidths]);
+
+  const handlePanelResizeStart = (panel, inverse = false) => (e) => {
+    e.preventDefault();
+    const defaults = { friends: 280, crm: 210, results: 168 };
+    const startX = e.clientX;
+    const startWidth = panelWidths[panel] ?? defaults[panel];
+    const onMouseMove = (ev) => {
+      const diff = ev.clientX - startX;
+      const newWidth = Math.max(140, Math.min(520, startWidth + (inverse ? -diff : diff)));
+      setPanelWidths(prev => ({ ...prev, [panel]: newWidth }));
+    };
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
   const handleDownloadList = () => {
     const toExport = phonebook.filter(c => selected.has(c.id));
     if (!toExport.length) {
@@ -492,7 +521,7 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
       <div className="zb-body">
 
         {/* ── LEFT: Friend list ── */}
-        <div className="zb-panel zb-panel-friends">
+        <div className="zb-panel zb-panel-friends" style={{ width: panelWidths.friends ?? 280 }}>
           <div className="zb-panel-head">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Checkbox
@@ -614,8 +643,10 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
           </div>
         </div>
 
+        <div className="zb-resize-handle" onMouseDown={handlePanelResizeStart('friends')} />
+
         {/* ── CRM Targets panel ── */}
-        <div className="zb-panel zb-panel-crm">
+        <div className="zb-panel zb-panel-crm" style={{ width: panelWidths.crm ?? 210 }}>
           <div className="zb-panel-head">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Checkbox
@@ -670,6 +701,8 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
             </div>
           )}
         </div>
+
+        <div className="zb-resize-handle" onMouseDown={handlePanelResizeStart('crm')} />
 
         {/* ── CENTER: Message config ── */}
         <div className="zb-center-col">
@@ -791,7 +824,8 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
         </div>
 
         {/* ── RIGHT: Results panel ── */}
-        <div className="zb-action-panel">
+        <div className="zb-resize-handle" onMouseDown={handlePanelResizeStart('results', true)} />
+        <div className="zb-action-panel" style={{ width: panelWidths.results ?? 168 }}>
           <div className="zb-results-header">
             <span className="zb-results-title">Kết quả gửi tin</span>
             {bulkResults.length > 0 && (
