@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Component } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Button, Input, Spin, Avatar, Tooltip, Tag,
@@ -10,6 +10,8 @@ import {
   PhoneOutlined, BulbOutlined, PlusOutlined,
   EditOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined,
   SyncOutlined, QrcodeOutlined,
+  PhoneFilled, VideoCameraFilled,
+  DownloadOutlined, UploadOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
@@ -31,6 +33,106 @@ function formatTime(ts) {
 
 function isPhoneQuery(s) {
   return (s || '').replace(/\D/g, '').length >= 6;
+}
+
+function parseDuration(secs) {
+  if (!secs) return '';
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+}
+
+function parseCallSticker(content) {
+  if (!content) return null;
+  try {
+    const d = typeof content === 'object' ? content : JSON.parse(content);
+    if (!d || typeof d !== 'object') return null;
+    // Cuộc gọi
+    if (d.title === 'sendBubbleMessage' || String(d.action || '').includes('call')) {
+      let p = {};
+      try { p = typeof d.params === 'string' ? JSON.parse(d.params) : (d.params || {}); } catch {}
+      return { _type: 'call', isVideo: p.calltype === 1, isCaller: !!p.isCaller, duration: p.duration || 0, hasCallback: !!p.isEnableCallback };
+    }
+    // Sticker Zalo (type 7)
+    if (d.type === 7 && d.catId != null) {
+      return { _type: 'sticker', url: `https://zalo-sticker.zadn.vn/${d.catId}/${d.id}.png` };
+    }
+    // GIF / animated: có trường url hoặc href trực tiếp
+    const gifUrl = d.url || d.href || d.normalUrl || d.hdUrl || d.thumbUrl || null;
+    if (gifUrl && typeof gifUrl === 'string') {
+      return { _type: 'gif', url: gifUrl };
+    }
+    // Icon / emoticon Zalo (type 1 hoặc type 2 với catId)
+    if ((d.type === 1 || d.type === 2) && d.catId != null) {
+      return { _type: 'sticker', url: `https://zalo-sticker.zadn.vn/${d.catId}/${d.id}.png` };
+    }
+    // Object không nhận ra — báo unsupported
+    return { _type: 'unsupported' };
+  } catch {
+    return null;
+  }
+}
+
+function StickerImg({ url, label }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', color: '#6b7280', fontSize: 13 }}>
+        <span style={{ fontSize: 22 }}>🎭</span>
+        <span style={{ fontStyle: 'italic' }}>{label || 'Sticker'}</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt={label || 'Sticker'}
+      style={{ width: 100, height: 100, objectFit: 'contain', display: 'block' }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function SpecialMsgContent({ content }) {
+  const parsed = parseCallSticker(content);
+  if (!parsed) return null;
+  if (parsed._type === 'sticker') {
+    return <StickerImg url={parsed.url} label="Sticker" />;
+  }
+  if (parsed._type === 'gif') {
+    return <StickerImg url={parsed.url} label="GIF" />;
+  }
+  if (parsed._type === 'call') {
+    const iconColor = '#22c55e';
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180, padding: '2px 0' }}>
+        <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#f0fdf4', border: `1.5px solid ${iconColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {parsed.isVideo ? <VideoCameraFilled style={{ color: iconColor, fontSize: 17 }} /> : <PhoneFilled style={{ color: iconColor, fontSize: 17 }} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: '#1f2937', lineHeight: 1.3 }}>
+            {parsed.isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} {parsed.isCaller ? 'đi' : 'đến'}
+          </div>
+          {parsed.duration > 0 && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>▶ {parseDuration(parsed.duration)}</div>}
+          {parsed.hasCallback && <div style={{ marginTop: 5, display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#0068ff', border: '1px solid #0068ff', borderRadius: 12, padding: '2px 10px' }}>GỌI LẠI</div>}
+        </div>
+      </div>
+    );
+  }
+  if (parsed._type === 'unsupported') {
+    return <div style={{ color: '#9ca3af', fontSize: 12, fontStyle: 'italic' }}>[Tin nhắn không hỗ trợ]</div>;
+  }
+  return null;
+}
+
+class MsgErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err) { console.error('Zalo msg render error:', err); }
+  render() {
+    if (this.state.hasError)
+      return <div style={{ padding: '4px 8px', color: '#9ca3af', fontSize: 12, fontStyle: 'italic' }}>Không thể hiển thị tin nhắn</div>;
+    return this.props.children;
+  }
 }
 
 function ZaloAvatar({ name, src, size = 40 }) {
@@ -143,6 +245,61 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
   };
 
   const running = bulkRunning;
+  const uploadListRef = useRef(null);
+
+  const handleDownloadList = () => {
+    const toExport = phonebook.filter(c => selected.has(c.id));
+    if (!toExport.length) {
+      antMessage.warning('Chưa tích chọn bạn bè nào để tải xuống');
+      return;
+    }
+    const lines = ['Tên hiển thị\tTên Zalo\tID Zalo'];
+    toExport.forEach(c => {
+      const tenHienThi = c.name || '';
+      const tenZalo = (c.displayName && c.displayName !== c.name) ? c.displayName : (c.name || '');
+      lines.push(`${tenHienThi}\t${tenZalo}\t${c.id}`);
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `danh_sach_zalo_${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    antMessage.success(`Đã tải xuống ${toExport.length} bạn bè`);
+  };
+
+  const handleUploadList = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result || '';
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const dataLines = lines[0]?.startsWith('Tên hiển thị') ? lines.slice(1) : lines;
+      const ids = new Set();
+      dataLines.forEach(line => {
+        const parts = line.split('\t');
+        const id = parts[2]?.trim();
+        if (id) ids.add(id);
+      });
+      const newSelected = new Set(selected);
+      let added = 0;
+      phonebook.forEach(c => {
+        if (ids.has(String(c.id)) && !newSelected.has(c.id)) {
+          newSelected.add(c.id);
+          added++;
+        }
+      });
+      setSelected(newSelected);
+      antMessage.success(`Đã chọn thêm ${added} bạn bè từ file (tổng: ${newSelected.size})`);
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
   const [addVisible, setAddVisible] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [modalContent, setModalContent] = useState('');
@@ -409,11 +566,37 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
               </div>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-              <Button size="small" type="primary" style={{ flex: 1 }}>Lọc</Button>
-              <Button size="small" style={{ flex: 1 }}
-                onClick={() => setSelected(new Set())}>
-                Bỏ chọn
-              </Button>
+              <input ref={uploadListRef} type="file" accept=".txt" style={{ display: 'none' }} onChange={handleUploadList} />
+              <Tooltip title={selected.size ? `Tải xuống ${selected.size} bạn đã chọn dưới dạng .txt` : 'Tích chọn bạn bè trước'}>
+                <Button
+                  size="small"
+                  icon={<DownloadOutlined />}
+                  onClick={handleDownloadList}
+                  disabled={!selected.size}
+                  style={{ flex: 1, borderColor: '#0068FF', color: '#0068FF', fontWeight: 600 }}
+                >
+                  Tải DS
+                </Button>
+              </Tooltip>
+              <Tooltip title="Tải lên file .txt để chọn lại đúng danh sách">
+                <Button
+                  size="small"
+                  icon={<UploadOutlined />}
+                  onClick={() => uploadListRef.current?.click()}
+                  style={{ flex: 1, borderColor: '#10B981', color: '#10B981', fontWeight: 600 }}
+                >
+                  Tải Lên
+                </Button>
+              </Tooltip>
+              <Tooltip title="Bỏ tích tất cả">
+                <Button
+                  size="small"
+                  onClick={() => setSelected(new Set())}
+                  style={{ flex: 1 }}
+                >
+                  Bỏ chọn
+                </Button>
+              </Tooltip>
             </div>
           </div>
         </div>
@@ -763,7 +946,7 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
     return () => clearInterval(t);
   }, []);
 
-  const merged = crmUsers.map((u) => {
+  const merged = crmUsers.filter((u) => u.active !== false).map((u) => {
     const live = liveSessions.find((s) => s.sessionId === u.username);
     return {
       username: u.username,
@@ -1007,7 +1190,7 @@ export default function Zalo() {
                 id: uid,
                 name: conv.contactName && conv.contactName !== uid ? conv.contactName : (ws.name || uid),
                 avatar: conv.avatar || ws.avatar || null,
-                lastMsg: conv.lastMessage || ws.lastMsg || '',
+                lastMsg: (typeof conv.lastMessage === 'string' ? conv.lastMessage : '') || (typeof ws.lastMsg === 'string' ? ws.lastMsg : '') || '',
                 time: conv.updatedAt ? new Date(conv.updatedAt).getTime() : (ws.time || 0),
                 unread: ws.unread || 0,
                 _convId: conv.conversationId,
@@ -1063,7 +1246,10 @@ export default function Zalo() {
           }
         }
         if (msg.type === 'logged_in') { setQrData(null); setQrCanvas(null); }
-        if (msg.type === 'contacts') setContacts(msg.data || []);
+        if (msg.type === 'contacts') setContacts((msg.data || []).map(c => ({
+          ...c,
+          lastMsg: typeof c.lastMsg === 'string' ? c.lastMsg : '',
+        })));
         if (msg.type === 'phonebook') setPhonebook(msg.data || []);
         if (msg.type === 'phonebook_loading') setPhonebookLoading(msg.loading);
         if (msg.type === 'search_loading') setSearchLoading(msg.loading);
@@ -1914,7 +2100,7 @@ export default function Zalo() {
                         {c.name}
                       </div>
                       <div className="zalo-contact-last" style={{ fontWeight: c.unread > 0 ? 600 : 400, color: c.unread > 0 ? '#059669' : undefined }}>
-                        {c.lastMsg || '—'}
+                        {(typeof c.lastMsg === 'string' ? c.lastMsg : '') || '—'}
                       </div>
                     </div>
                     <div className="zalo-contact-time">{formatTime(c.time)}</div>
@@ -2228,6 +2414,7 @@ export default function Zalo() {
                           {!isSelf && (
                             <ZaloAvatar name={activeContact.name} src={activeContact.avatar} size={28} />
                           )}
+                          <MsgErrorBoundary key={`eb-${m.msgId || i}`}>
                           <div className={`zalo-msg-bubble ${isSelf ? 'self' : 'other'}`}>
                             {(() => {
                               const imgUrl = m.imageUrl || m.images?.[0]?.url || null;
@@ -2252,9 +2439,15 @@ export default function Zalo() {
                                 />
                               );
                             })()}
-                            {m.content && m.msgType !== 'image' && <div className="zalo-msg-content">{m.content}</div>}
+                            {m.content && m.msgType !== 'image' && (() => {
+                              const special = parseCallSticker(m.content);
+                              if (special) return <SpecialMsgContent content={m.content} />;
+                              const txt = typeof m.content === 'string' ? m.content : null;
+                              return txt ? <div className="zalo-msg-content">{txt}</div> : null;
+                            })()}
                             <span className="zalo-msg-time">{formatTime(m.time)}</span>
                           </div>
+                          </MsgErrorBoundary>
                         </div>
                       );
                   })}
