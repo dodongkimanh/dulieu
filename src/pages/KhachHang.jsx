@@ -948,7 +948,7 @@ export default function KhachHang() {
           ]}
           style={{ marginBottom: 0 }}
         />
-        {canManage && selectedRowKeys.length > 0 && (
+        {selectedRowKeys.length > 0 && (
           <div style={{
             background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)',
             border: '1px solid #C7D2FE',
@@ -965,14 +965,16 @@ export default function KhachHang() {
               <span style={{ fontWeight: 600, color: '#3730A3', fontSize: 14 }}>khách hàng đã chọn</span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button
-                type="primary"
-                icon={<SwapOutlined />}
-                onClick={() => setBulkTransferModal({ open: true, sale: null })}
-                style={{ background: '#06B6D4', borderColor: '#06B6D4', fontWeight: 600, borderRadius: 8 }}
-              >
-                Chuyển Sale ({selectedRowKeys.length})
-              </Button>
+              {canManage && (
+                <Button
+                  type="primary"
+                  icon={<SwapOutlined />}
+                  onClick={() => setBulkTransferModal({ open: true, sale: null })}
+                  style={{ background: '#06B6D4', borderColor: '#06B6D4', fontWeight: 600, borderRadius: 8 }}
+                >
+                  Chuyển Sale ({selectedRowKeys.length})
+                </Button>
+              )}
               <Button
                 onClick={() => setSelectedRowKeys([])}
                 style={{ borderRadius: 8, fontWeight: 500 }}
@@ -993,13 +995,13 @@ export default function KhachHang() {
           rowKey="id"
           loading={loading}
           rowClassName={(record) => record.status === 'uu_tien' ? 'row-uu-tien' : ''}
-          rowSelection={canManage ? {
+          rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
             columnWidth: 42,
             fixed: true,
             getCheckboxProps: () => ({ style: { transform: 'scale(1.15)' } }),
-          } : undefined}
+          }}
           pagination={{ ...pagination, showSizeChanger: true, pageSizeOptions: ['30', '50', '100'], showTotal: (t) => `Tổng ${t} khách hàng` }}
           onChange={handleTableChange}
           scroll={{ x: 1200 }}
