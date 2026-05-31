@@ -1698,7 +1698,7 @@ export default function Zalo() {
   const totalUnread = contacts.reduce((sum, c) => sum + (c.unread || 0), 0);
 
   const filteredContacts = contacts.filter((c) =>
-    c.name?.toLowerCase().includes(search.toLowerCase())
+    !c.isGroup && c.name?.toLowerCase().includes(search.toLowerCase())
   );
 
   const filteredPhonebook = phonebook.filter((c) => {
