@@ -1169,6 +1169,29 @@ export default function Zalo() {
   const [qrData, setQrData] = useState(null);   // ảnh QR (data URL) từ VPS screenshot
   const [qrCanvas, setQrCanvas] = useState(null); // QR được vẽ lại từ qrText (sắc nét hơn)
   const [myInfo, setMyInfo] = useState({ name: null, phone: null, uid: null });
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    try { return Number(localStorage.getItem('zalo_sidebarWidth') || 0) || 468; } catch { return 468; }
+  });
+  const handleSidebarResizeStart = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = sidebarWidth;
+    const onMove = (ev) => {
+      const newW = Math.max(240, Math.min(640, startW + (ev.clientX - startX)));
+      setSidebarWidth(newW);
+      try { localStorage.setItem('zalo_sidebarWidth', newW); } catch {}
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
   const [contacts, setContacts] = useState([]);
   const [phonebook, setPhonebook] = useState([]);
   const [phonebookLoading, setPhonebookLoading] = useState(false);
@@ -1967,7 +1990,7 @@ export default function Zalo() {
       <div className="zalo-chat-layout">
 
         {/* ── Sidebar ── */}
-        <div className="zalo-sidebar">
+        <div className="zalo-sidebar" style={{ width: sidebarWidth, minWidth: 240 }}>
 
           {/* Header row — account info + controls */}
           <div className="zalo-sidebar-header">
@@ -2391,6 +2414,9 @@ export default function Zalo() {
             </div>
           )}
         </div>
+
+        {/* ── Sidebar resize handle ── */}
+        <div className="zb-resize-handle" onMouseDown={handleSidebarResizeStart} />
 
         {/* ── Main area ── */}
         {/* BulkSend is always mounted (display:none when inactive) to preserve selected/template state */}
