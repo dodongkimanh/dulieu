@@ -77,6 +77,86 @@ function SessionStatusStrip({ sessionPills, sessionContacts }) {
   );
 }
 
+function parseDuration(secs) {
+  if (!secs) return '';
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
+}
+
+function parseCallSticker(content) {
+  if (!content) return null;
+  try {
+    const d = typeof content === 'object' ? content : JSON.parse(content);
+    if (!d || typeof d !== 'object') return null;
+    if (d.title === 'sendBubbleMessage' || String(d.action || '').includes('call')) {
+      let p = {};
+      try { p = typeof d.params === 'string' ? JSON.parse(d.params) : (d.params || {}); } catch {}
+      return { _type: 'call', isVideo: p.calltype === 1, isCaller: !!p.isCaller, duration: p.duration || 0, hasCallback: !!p.isEnableCallback };
+    }
+    if (d.type === 7 && d.catId != null) {
+      return { _type: 'sticker', url: `https://zalo-sticker.zadn.vn/${d.catId}/${d.id}.png` };
+    }
+    // GIF / animated có URL trực tiếp
+    const gifUrl = d.url || d.href || d.normalUrl || d.hdUrl || null;
+    if (gifUrl && typeof gifUrl === 'string') return { _type: 'sticker', url: gifUrl };
+    // Icon / emoticon type 1 hoặc 2 với catId
+    if ((d.type === 1 || d.type === 2) && d.catId != null) {
+      return { _type: 'sticker', url: `https://zalo-sticker.zadn.vn/${d.catId}/${d.id}.png` };
+    }
+    return { _type: 'unsupported' };
+  } catch {}
+  return null;
+}
+
+function StickerImgTNTH({ url }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', color: '#6b7280', fontSize: 13 }}>
+        <span style={{ fontSize: 22 }}>🎭</span>
+        <span style={{ fontStyle: 'italic' }}>Sticker</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt="Sticker"
+      style={{ width: 100, height: 100, objectFit: 'contain', display: 'block' }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function SpecialMsgContent({ content }) {
+  const parsed = parseCallSticker(content);
+  if (!parsed) return null;
+  if (parsed._type === 'sticker') {
+    return <StickerImgTNTH url={parsed.url} />;
+  }
+  if (parsed._type === 'unsupported') {
+    return <div style={{ color: '#9ca3af', fontSize: 12, fontStyle: 'italic' }}>[Tin nhắn không hỗ trợ]</div>;
+  }
+  if (parsed._type === 'call') {
+    const iconColor = '#22c55e';
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180, padding: '2px 0' }}>
+        <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#f0fdf4', border: `1.5px solid ${iconColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {parsed.isVideo ? <VideoCameraFilled style={{ color: iconColor, fontSize: 17 }} /> : <PhoneFilled style={{ color: iconColor, fontSize: 17 }} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: '#1f2937', lineHeight: 1.3 }}>
+            {parsed.isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} {parsed.isCaller ? 'đi' : 'đến'}
+          </div>
+          {parsed.duration > 0 && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>▶ {parseDuration(parsed.duration)}</div>}
+          {parsed.hasCallback && <div style={{ marginTop: 5, display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#0068ff', border: '1px solid #0068ff', borderRadius: 12, padding: '2px 10px' }}>GỌI LẠI</div>}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
 function CallBubble({ callInfo }) {
   const isVideo = callInfo.type === 'video_call';
   const isMissed = callInfo.direction === 'missed';
@@ -177,7 +257,10 @@ export default function TinNhanTongHop() {
         const msg = JSON.parse(e.data);
 
         if (msg.type === 'contacts') {
-          setSessionContacts((prev) => ({ ...prev, [username]: msg.data || [] }));
+          setSessionContacts((prev) => ({ ...prev, [username]: (msg.data || []).map(c => ({
+            ...c,
+            lastMsg: typeof c.lastMsg === 'string' ? c.lastMsg : '',
+          })) }));
         }
 
         if (msg.type === 'my_info' && msg.data?.name) {
@@ -185,20 +268,22 @@ export default function TinNhanTongHop() {
         }
 
         if (msg.type === 'new_message' && msg.data) {
+          const tid = String(msg.data.threadId || '');
+          const nowSec = Math.floor((msg.data.timestamp || Date.now()) / 1000);
+          const preview = typeof msg.data.content === 'string' ? msg.data.content : '';
           setSessionContacts((prev) => {
             const contacts = prev[username] || [];
-            const exists = contacts.some((c) => c.id === msg.data.from);
-            const updated = exists
-              ? contacts.map((c) =>
-                  c.id === msg.data.from
-                    ? { ...c, unread: (c.unread || 0) + 1, lastMsg: msg.data.content, time: msg.data.time }
-                    : c
-                )
-              : contacts;
+            const target = contacts.find((c) => c.id === tid);
+            if (!target) return prev;
+            const rest = contacts.filter((c) => c.id !== tid);
+            const updated = [
+              { ...target, unread: msg.data.isSelf ? (target.unread || 0) : (target.unread || 0) + 1, lastMsg: preview || target.lastMsg, time: nowSec },
+              ...rest,
+            ];
             return { ...prev, [username]: updated };
           });
           const conv = activeConvRef.current;
-          if (conv?.sessionId === username && conv?.contact?.id === msg.data.from) {
+          if (conv?.sessionId === username && conv?.contact?.id === tid) {
             setMessages((prev) => {
               const exists = prev.some((m) => m.msgId && m.msgId === msg.data.msgId);
               return exists ? prev : [...prev, msg.data];
@@ -215,15 +300,17 @@ export default function TinNhanTongHop() {
         }
 
         if (msg.type === 'new_message_notify') {
+          const nowSec = Math.floor(Date.now() / 1000);
+          const previewStr = typeof msg.preview === 'string' ? msg.preview : '';
           setSessionContacts((prev) => {
             const contacts = prev[username] || [];
-            const exists = contacts.some((c) => c.id === msg.contactId || c.name === msg.contactName);
-            if (!exists) return prev;
-            const updated = contacts.map((c) =>
-              c.id === msg.contactId || c.name === msg.contactName
-                ? { ...c, unread: msg.unread ?? (c.unread || 0) + 1, lastMsg: msg.preview ?? c.lastMsg }
-                : c
-            );
+            const target = contacts.find((c) => c.id === msg.contactId || c.name === msg.contactName);
+            if (!target) return prev;
+            const rest = contacts.filter((c) => c.id !== target.id);
+            const updated = [
+              { ...target, unread: (target.unread || 0) + 1, lastMsg: previewStr || target.lastMsg, time: nowSec },
+              ...rest,
+            ];
             return { ...prev, [username]: updated };
           });
         }
@@ -245,7 +332,8 @@ export default function TinNhanTongHop() {
   }, []);
 
   useEffect(() => {
-    const loggedIn = liveSessions.filter((s) => s.status === 'logged_in').map((s) => s.sessionId);
+    const activeUsernames = new Set(crmUsers.filter(u => u.active !== false).map(u => u.username));
+    const loggedIn = liveSessions.filter((s) => s.status === 'logged_in' && activeUsernames.has(s.sessionId)).map((s) => s.sessionId);
 
     loggedIn.forEach((sid) => connectSession(sid));
 
@@ -259,7 +347,7 @@ export default function TinNhanTongHop() {
         setSessionContacts((prev) => { const n = { ...prev }; delete n[username]; return n; });
       }
     });
-  }, [liveSessions, connectSession]);
+  }, [liveSessions, connectSession, crmUsers]);
 
   useEffect(() => {
     return () => {
@@ -276,7 +364,7 @@ export default function TinNhanTongHop() {
   }, [messages]);
 
   const sessionPills = useMemo(() =>
-    crmUsers.map((u) => {
+    crmUsers.filter((u) => u.active !== false).map((u) => {
       const live = liveSessions.find((s) => s.sessionId === u.username);
       return {
         username: u.username,
@@ -293,6 +381,7 @@ export default function TinNhanTongHop() {
     Object.entries(sessionContacts).forEach(([sessionId, contacts]) => {
       const u = crmUsers.find((x) => x.username === sessionId);
       contacts.forEach((c) => {
+        if (c.isGroup) return; // ẩn nhóm
         result.push({ ...c, sessionId, sessionLabel: u?.fullName || sessionId });
       });
     });
@@ -469,7 +558,7 @@ export default function TinNhanTongHop() {
                         {c.lastMsg || <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>Chưa có tin nhắn</span>}
                       </div>
                     </div>
-                    <div className="zalo-contact-time" style={{ flexShrink: 0 }}>{c.timeStr || ''}</div>
+                    <div className="zalo-contact-time" style={{ flexShrink: 0 }}>{formatTime(c.time) || c.timeStr || ''}</div>
                   </div>
                 );
               })
@@ -541,6 +630,8 @@ export default function TinNhanTongHop() {
                         <div className={`zalo-msg-bubble ${isSelf ? 'self' : 'other'}${m.callInfo ? ' call-bubble' : ''}`}>
                           {m.callInfo ? (
                             <CallBubble callInfo={m.callInfo} isSelf={isSelf} />
+                          ) : parseCallSticker(m.content) ? (
+                            <SpecialMsgContent content={m.content} />
                           ) : (
                             <>
                               {m.imageUrl && (
@@ -552,7 +643,7 @@ export default function TinNhanTongHop() {
                                   onError={(e) => { e.target.style.display = 'none'; }}
                                 />
                               )}
-                              {m.content && <div className="zalo-msg-content">{m.content}</div>}
+                              {m.content && typeof m.content === 'string' && <div className="zalo-msg-content">{m.content}</div>}
                             </>
                           )}
                           <span className="zalo-msg-time">{formatTime(m.time)}</span>
