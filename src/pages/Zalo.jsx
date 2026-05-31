@@ -411,8 +411,8 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
               <Button size="small" type="primary" style={{ flex: 1 }}>Lọc</Button>
               <Button size="small" style={{ flex: 1 }}
-                onClick={() => setFilter({ keyword: '', ageFrom: 0, ageTo: 99, gender: 'All' })}>
-                Đặt lại
+                onClick={() => setSelected(new Set())}>
+                Bỏ chọn
               </Button>
             </div>
           </div>
