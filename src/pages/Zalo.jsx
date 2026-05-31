@@ -1172,6 +1172,7 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
       zcaMode: live?.zcaMode || false,
       zcaConnected: live?.zcaConnected ?? null,
       zcaLastPing: live?.zcaLastPing || null,
+      proxy: live?.proxy || null,
     };
   });
 
@@ -1246,6 +1247,14 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
             )}
             {crmCount > 0 && (
               <span className="zadmin-pill-crm">{crmCount} CRM</span>
+            )}
+            {u.proxy && (
+              <span
+                className="zadmin-pill-proxy"
+                title={`Proxy: ${u.proxy}`}
+              >
+                🌐 {u.proxy}
+              </span>
             )}
             <span className="zadmin-pill-status">{statusText(u)}</span>
             {u.status === 'logged_in' && (
@@ -1387,6 +1396,10 @@ export default function Zalo() {
   const [friendReqLoading, setFriendReqLoading] = useState({});
   const [crmAllGroups, setCrmAllGroups] = useState({});
   const [syncTarget, setSyncTarget] = useState(null); // { sessionId, label }
+  const [proxyInput, setProxyInput] = useState(() => {
+    try { return localStorage.getItem(`zalo_proxy_${effectiveSessionId}`) || ''; } catch { return ''; }
+  });
+  const [sessionProxy, setSessionProxy] = useState(null); // proxy đang dùng (display)
   const wsRef = useRef(null);
   const messagesEndRef = useRef(null);
   const reconnectTimer = useRef(null);
@@ -1464,7 +1477,13 @@ export default function Zalo() {
         const msg = JSON.parse(e.data);
         if (msg.type === 'status') {
           setStatus(msg.status);
-          if (msg.status === 'logged_in') setZcaDisconnected(false);
+          if (msg.status === 'logged_in') {
+            setZcaDisconnected(false);
+            // Load proxy đang dùng
+            fetch(`${SERVICE_BASE}/get-proxy${qp}`).then(r => r.json()).then(d => {
+              setSessionProxy(d.proxyDisplay || null);
+            }).catch(() => {});
+          }
         }
         if (msg.type === 'zca_disconnected') {
           setZcaDisconnected(true);
@@ -1721,8 +1740,14 @@ export default function Zalo() {
     setStatus('waiting_qr');
     setQrData(null);
     setQrCanvas(null);
+    // Lưu proxy vào localStorage
+    try { localStorage.setItem(`zalo_proxy_${effectiveSessionId}`, proxyInput); } catch {}
     try {
-      await fetch(`${SERVICE_BASE}/zca-qr-login${qp}`, { method: 'POST' });
+      await fetch(`${SERVICE_BASE}/zca-qr-login${qp}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proxy: proxyInput.trim() || null }),
+      });
     } catch { /* ignore */ }
   };
 
@@ -1897,6 +1922,25 @@ export default function Zalo() {
             <Tag color="blue" style={{ fontSize: 13, padding: '2px 10px', marginBottom: 20 }}>
               Tài khoản: <strong>{effectiveSessionId}</strong>
             </Tag>
+            {/* Proxy input */}
+            <div style={{ width: '100%', maxWidth: 320, marginBottom: 16 }}>
+              <Input
+                prefix={<span style={{ fontSize: 13 }}>🌐</span>}
+                placeholder="Proxy: http://user:pass@ip:port (tuỳ chọn)"
+                value={proxyInput}
+                onChange={e => {
+                  setProxyInput(e.target.value);
+                  try { localStorage.setItem(`zalo_proxy_${effectiveSessionId}`, e.target.value); } catch {}
+                }}
+                style={{ fontSize: 12, borderRadius: 8 }}
+                allowClear
+              />
+              {proxyInput && (
+                <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4, paddingLeft: 4 }}>
+                  Tài khoản này sẽ kết nối qua proxy
+                </div>
+              )}
+            </div>
             <Button
               type="primary"
               size="large"
@@ -2191,6 +2235,15 @@ export default function Zalo() {
                 <Tooltip title="zca-js mất kết nối với Zalo — tin nhắn có thể bị trễ. Đang tự động thử lại...">
                   <Tag icon={<DisconnectOutlined />} color="error" style={{ margin: 0, cursor: 'default', fontSize: 11, animation: 'pulse-red 2s infinite' }}>
                     Mất kết nối Zalo
+                  </Tag>
+                </Tooltip>
+              )}
+              {sessionProxy && (
+                <Tooltip title={`Proxy: ${sessionProxy}`}>
+                  <Tag
+                    style={{ margin: 0, cursor: 'default', fontSize: 11, background: '#EFF6FF', borderColor: '#BFDBFE', color: '#1D4ED8' }}
+                  >
+                    🌐 {sessionProxy}
                   </Tag>
                 </Tooltip>
               )}
