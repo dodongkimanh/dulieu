@@ -277,25 +277,38 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
     e.target.value = '';
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const text = ev.target.result || '';
-      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-      const dataLines = lines[0]?.startsWith('Tên hiển thị') ? lines.slice(1) : lines;
-      const ids = new Set();
+      const text = (ev.target.result || '').replace(/^﻿/, ''); // strip BOM
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      // skip header line if present
+      const dataLines = lines[0]?.includes('Tên hiển thị') || lines[0]?.includes('ID Zalo')
+        ? lines.slice(1) : lines;
+      const fileIds = new Set();
+      const fileNames = new Set();
       dataLines.forEach(line => {
         const parts = line.split('\t');
         const id = parts[2]?.trim();
-        if (id) ids.add(id);
+        const name0 = parts[0]?.trim();
+        const name1 = parts[1]?.trim();
+        if (id && id !== 'ID Zalo') fileIds.add(id);
+        if (name0) fileNames.add(name0);
+        if (name1) fileNames.add(name1);
       });
       const newSelected = new Set(selected);
       let added = 0;
       phonebook.forEach(c => {
-        if (ids.has(String(c.id)) && !newSelected.has(c.id)) {
+        const byId = fileIds.has(String(c.id));
+        const byName = fileNames.has(c.name) || fileNames.has(c.displayName);
+        if ((byId || byName) && !newSelected.has(c.id)) {
           newSelected.add(c.id);
           added++;
         }
       });
       setSelected(newSelected);
-      antMessage.success(`Đã chọn thêm ${added} bạn bè từ file (tổng: ${newSelected.size})`);
+      if (added > 0) {
+        antMessage.success(`Đã chọn thêm ${added} bạn bè từ file (tổng: ${newSelected.size})`);
+      } else {
+        antMessage.warning('Không khớp được bạn bè nào — thử tải lại danh bạ rồi upload lại');
+      }
     };
     reader.readAsText(file, 'utf-8');
   };
