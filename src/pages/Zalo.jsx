@@ -11,7 +11,7 @@ import {
   EditOutlined, DeleteOutlined, PlayCircleOutlined, StopOutlined,
   SyncOutlined, QrcodeOutlined,
   PhoneFilled, VideoCameraFilled,
-  DownloadOutlined, UploadOutlined,
+  DownloadOutlined, UploadOutlined, EyeOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
@@ -210,6 +210,7 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
   const [templates, setTemplates] = useState(() => loadLS('zalo_templates', DEFAULT_TEMPLATES).map(migrateTemplate));
   const [groups, setGroups] = useState(() => loadLS('zalo_template_groups', DEFAULT_GROUPS));
   const [selectedTpls, setSelectedTpls] = useState(new Set());
+  const [previewTpl, setPreviewTpl] = useState(null);
   const [expandedGroups, setExpandedGroups] = useState(() => new Set(['g1','g2','g3','g4','g5','__none__']));
   const [editingGroupId, setEditingGroupId] = useState(null);
   const [editingGroupName, setEditingGroupName] = useState('');
@@ -800,6 +801,13 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
                   {t.videos?.length > 0 && `📹 ${t.videos.length}`}
                   {!t.images?.length && !t.videos?.length && 'Chưa có'}
                 </span>
+                <Button
+                  size="small" type="text"
+                  icon={<EyeOutlined />}
+                  style={{ padding: '0 4px', flexShrink: 0, color: '#94a3b8' }}
+                  title="Xem trước"
+                  onClick={(e) => { e.stopPropagation(); setPreviewTpl(t); }}
+                />
               </div>
             );
             return (
@@ -1131,6 +1139,80 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
             )}
           </div>
         </div>
+      </Modal>
+
+      {/* Preview template modal */}
+      <Modal
+        open={!!previewTpl}
+        onCancel={() => setPreviewTpl(null)}
+        footer={null}
+        title={<span><EyeOutlined style={{ marginRight: 8, color: '#0068FF' }} />Xem trước mẫu tin nhắn</span>}
+        width={640}
+        destroyOnClose
+      >
+        {previewTpl && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Nội dung văn bản
+              </div>
+              <div style={{ background: '#f8fafc', borderRadius: 8, padding: '12px 14px', fontSize: 13, lineHeight: 1.7, color: '#1e293b', whiteSpace: 'pre-wrap', border: '1px solid #e2e8f0', minHeight: 48 }}>
+                {previewTpl.content || <span style={{ color: '#9ca3af' }}>Không có nội dung văn bản</span>}
+              </div>
+            </div>
+
+            {previewTpl.images?.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Ảnh đính kèm ({previewTpl.images.length})
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
+                  {previewTpl.images.map((url, i) => (
+                    <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: 6, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                      <img
+                        src={url}
+                        alt={`Ảnh ${i + 1}`}
+                        style={{ width: '100%', height: 120, objectFit: 'cover', display: 'block' }}
+                        onError={(e) => { e.target.style.cssText = 'width:100%;height:120px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;'; e.target.alt = '⚠️ Không tải được ảnh'; }}
+                      />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {previewTpl.videos?.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Video đính kèm ({previewTpl.videos.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {previewTpl.videos.map((url, i) => {
+                    const isHttp = url?.startsWith('http');
+                    return (
+                      <div key={i} style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#000' }}>
+                        {isHttp ? (
+                          <video src={url} controls style={{ width: '100%', maxHeight: 260, display: 'block' }} />
+                        ) : (
+                          <div style={{ background: '#f8fafc', padding: '10px 14px', fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>📹</span>
+                            <span style={{ wordBreak: 'break-all' }}>{url}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {!previewTpl.content && !previewTpl.images?.length && !previewTpl.videos?.length && (
+              <div style={{ textAlign: 'center', color: '#9ca3af', padding: '24px 0', fontSize: 13 }}>
+                Mẫu tin nhắn trống
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );
