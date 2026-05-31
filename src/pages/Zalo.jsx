@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, Component } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Component } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Button, Input, Spin, Avatar, Tooltip, Tag,
@@ -159,21 +159,33 @@ const OPERATION_TABS = [
 ];
 
 // ── Bulk Send Component ──────────────────────────────────────────────────────
-const DEFAULT_TEMPLATES = [
-  { id: 1, content: 'Em Chào Bác. Xuống Đồ Đồng Tư...', images: [] },
-  { id: 2, content: 'Cuối Năm Xuống Nhà Em Đang Ưu Đãi...', images: [] },
-  { id: 3, content: 'Cuối Năm Bên Em Ưu Đãi Đặc Biệt...', images: [] },
-  { id: 4, content: 'Ưu Đãi Đặc Biệt Sắm Sửa Cho Tết...', images: [] },
-  { id: 5, content: 'Xuống Đúc Đồng Tường Phát Xin...', images: [] },
-  { id: 6, content: '{Nhân Dịp} {Chương trình} Sự Kiện!...', images: [] },
+const DEFAULT_GROUPS = [
+  { id: 'g1', name: 'Nhóm Tranh' },
+  { id: 'g2', name: 'Nhóm Đỉnh Đồng' },
+  { id: 'g3', name: 'Nhóm Cuốn Thư' },
+  { id: 'g4', name: 'Nhóm Tổng Hợp' },
+  { id: 'g5', name: 'Nhóm Kính Chúc' },
 ];
 
-// migrate template cũ dùng image (string) → images (array)
+const DEFAULT_TEMPLATES = [
+  { id: 1, groupId: null, content: 'Em Chào Bác. Xuống Đồ Đồng Tư...', images: [], videos: [] },
+  { id: 2, groupId: null, content: 'Cuối Năm Xuống Nhà Em Đang Ưu Đãi...', images: [], videos: [] },
+  { id: 3, groupId: null, content: 'Cuối Năm Bên Em Ưu Đãi Đặc Biệt...', images: [], videos: [] },
+  { id: 4, groupId: null, content: 'Ưu Đãi Đặc Biệt Sắm Sửa Cho Tết...', images: [], videos: [] },
+  { id: 5, groupId: null, content: 'Xuống Đúc Đồng Tường Phát Xin...', images: [], videos: [] },
+  { id: 6, groupId: null, content: '{Nhân Dịp} {Chương trình} Sự Kiện!...', images: [], videos: [] },
+];
+
 function migrateTemplate(t) {
-  if (Array.isArray(t.images)) return t;
-  const imgs = t.image ? [t.image] : [];
-  const { image: _drop, ...rest } = t;
-  return { ...rest, images: imgs };
+  let r = t;
+  if (!Array.isArray(r.images)) {
+    const imgs = r.image ? [r.image] : [];
+    const { image: _d, ...rest } = r;
+    r = { ...rest, images: imgs };
+  }
+  if (!Array.isArray(r.videos)) r = { ...r, videos: [] };
+  if (!('groupId' in r)) r = { ...r, groupId: null };
+  return r;
 }
 
 function loadLS(key, fallback) {
@@ -196,7 +208,11 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
   const [selected, setSelected] = useState(new Set());
   const [selectedCrm, setSelectedCrm] = useState(new Set());
   const [templates, setTemplates] = useState(() => loadLS('zalo_templates', DEFAULT_TEMPLATES).map(migrateTemplate));
+  const [groups, setGroups] = useState(() => loadLS('zalo_template_groups', DEFAULT_GROUPS));
   const [selectedTpls, setSelectedTpls] = useState(new Set());
+  const [expandedGroups, setExpandedGroups] = useState(() => new Set(['g1','g2','g3','g4','g5','__none__']));
+  const [editingGroupId, setEditingGroupId] = useState(null);
+  const [editingGroupName, setEditingGroupName] = useState('');
   const [sendMode, setSendMode] = useState(() => loadLS('zalo_sendMode', 'random'));
   const [concurrency, setConcurrency] = useState(() => loadLS('zalo_concurrency', 1));
   const [delayMin, setDelayMin] = useState(() => loadLS('zalo_delayMin', 3));
@@ -214,6 +230,7 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
   // Persist settings to localStorage — single effect covers all settings
   useEffect(() => {
     localStorage.setItem('zalo_templates', JSON.stringify(templates));
+    localStorage.setItem('zalo_template_groups', JSON.stringify(groups));
     localStorage.setItem('zalo_sendMode', JSON.stringify(sendMode));
     localStorage.setItem('zalo_concurrency', JSON.stringify(concurrency));
     localStorage.setItem('zalo_delayMin', JSON.stringify(delayMin));
@@ -227,7 +244,7 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
     localStorage.setItem('zalo_randomFriend', JSON.stringify(randomFriend));
     localStorage.setItem('zalo_fromIndex', JSON.stringify(fromIndex));
     localStorage.setItem('zalo_targetCount', JSON.stringify(targetCount));
-  }, [templates, sendMode, concurrency, delayMin, delayMax, sendTimeMin, sendTimeMax,
+  }, [templates, groups, sendMode, concurrency, delayMin, delayMax, sendTimeMin, sendTimeMax,
       pauseAfter, pauseMinutes, errorPause, repeat, randomFriend, fromIndex, targetCount]);
   // Auto-select tất cả CRM targets khi mới nhận
   useEffect(() => {
@@ -346,6 +363,8 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
   const [editTarget, setEditTarget] = useState(null);
   const [modalContent, setModalContent] = useState('');
   const [modalImages, setModalImages] = useState([]);
+  const [modalVideos, setModalVideos] = useState([]);
+  const [modalGroupId, setModalGroupId] = useState(null);
 
   const filteredPb = phonebook.filter((c) => {
     if (filter.keyword) {
@@ -382,10 +401,12 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
     });
   };
 
-  const openAdd = () => {
+  const openAdd = (defaultGroupId = null) => {
     setEditTarget(null);
     setModalContent('');
     setModalImages([]);
+    setModalVideos([]);
+    setModalGroupId(defaultGroupId);
     setAddVisible(true);
   };
 
@@ -397,18 +418,26 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
     setEditTarget(id);
     setModalContent(t.content);
     setModalImages(Array.isArray(t.images) ? [...t.images] : []);
+    setModalVideos(Array.isArray(t.videos) ? [...t.videos] : []);
+    setModalGroupId(t.groupId || null);
     setAddVisible(true);
   };
 
   const saveTemplate = () => {
     if (!modalContent.trim()) return antMessage.warning('Nhập nội dung tin nhắn');
     const cleanImages = modalImages.map(s => s.trim()).filter(Boolean);
+    const cleanVideos = modalVideos.map(s => s.trim()).filter(Boolean);
     if (editTarget) {
       setTemplates((prev) =>
-        prev.map((t) => (t.id === editTarget ? { ...t, content: modalContent, images: cleanImages } : t))
+        prev.map((t) => t.id === editTarget
+          ? { ...t, content: modalContent, images: cleanImages, videos: cleanVideos, groupId: modalGroupId }
+          : t)
       );
     } else {
-      setTemplates((prev) => [...prev, { id: Date.now(), content: modalContent, images: cleanImages }]);
+      setTemplates((prev) => [...prev, {
+        id: Date.now(), groupId: modalGroupId,
+        content: modalContent, images: cleanImages, videos: cleanVideos,
+      }]);
     }
     setAddVisible(false);
   };
@@ -416,6 +445,44 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
   const deleteTpls = () => {
     setTemplates((prev) => prev.filter((t) => !selectedTpls.has(t.id)));
     setSelectedTpls(new Set());
+  };
+
+  const toggleExpandGroup = (gid) => {
+    setExpandedGroups((prev) => {
+      const s = new Set(prev);
+      s.has(gid) ? s.delete(gid) : s.add(gid);
+      return s;
+    });
+  };
+
+  const selectAllInGroup = (gid, tplsInGroup) => {
+    const ids = tplsInGroup.map(t => t.id);
+    const allSelected = ids.every(id => selectedTpls.has(id));
+    setSelectedTpls((prev) => {
+      const s = new Set(prev);
+      if (allSelected) ids.forEach(id => s.delete(id));
+      else ids.forEach(id => s.add(id));
+      return s;
+    });
+  };
+
+  const addGroup = () => {
+    const name = `Nhóm mới ${groups.length + 1}`;
+    const newId = `g_${Date.now()}`;
+    setGroups(prev => [...prev, { id: newId, name }]);
+    setEditingGroupId(newId);
+    setEditingGroupName(name);
+  };
+
+  const saveGroupName = () => {
+    if (!editingGroupName.trim()) return;
+    setGroups(prev => prev.map(g => g.id === editingGroupId ? { ...g, name: editingGroupName.trim() } : g));
+    setEditingGroupId(null);
+  };
+
+  const deleteGroup = (gid) => {
+    setTemplates(prev => prev.map(t => t.groupId === gid ? { ...t, groupId: null } : t));
+    setGroups(prev => prev.filter(g => g.id !== gid));
   };
 
   const handleStart = () => {
@@ -708,45 +775,116 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
         <div className="zb-center-col">
 
           {/* Card: Templates */}
-          <div className="zb-card">
-            <div className="zb-card-head">
-              <span className="zb-card-title">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#0068FF" style={{ marginRight: 6 }}>
-                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-                </svg>
-                Mẫu tin nhắn
-              </span>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <Button size="small" onClick={() => setSelectedTpls(new Set(templates.map((t) => t.id)))}>
-                  Chọn tất cả
-                </Button>
-                <Button size="small" type="primary" icon={<PlusOutlined />} onClick={openAdd}>Thêm</Button>
-                <Button size="small" icon={<EditOutlined />} disabled={selectedTpls.size !== 1} onClick={openEdit}>Sửa</Button>
-                <Button size="small" danger icon={<DeleteOutlined />} disabled={selectedTpls.size === 0} onClick={deleteTpls}>Xóa</Button>
+          {(() => {
+            const byGroup = {};
+            for (const g of groups) byGroup[g.id] = [];
+            byGroup['__none__'] = [];
+            let globalIdx = 0;
+            const idxMap = {};
+            for (const t of templates) {
+              const gid = (t.groupId && byGroup[t.groupId]) ? t.groupId : '__none__';
+              idxMap[t.id] = ++globalIdx;
+              byGroup[gid].push(t);
+            }
+            const renderTplRow = (t) => (
+              <div
+                key={t.id}
+                className={`zb-tpl-row ${selectedTpls.has(t.id) ? 'active' : ''}`}
+                onClick={() => toggleTpl(t.id)}
+              >
+                <Checkbox checked={selectedTpls.has(t.id)} onChange={() => {}} style={{ pointerEvents: 'none', flexShrink: 0 }} />
+                <span className="zb-tpl-content">{idxMap[t.id]}. {t.content}</span>
+                <span className={`zb-tpl-img ${(t.images?.length || t.videos?.length) ? 'zb-tpl-img-has' : 'zb-tpl-img-none'}`}>
+                  {t.images?.length > 0 && `🖼️ ${t.images.length}`}
+                  {t.images?.length > 0 && t.videos?.length > 0 && ' · '}
+                  {t.videos?.length > 0 && `📹 ${t.videos.length}`}
+                  {!t.images?.length && !t.videos?.length && 'Chưa có'}
+                </span>
               </div>
-            </div>
-            <div className="zb-tpl-thead">
-              <span style={{ width: 20 }} />
-              <span style={{ flex: 1 }}>Nội dung tin nhắn</span>
-              <span style={{ width: 130 }}>Ảnh đính kèm</span>
-            </div>
-            <div className="zb-tpl-list">
-              {templates.map((t, i) => (
-                <div
-                  key={t.id}
-                  className={`zb-tpl-row ${selectedTpls.has(t.id) ? 'active' : ''}`}
-                  onClick={() => toggleTpl(t.id)}
-                >
-                  <Checkbox checked={selectedTpls.has(t.id)} onChange={() => {}} style={{ pointerEvents: 'none', flexShrink: 0 }} />
-                  <span className="zb-tpl-content">{i + 1}. {t.content}</span>
-                  {t.images?.length > 0
-                    ? <span className="zb-tpl-img zb-tpl-img-has">🖼️ {t.images.length} ảnh</span>
-                    : <span className="zb-tpl-img zb-tpl-img-none">Chưa có ảnh</span>
-                  }
+            );
+            return (
+              <div className="zb-card">
+                <div className="zb-card-head">
+                  <span className="zb-card-title">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#0068FF" style={{ marginRight: 6 }}>
+                      <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                    </svg>
+                    Mẫu tin nhắn
+                  </span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <Button size="small" onClick={addGroup}>+ Nhóm</Button>
+                    <Button size="small" onClick={() => setSelectedTpls(new Set(templates.map(t => t.id)))}>Chọn tất cả</Button>
+                    <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => openAdd()}>Thêm</Button>
+                    <Button size="small" icon={<EditOutlined />} disabled={selectedTpls.size !== 1} onClick={openEdit}>Sửa</Button>
+                    <Button size="small" danger icon={<DeleteOutlined />} disabled={selectedTpls.size === 0} onClick={deleteTpls}>Xóa</Button>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="zb-tpl-thead">
+                  <span style={{ width: 20 }} />
+                  <span style={{ flex: 1 }}>Nội dung tin nhắn</span>
+                  <span style={{ width: 100 }}>Media</span>
+                </div>
+                <div className="zb-tpl-list">
+                  {groups.map(g => (
+                    <div key={g.id}>
+                      <div className="zb-group-header" onClick={() => toggleExpandGroup(g.id)}>
+                        <span className="zb-group-arrow">{expandedGroups.has(g.id) ? '▼' : '▶'}</span>
+                        {editingGroupId === g.id ? (
+                          <Input
+                            size="small"
+                            value={editingGroupName}
+                            onChange={e => setEditingGroupName(e.target.value)}
+                            onBlur={saveGroupName}
+                            onPressEnter={saveGroupName}
+                            autoFocus
+                            onClick={e => e.stopPropagation()}
+                            style={{ flex: 1, maxWidth: 160, fontSize: 12 }}
+                          />
+                        ) : (
+                          <span className="zb-group-name">{g.name}</span>
+                        )}
+                        <span className="zb-group-count">({byGroup[g.id]?.length || 0})</span>
+                        <div className="zb-group-actions" onClick={e => e.stopPropagation()}>
+                          <Button size="small" type="link" style={{ padding: '0 4px', fontSize: 11 }}
+                            onClick={() => selectAllInGroup(g.id, byGroup[g.id] || [])}>
+                            {(byGroup[g.id] || []).length > 0 && (byGroup[g.id] || []).every(t => selectedTpls.has(t.id)) ? 'Bỏ chọn' : 'Chọn nhóm'}
+                          </Button>
+                          <Button size="small" type="link" style={{ padding: '0 2px', fontSize: 11 }}
+                            onClick={() => openAdd(g.id)}>+ Thêm</Button>
+                          <Button size="small" type="text" style={{ padding: '0 3px', fontSize: 11 }}
+                            onClick={() => { setEditingGroupId(g.id); setEditingGroupName(g.name); }}>✏️</Button>
+                          <Button size="small" type="text" danger style={{ padding: '0 3px', fontSize: 11 }}
+                            onClick={() => deleteGroup(g.id)}>🗑️</Button>
+                        </div>
+                      </div>
+                      {expandedGroups.has(g.id) && (byGroup[g.id] || []).map(t => renderTplRow(t))}
+                    </div>
+                  ))}
+                  {byGroup['__none__']?.length > 0 && (
+                    <div>
+                      <div className="zb-group-header" onClick={() => toggleExpandGroup('__none__')}>
+                        <span className="zb-group-arrow">{expandedGroups.has('__none__') ? '▼' : '▶'}</span>
+                        <span className="zb-group-name" style={{ color: '#9ca3af' }}>Chưa phân nhóm</span>
+                        <span className="zb-group-count">({byGroup['__none__'].length})</span>
+                        <div className="zb-group-actions" onClick={e => e.stopPropagation()}>
+                          <Button size="small" type="link" style={{ padding: '0 4px', fontSize: 11 }}
+                            onClick={() => selectAllInGroup('__none__', byGroup['__none__'])}>
+                            {byGroup['__none__'].every(t => selectedTpls.has(t.id)) ? 'Bỏ chọn' : 'Chọn nhóm'}
+                          </Button>
+                        </div>
+                      </div>
+                      {expandedGroups.has('__none__') && byGroup['__none__'].map(t => renderTplRow(t))}
+                    </div>
+                  )}
+                  {templates.length === 0 && (
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: 12 }}>
+                      Chưa có mẫu tin nhắn — nhấn <strong>Thêm</strong> để tạo
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Card: Send options */}
           <div className="zb-card zb-card-compact">
@@ -905,11 +1043,24 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
         onCancel={() => setAddVisible(false)}
         okText="Lưu" cancelText="Hủy" width={520}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
+          {/* Nhóm */}
           <div>
-            <div style={{ fontSize: 13, marginBottom: 6, fontWeight: 600, color: '#374151' }}>
-              Nội dung tin nhắn
-            </div>
+            <div style={{ fontSize: 13, marginBottom: 6, fontWeight: 600, color: '#374151' }}>Nhóm</div>
+            <Select
+              size="small" style={{ width: '100%' }}
+              value={modalGroupId}
+              onChange={setModalGroupId}
+              placeholder="Chưa phân nhóm"
+              allowClear
+              options={[
+                ...groups.map(g => ({ value: g.id, label: g.name })),
+              ]}
+            />
+          </div>
+          {/* Nội dung */}
+          <div>
+            <div style={{ fontSize: 13, marginBottom: 6, fontWeight: 600, color: '#374151' }}>Nội dung tin nhắn</div>
             <Input.TextArea
               rows={5}
               value={modalContent}
@@ -918,47 +1069,64 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
               style={{ resize: 'vertical' }}
             />
           </div>
+          {/* Ảnh */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
                 Ảnh đính kèm <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(tuỳ chọn)</span>
               </div>
-              <Button
-                size="small" type="dashed"
-                icon={<PlusOutlined />}
-                onClick={() => setModalImages(prev => [...prev, ''])}
-                style={{ fontSize: 12 }}
-              >
+              <Button size="small" type="dashed" icon={<PlusOutlined />}
+                onClick={() => setModalImages(prev => [...prev, ''])} style={{ fontSize: 12 }}>
                 Thêm ảnh
               </Button>
             </div>
             {modalImages.length === 0 && (
-              <div style={{ fontSize: 12, color: '#9CA3AF', padding: '8px 0' }}>
-                Chưa có ảnh — nhấn <strong>Thêm ảnh</strong> để thêm địa chỉ ảnh
-              </div>
+              <div style={{ fontSize: 12, color: '#9CA3AF', padding: '4px 0' }}>Chưa có ảnh</div>
             )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {modalImages.map((img, idx) => (
                 <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={{ color: '#94a3b8', fontSize: 12, minWidth: 20, textAlign: 'right' }}>🖼️</span>
-                  <Input
-                    value={img}
+                  <span style={{ color: '#94a3b8', fontSize: 13, minWidth: 18 }}>🖼️</span>
+                  <Input value={img}
                     onChange={(e) => setModalImages(prev => prev.map((v, i) => i === idx ? e.target.value : v))}
-                    placeholder={`https://... hoặc C:\\Users\\...\\image${idx + 1}.jpg`}
-                    style={{ flex: 1 }}
-                    size="small"
-                  />
-                  <Button
-                    size="small" type="text" danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => setModalImages(prev => prev.filter((_, i) => i !== idx))}
-                  />
+                    placeholder={`https://... hoặc /opt/media/image${idx + 1}.jpg`}
+                    style={{ flex: 1 }} size="small" />
+                  <Button size="small" type="text" danger icon={<DeleteOutlined />}
+                    onClick={() => setModalImages(prev => prev.filter((_, i) => i !== idx))} />
                 </div>
               ))}
             </div>
-            {modalImages.length > 0 && (
-              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
-                Hỗ trợ link URL (https://...) hoặc đường dẫn file trên VPS. Tất cả ảnh sẽ được gửi theo thứ tự.
+          </div>
+          {/* Video */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                Video đính kèm <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(tuỳ chọn)</span>
+              </div>
+              <Button size="small" type="dashed" icon={<PlusOutlined />}
+                onClick={() => setModalVideos(prev => [...prev, ''])} style={{ fontSize: 12 }}>
+                Thêm video
+              </Button>
+            </div>
+            {modalVideos.length === 0 && (
+              <div style={{ fontSize: 12, color: '#9CA3AF', padding: '4px 0' }}>Chưa có video</div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {modalVideos.map((vid, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span style={{ color: '#94a3b8', fontSize: 13, minWidth: 18 }}>📹</span>
+                  <Input value={vid}
+                    onChange={(e) => setModalVideos(prev => prev.map((v, i) => i === idx ? e.target.value : v))}
+                    placeholder={`https://... hoặc /opt/media/video${idx + 1}.mp4`}
+                    style={{ flex: 1 }} size="small" />
+                  <Button size="small" type="text" danger icon={<DeleteOutlined />}
+                    onClick={() => setModalVideos(prev => prev.filter((_, i) => i !== idx))} />
+                </div>
+              ))}
+            </div>
+            {(modalImages.length > 0 || modalVideos.length > 0) && (
+              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>
+                Hỗ trợ link URL (https://...) hoặc đường dẫn file trên VPS. Gửi theo thứ tự: ảnh trước, video sau.
               </div>
             )}
           </div>
