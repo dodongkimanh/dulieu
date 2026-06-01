@@ -2793,29 +2793,58 @@ export default function Zalo() {
                           <MsgErrorBoundary key={`eb-${m.msgId || i}`}>
                           <div className={`zalo-msg-bubble ${isSelf ? 'self' : 'other'}`}>
                             {(() => {
-                              const imgUrl = m.imageUrl || m.images?.[0]?.url || null;
-                              if (!imgUrl) return null;
+                              const mediaUrl = m.fileUrl || m.imageUrl || m.images?.[0]?.url || null;
+                              const mType = m.type || m.msgType || '';
+
+                              // Tin nhắn thoại
+                              if (mType === 'audio' || mType === 'chat.voice') {
+                                return mediaUrl ? (
+                                  <audio controls style={{ maxWidth: 240, height: 40, display: 'block', borderRadius: 6 }}>
+                                    <source src={mediaUrl} type="audio/mpeg" />
+                                    <source src={mediaUrl} type="audio/mp4" />
+                                    <source src={mediaUrl} type="audio/ogg" />
+                                    <a href={mediaUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#0068FF' }}>🎵 Tin nhắn thoại</a>
+                                  </audio>
+                                ) : <div style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>🎵 Tin nhắn thoại</div>;
+                              }
+
+                              // Tin nhắn video
+                              if (mType === 'video' || mType === 'chat.video.msg' || mType === 'chat.video') {
+                                return mediaUrl ? (
+                                  <video controls style={{ maxWidth: 280, maxHeight: 200, borderRadius: 8, display: 'block', background: '#000' }}>
+                                    <source src={mediaUrl} type="video/mp4" />
+                                    <a href={mediaUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#0068FF' }}>📹 Video</a>
+                                  </video>
+                                ) : <div style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>📹 Video</div>;
+                              }
+
+                              // Ảnh
+                              if (!mediaUrl) return null;
+                              const isAudioVideoType = mType === 'audio' || mType === 'video' || mType === 'chat.voice' || mType === 'chat.video.msg';
+                              if (isAudioVideoType) return null;
                               return (
                                 <img
-                                  src={imgUrl}
+                                  src={mediaUrl}
                                   alt="Hình ảnh"
                                   style={{ maxWidth: 220, maxHeight: 300, borderRadius: 8, display: 'block', marginBottom: m.content ? 4 : 0, cursor: 'pointer' }}
                                   onClick={() => {
-                                    if (imgUrl.startsWith('data:')) {
+                                    if (mediaUrl.startsWith('data:')) {
                                       const win = window.open('about:blank', '_blank');
                                       if (win) {
-                                        win.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${imgUrl}" style="max-width:100%;max-height:100vh;object-fit:contain"></body></html>`);
+                                        win.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${mediaUrl}" style="max-width:100%;max-height:100vh;object-fit:contain"></body></html>`);
                                         win.document.close();
                                       }
                                     } else {
-                                      window.open(imgUrl, '_blank', 'noopener,noreferrer');
+                                      window.open(mediaUrl, '_blank', 'noopener,noreferrer');
                                     }
                                   }}
                                   onError={(e) => { e.target.style.display = 'none'; }}
                                 />
                               );
                             })()}
-                            {m.content && m.msgType !== 'image' && (() => {
+                            {m.content && m.msgType !== 'image' && m.type !== 'image' && (() => {
+                              const mType = m.type || m.msgType || '';
+                              if (mType === 'audio' || mType === 'chat.voice' || mType === 'video' || mType === 'chat.video.msg') return null;
                               const special = parseCallSticker(m.content);
                               if (special) return <SpecialMsgContent content={m.content} />;
                               const txt = typeof m.content === 'string' ? m.content : null;
