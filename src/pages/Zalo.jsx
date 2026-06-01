@@ -958,14 +958,6 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
                 <InputNumber size="small" value={targetCount} onChange={setTargetCount} min={1} style={{ width: '100%' }} />
               </div>
             </div>
-            <div className="zb-auto-checks">
-              <Checkbox checked={repeat} onChange={(e) => setRepeat(e.target.checked)} style={{ fontSize: 12 }}>
-                Lặp lại
-              </Checkbox>
-              <Checkbox checked={randomFriend} onChange={(e) => setRandomFriend(e.target.checked)} style={{ fontSize: 12 }}>
-                Gửi random bạn
-              </Checkbox>
-            </div>
           </div>
         </div>
 
