@@ -58,8 +58,38 @@ function ZaloCell({ record, sessionId, zInfo, phonebookCacheRef, onSave, onOpenP
   const [options, setOptions] = useState([]);
   const [fetching, setFetching] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [searchVal, setSearchVal] = useState('');
+
+  const isPhoneLike = (s) => /^[\d\s\-\.]{6,}$/.test((s || '').trim());
+
+  const buildOptionLabel = (c) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      {c.avatar && !c.avatar.includes('undefined')
+        ? <img src={c.avatar} style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} alt="" />
+        : <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#dbeafe', flexShrink: 0 }} />
+      }
+      <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+      {c.phone && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 'auto', flexShrink: 0, paddingLeft: 4 }}>{c.phone}</span>}
+    </div>
+  );
 
   const loadAndFilter = useCallback(async (text = '') => {
+    const q = text.trim();
+    if (!q) { setOptions([]); return; }
+
+    // Tìm bằng SĐT → gọi /search (tìm trong phonebook + ZCA API)
+    if (isPhoneLike(q)) {
+      setFetching(true);
+      try {
+        const resp = await fetch(`${ZALO_SERVICE}/search?q=${encodeURIComponent(q)}&session=${encodeURIComponent(sessionId)}`);
+        const data = await resp.json();
+        setOptions((Array.isArray(data) ? data : []).map(c => ({ value: c.id, label: buildOptionLabel(c), contact: c })));
+      } catch { setOptions([]); }
+      finally { setFetching(false); }
+      return;
+    }
+
+    // Tìm bằng tên → filter phonebook local
     if (!phonebookCacheRef.current[sessionId]) {
       setFetching(true);
       try {
@@ -69,44 +99,41 @@ function ZaloCell({ record, sessionId, zInfo, phonebookCacheRef, onSave, onOpenP
       } catch { phonebookCacheRef.current[sessionId] = []; }
       finally { setFetching(false); }
     }
-    const contacts = phonebookCacheRef.current[sessionId] || [];
-    const q = text.trim().toLowerCase();
-    if (!q) { setOptions([]); return; }
-    const filtered = contacts.filter(c => (c.name || '').toLowerCase().includes(q)).slice(0, 200);
-    setOptions(filtered.map(c => ({
-      value: c.id,
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {c.avatar && !c.avatar.includes('undefined')
-            ? <img src={c.avatar} style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} alt="" />
-            : <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#dbeafe', flexShrink: 0 }} />
-          }
-          <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-          {c.phone && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 'auto', flexShrink: 0, paddingLeft: 4 }}>{c.phone}</span>}
-        </div>
-      ),
-      contact: c,
-    })));
+    const ql = q.toLowerCase();
+    const filtered = (phonebookCacheRef.current[sessionId] || [])
+      .filter(c => (c.name || '').toLowerCase().includes(ql) || (c.phone || '').includes(q))
+      .slice(0, 200);
+    setOptions(filtered.map(c => ({ value: c.id, label: buildOptionLabel(c), contact: c })));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, phonebookCacheRef]);
 
   const handleStartEdit = useCallback((e) => {
     e?.stopPropagation?.();
     setEditing(true);
-    loadAndFilter('');
-  }, [loadAndFilter]);
+    const pre = record.sdt || '';
+    setSearchVal(pre);
+    loadAndFilter(pre);
+  }, [loadAndFilter, record.sdt]);
 
   if (editing) {
     return (
       <Select
         autoFocus open showSearch filterOption={false}
         value={null}
-        placeholder="Tìm tên Zalo..."
+        searchValue={searchVal}
+        placeholder="Tên hoặc số điện thoại..."
         size="small"
         style={{ width: '100%', minWidth: 120 }}
         options={options}
         loading={fetching}
-        notFoundContent={fetching ? <Spin size="small" /> : options.length === 0 ? <span style={{ fontSize: 12, color: '#94a3b8' }}>Gõ tên để tìm trong danh bạ</span> : <span style={{ fontSize: 12, color: '#94a3b8' }}>Không tìm thấy</span>}
-        onSearch={loadAndFilter}
+        notFoundContent={
+          fetching
+            ? <Spin size="small" />
+            : <span style={{ fontSize: 12, color: '#94a3b8' }}>
+                {searchVal ? 'Không tìm thấy' : 'Gõ tên hoặc SĐT để tìm'}
+              </span>
+        }
+        onSearch={(v) => { setSearchVal(v); loadAndFilter(v); }}
         onSelect={(_, opt) => { setEditing(false); onSave(opt.contact); }}
         onBlur={() => setTimeout(() => setEditing(false), 200)}
         onKeyDown={e => e.key === 'Escape' && setEditing(false)}
