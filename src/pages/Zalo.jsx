@@ -202,7 +202,7 @@ function loadLS(key, fallback) {
   localStorage.removeItem('zalo_delayMax');
 }());
 
-function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulkResults, bulkRunning, onBulkStart, crmTargets = [], onClearCrm }) {
+function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulkResults, bulkRunning, onBulkStart, crmTargets = [], onClearCrm, zcaDisconnected }) {
   const [opTab, setOpTab] = useState(0);
   const [filter, setFilter] = useState({ keyword: '', ageFrom: 0, ageTo: 99, gender: 'All' });
   const [selected, setSelected] = useState(new Set());
@@ -223,7 +223,7 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
   const [pauseAfter, setPauseAfter] = useState(() => loadLS('zalo_pauseAfter', 30));
   const [pauseMinutes, setPauseMinutes] = useState(() => loadLS('zalo_pauseMinutes', 15));
   const [errorPause, setErrorPause] = useState(() => loadLS('zalo_errorPause', 30));
-  const [repeat, setRepeat] = useState(() => loadLS('zalo_repeat', true));
+  const [repeat, setRepeat] = useState(false);
   const [randomFriend, setRandomFriend] = useState(() => loadLS('zalo_randomFriend', false));
   const [fromIndex, setFromIndex] = useState(() => loadLS('zalo_fromIndex', 0));
   const [targetCount, setTargetCount] = useState(() => loadLS('zalo_targetCount', 3000));
@@ -507,8 +507,8 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
         pauseAfter,
         pauseMinutes,
         errorPause,
-        repeat,
-        randomFriend,
+        repeat: false,
+        randomFriend: false,
         fromIndex,
         targetCount,
       })
@@ -575,6 +575,17 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
           </Button>
         </div>
       </div>
+
+      {/* ZCA disconnected warning */}
+      {zcaDisconnected && !running && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ margin: '0 0 0 0', borderRadius: 0, borderLeft: 'none', borderRight: 'none' }}
+          message="Tài khoản Zalo chưa kết nối ZCA — không thể gửi tin nhắn hàng loạt"
+          description={<span>Nhấn icon <strong>⬆</strong> trên thanh tài khoản phía trên để xem hướng dẫn đăng nhập lại qua Extension.</span>}
+        />
+      )}
 
       {/* running banner */}
       {running && (
@@ -971,6 +982,9 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
                 <span style={{ color: '#22c55e' }}>{bulkResults.filter((r) => r.status === 'success').length}✓</span>
                 {' · '}
                 <span style={{ color: '#ef4444' }}>{bulkResults.filter((r) => r.status === 'failed').length}✗</span>
+                {bulkResults.some((r) => r.status === 'skipped') && (
+                  <>{' · '}<span style={{ color: '#94a3b8' }}>{bulkResults.filter((r) => r.status === 'skipped').length}⊘</span></>
+                )}
               </span>
             )}
           </div>
@@ -989,7 +1003,7 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
                   <span className={`zb-result-dot ${r.status}`} />
                   <span className="zb-result-name" title={r.error || r.name}>{r.name}</span>
                   <span className={`zb-result-status ${r.status}`}>
-                    {r.status === 'success' ? '✓' : '✗'}
+                    {r.status === 'success' ? '✓' : r.status === 'skipped' ? '⊘' : '✗'}
                   </span>
                 </div>
               ))
@@ -1024,6 +1038,12 @@ function BulkSend({ phonebook, wsRef, onRefreshPhonebook, phonebookLoading, bulk
                   <span>Thất bại</span>
                   <strong style={{ color: '#ef4444' }}>{bulkResults.filter((r) => r.status === 'failed').length}</strong>
                 </div>
+                {bulkResults.some((r) => r.status === 'skipped') && (
+                  <div className="zb-stat-row">
+                    <span>Bỏ qua</span>
+                    <strong style={{ color: '#94a3b8' }}>{bulkResults.filter((r) => r.status === 'skipped').length}</strong>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1634,6 +1654,7 @@ export default function Zalo() {
         if (msg.type === 'bulk_done') {
           setBulkRunning(false);
           if (msg.results) setBulkResults(msg.results);
+          if (msg.error) antMessage.error(msg.error, 8);
         }
         if (msg.type === 'bulk_paused') {
           antMessage.info(msg.reason || 'Tạm dừng gửi tin', 5);
@@ -2726,6 +2747,7 @@ export default function Zalo() {
             onBulkStart={() => { setBulkResults([]); setBulkRunning(true); }}
             crmTargets={crmAllGroups[effectiveSessionId] || []}
             onClearCrm={() => setCrmAllGroups(prev => { const n = { ...prev }; delete n[effectiveSessionId]; return n; })}
+            zcaDisconnected={zcaDisconnected}
           />
         </div>
         {/* ── Chat area ── */}
@@ -2802,12 +2824,26 @@ export default function Zalo() {
 
                               // Tin nhắn video
                               if (mType === 'video' || mType === 'chat.video.msg' || mType === 'chat.video') {
-                                return mediaUrl ? (
-                                  <video controls style={{ maxWidth: 280, maxHeight: 200, borderRadius: 8, display: 'block', background: '#000' }}>
-                                    <source src={mediaUrl} type="video/mp4" />
-                                    <a href={mediaUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#0068FF' }}>📹 Video</a>
-                                  </video>
-                                ) : <div style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>📹 Video</div>;
+                                if (!mediaUrl) return <div style={{ fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>📹 Video</div>;
+                                return (
+                                  <div>
+                                    <video
+                                      controls
+                                      style={{ maxWidth: 380, maxHeight: 280, borderRadius: 8, display: 'block', background: '#000' }}
+                                      onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'inline'; }}
+                                    >
+                                      <source src={mediaUrl} type="video/mp4" />
+                                    </video>
+                                    <a
+                                      href={mediaUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ fontSize: 12, color: '#0068FF', display: 'none' }}
+                                    >
+                                      📹 Mở video
+                                    </a>
+                                  </div>
+                                );
                               }
 
                               // Ảnh
