@@ -2815,11 +2815,13 @@ textarea.ant-input { min-height: 80px !important; }
 }
 .zb-result-row.success { background: #f0fdf4; }
 .zb-result-row.failed  { background: #fff1f2; }
+.zb-result-row.skipped { background: #f8fafc; }
 .zb-result-dot {
   width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
 }
 .zb-result-dot.success { background: #22c55e; }
 .zb-result-dot.failed  { background: #ef4444; }
+.zb-result-dot.skipped { background: #94a3b8; }
 .zb-result-name {
   flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   color: #374151;
@@ -2827,6 +2829,7 @@ textarea.ant-input { min-height: 80px !important; }
 .zb-result-status { flex-shrink: 0; font-weight: 700; }
 .zb-result-status.success { color: #22c55e; }
 .zb-result-status.failed  { color: #ef4444; }
+.zb-result-status.skipped { color: #94a3b8; }
 .zb-action-stats {
   display: flex; flex-direction: column; gap: 6px;
   padding: 10px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;

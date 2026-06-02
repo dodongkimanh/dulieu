@@ -54,6 +54,96 @@ const ZaloAvatar = memo(function ZaloAvatar({ name, src, size = 36 }) {
   );
 });
 
+function ZaloCell({ record, sessionId, zInfo, phonebookCacheRef, onSave, onOpenPopup }) {
+  const [options, setOptions] = useState([]);
+  const [fetching, setFetching] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  const loadAndFilter = useCallback(async (text = '') => {
+    if (!phonebookCacheRef.current[sessionId]) {
+      setFetching(true);
+      try {
+        const resp = await fetch(`${ZALO_SERVICE}/phonebook?session=${encodeURIComponent(sessionId)}`);
+        const data = await resp.json();
+        phonebookCacheRef.current[sessionId] = Array.isArray(data) ? data : [];
+      } catch { phonebookCacheRef.current[sessionId] = []; }
+      finally { setFetching(false); }
+    }
+    const contacts = phonebookCacheRef.current[sessionId] || [];
+    const q = text.trim().toLowerCase();
+    if (!q) { setOptions([]); return; }
+    const filtered = contacts.filter(c => (c.name || '').toLowerCase().includes(q)).slice(0, 200);
+    setOptions(filtered.map(c => ({
+      value: c.id,
+      label: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {c.avatar && !c.avatar.includes('undefined')
+            ? <img src={c.avatar} style={{ width: 20, height: 20, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} alt="" />
+            : <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#dbeafe', flexShrink: 0 }} />
+          }
+          <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
+          {c.phone && <span style={{ fontSize: 11, color: '#94a3b8', marginLeft: 'auto', flexShrink: 0, paddingLeft: 4 }}>{c.phone}</span>}
+        </div>
+      ),
+      contact: c,
+    })));
+  }, [sessionId, phonebookCacheRef]);
+
+  const handleStartEdit = useCallback((e) => {
+    e?.stopPropagation?.();
+    setEditing(true);
+    loadAndFilter('');
+  }, [loadAndFilter]);
+
+  if (editing) {
+    return (
+      <Select
+        autoFocus open showSearch filterOption={false}
+        value={null}
+        placeholder="Tìm tên Zalo..."
+        size="small"
+        style={{ width: '100%', minWidth: 120 }}
+        options={options}
+        loading={fetching}
+        notFoundContent={fetching ? <Spin size="small" /> : options.length === 0 ? <span style={{ fontSize: 12, color: '#94a3b8' }}>Gõ tên để tìm trong danh bạ</span> : <span style={{ fontSize: 12, color: '#94a3b8' }}>Không tìm thấy</span>}
+        onSearch={loadAndFilter}
+        onSelect={(_, opt) => { setEditing(false); onSave(opt.contact); }}
+        onBlur={() => setTimeout(() => setEditing(false), 200)}
+        onKeyDown={e => e.key === 'Escape' && setEditing(false)}
+      />
+    );
+  }
+
+  if (zInfo?.contact) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}>
+        {zInfo.contact.avatar && !zInfo.contact.avatar.includes('undefined')
+          ? <img src={zInfo.contact.avatar} style={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, objectFit: 'cover' }} alt="" />
+          : <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#dbeafe', flexShrink: 0 }} />
+        }
+        <span
+          title={zInfo.contact.name}
+          onClick={onOpenPopup}
+          style={{ fontSize: 12, color: '#1d4ed8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', flex: 1 }}
+        >
+          {zInfo.contact.name}
+        </span>
+        <Button
+          type="text" size="small" icon={<EditOutlined />}
+          onClick={handleStartEdit}
+          style={{ flexShrink: 0, padding: '0 2px', color: '#94a3b8', height: 18, lineHeight: '18px' }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div onClick={handleStartEdit} style={{ color: '#94a3b8', fontSize: 12, cursor: 'pointer', padding: '2px 0', borderRadius: 4 }}>
+      + Tìm Zalo
+    </div>
+  );
+}
+
 function formatZaloTime(ts) {
   if (!ts) return '';
   const d = new Date(ts > 1e12 ? ts : ts * 1000);
@@ -129,6 +219,7 @@ export default function KhachHang() {
   const audioUploadRef = useRef(null);
   const [allCrmUsers, setAllCrmUsers] = useState([]);
   const zaloMsgsEndRef = useRef(null);
+  const phonebookCacheRef = useRef({});
   const msgPollerRef = useRef(null);
   const [newMsgCount, setNewMsgCount] = useState(0);
 
@@ -663,6 +754,31 @@ export default function KhachHang() {
     { title: 'Ngày', dataIndex: 'ngayThang', _defaultWidth: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
     { title: 'Khách hàng', dataIndex: 'khachHang', _defaultWidth: 140, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
     { title: 'SĐT', dataIndex: 'sdt', _defaultWidth: 100 },
+    { title: 'Zalo', dataIndex: 'zalo', _defaultWidth: 145, render: (_, record) => {
+      const normStr = s => (s || '').replace(/\s+/g, ' ').trim();
+      const saleUser = allCrmUsers.find(u => normStr(u.fullName) === normStr(record.sale));
+      const sessionId = saleUser?.username || (isSaler ? user?.username : null) || record.sale || 'default';
+      return (
+        <ZaloCell
+          record={record}
+          sessionId={sessionId}
+          zInfo={zaloData[record.id]}
+          phonebookCacheRef={phonebookCacheRef}
+          onSave={(contact) => {
+            const newEntry = { contact, saleSession: sessionId };
+            setZaloData(prev => ({ ...prev, [record.id]: newEntry }));
+            zaloContactApi.syncBatch([{
+              khachHangId: record.id,
+              sessionId,
+              zaloId: contact.id,
+              displayName: contact.name,
+              avatar: contact.avatar || null,
+            }]).catch(() => {});
+          }}
+          onOpenPopup={() => handleZaloIconClick(record)}
+        />
+      );
+    }},
     { title: 'Tùy Chọn', dataIndex: 'loaiMess', _defaultWidth: 115, render: (v, record) => (
       <Select
         value={v || 'mess_moi'}

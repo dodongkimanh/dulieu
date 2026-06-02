@@ -11,8 +11,6 @@ import {
   ExclamationCircleOutlined,
   SyncOutlined,
   UploadOutlined,
-  EyeOutlined,
-  EyeInvisibleOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { authApi, zaloServiceApi } from '../api';
@@ -20,16 +18,6 @@ import dayjs from 'dayjs';
 
 const { Option } = Select;
 
-function ZaloPasswordDisplay({ value }) {
-  const [show, setShow] = useState(false);
-  if (!value) return <span style={{ color: '#CBD5E1', lineHeight: '32px', display: 'inline-block' }}>Chưa đặt</span>;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '4px 10px', minHeight: 32 }}>
-      <span style={{ fontFamily: 'monospace', fontSize: 13, flex: 1, letterSpacing: show ? 0 : 2 }}>{show ? value : '•'.repeat(value.length)}</span>
-      <Button type="text" size="small" icon={show ? <EyeInvisibleOutlined /> : <EyeOutlined />} style={{ color: '#94A3B8', padding: 0, minWidth: 20, height: 20 }} onClick={() => setShow(v => !v)} />
-    </div>
-  );
-}
 
 const roleLabels = {
   ADMIN: { label: 'Quản trị viên', color: '#7C3AED', bg: '#EDE9FE' },
@@ -52,10 +40,6 @@ export default function UserManagement() {
   const [syncModal, setSyncModal] = useState({ open: false, username: '', label: '' });
   const [syncLoading, setSyncLoading] = useState(false);
   const syncFileRef = useRef(null);
-  const [visiblePasswords, setVisiblePasswords] = useState({});
-
-  const togglePasswordVisible = (id) => setVisiblePasswords(prev => ({ ...prev, [id]: !prev[id] }));
-
   const ROLE_ORDER = { ADMIN: 0, KE_TOAN: 1, SALER: 2 };
 
   const fetchUsers = async () => {
@@ -195,16 +179,7 @@ export default function UserManagement() {
     { title: 'Tài khoản', dataIndex: 'username', width: 170, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
     { title: 'Họ tên', dataIndex: 'fullName', width: 170 },
     { title: 'Zalo', dataIndex: 'zalo', width: 120, render: (v) => v || <span style={{ color: '#CBD5E1' }}>—</span> },
-    { title: 'MK Zalo', dataIndex: 'zaloPassword', width: 140, render: (v, record) => {
-      if (!v) return <span style={{ color: '#CBD5E1' }}>—</span>;
-      const visible = visiblePasswords[record.id];
-      return (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{visible ? v : '••••••••'}</span>
-          <Button type="text" size="small" icon={visible ? <EyeInvisibleOutlined /> : <EyeOutlined />} style={{ color: '#94A3B8', padding: 0, minWidth: 20, height: 20 }} onClick={() => togglePasswordVisible(record.id)} />
-        </span>
-      );
-    }},
+    { title: 'MK Zalo', dataIndex: 'zaloPassword', width: 140, render: (v) => v || <span style={{ color: '#CBD5E1' }}>—</span> },
     { title: 'Sim', dataIndex: 'sim', width: 120, render: (v) => v || <span style={{ color: '#CBD5E1' }}>—</span> },
     { title: 'Vai trò', dataIndex: 'role', width: 150, render: (v) => {
       const r = roleLabels[v] || { label: v, color: '#64748B', bg: '#F1F5F9' };

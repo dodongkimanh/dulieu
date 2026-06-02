@@ -69,6 +69,7 @@ export default function NhapLieu() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 50, total: 0 });
+  const [backendTotals, setBackendTotals] = useState(null);
   const [salesList, setSalesList] = useState([]);
   const [editedRows, setEditedRows] = useState({});
   const [keyword, setKeyword] = useState('');
@@ -160,6 +161,7 @@ export default function NhapLieu() {
       const res = await donHangApi.getAll(params);
       setData(res.data.content);
       setPagination({ current: pg, pageSize: size, total: res.data.totalElements });
+      setBackendTotals(res.data.totals || null);
       setEditedRows({});
     } catch { message.error('Không thể tải dữ liệu'); }
     finally { setLoading(false); }
@@ -340,22 +342,37 @@ export default function NhapLieu() {
 
   const editedCount = Object.keys(editedRows).length;
 
-  // Compute summary row
-  const summary = filteredData.reduce((acc, row) => {
-    acc.giaVon += Number(row.giaVon || 0);
-    acc.tongTienNiemYet += Number(row.tongTienNiemYet || 0);
-    acc.giaBanLenDon += Number(row.giaBanLenDon || 0);
-    acc.cuocPhuTroi += Number(row.cuocPhuTroi || 0);
-    acc.giaThuThucTe += Number(row.giaThuThucTe || 0);
-    acc.loiNhuanUocTinh += Number(row.loiNhuanUocTinh || 0);
-    acc.chiPhiVanChuyen += Number(row.chiPhiVanChuyen || 0);
-    acc.dsVanChuyen += Number(row.dsVanChuyen || 0);
-    acc.datCoc += Number(row.datCoc || 0);
-    acc.thuBanTrucTiep += Number(row.thuBanTrucTiep || 0);
-    acc.tongThuKhach += Number(row.tongThuKhach || 0);
-    acc.loiNhuanSauTru += Number(row.loiNhuanSauTru || 0);
-    return acc;
-  }, { giaVon: 0, tongTienNiemYet: 0, giaBanLenDon: 0, cuocPhuTroi: 0, giaThuThucTe: 0, loiNhuanUocTinh: 0, chiPhiVanChuyen: 0, dsVanChuyen: 0, datCoc: 0, thuBanTrucTiep: 0, tongThuKhach: 0, loiNhuanSauTru: 0 });
+  // Use backend totals (all pages) when available; fall back to summing current page
+  const summary = backendTotals && !colFilters.sale && !colFilters.tinhTrang
+    ? {
+        giaVon: Number(backendTotals.giaVon || 0),
+        tongTienNiemYet: Number(backendTotals.tongTienNiemYet || 0),
+        giaBanLenDon: Number(backendTotals.giaBanLenDon || 0),
+        cuocPhuTroi: Number(backendTotals.cuocPhuTroi || 0),
+        giaThuThucTe: Number(backendTotals.giaThuThucTe || 0),
+        loiNhuanUocTinh: Number(backendTotals.loiNhuanUocTinh || 0),
+        chiPhiVanChuyen: Number(backendTotals.chiPhiVanChuyen || 0),
+        dsVanChuyen: Number(backendTotals.dsVanChuyen || 0),
+        datCoc: Number(backendTotals.datCoc || 0),
+        thuBanTrucTiep: Number(backendTotals.thuBanTrucTiep || 0),
+        tongThuKhach: Number(backendTotals.tongThuKhach || 0),
+        loiNhuanSauTru: Number(backendTotals.loiNhuanSauTru || 0),
+      }
+    : filteredData.reduce((acc, row) => {
+        acc.giaVon += Number(row.giaVon || 0);
+        acc.tongTienNiemYet += Number(row.tongTienNiemYet || 0);
+        acc.giaBanLenDon += Number(row.giaBanLenDon || 0);
+        acc.cuocPhuTroi += Number(row.cuocPhuTroi || 0);
+        acc.giaThuThucTe += Number(row.giaThuThucTe || 0);
+        acc.loiNhuanUocTinh += Number(row.loiNhuanUocTinh || 0);
+        acc.chiPhiVanChuyen += Number(row.chiPhiVanChuyen || 0);
+        acc.dsVanChuyen += Number(row.dsVanChuyen || 0);
+        acc.datCoc += Number(row.datCoc || 0);
+        acc.thuBanTrucTiep += Number(row.thuBanTrucTiep || 0);
+        acc.tongThuKhach += Number(row.tongThuKhach || 0);
+        acc.loiNhuanSauTru += Number(row.loiNhuanSauTru || 0);
+        return acc;
+      }, { giaVon: 0, tongTienNiemYet: 0, giaBanLenDon: 0, cuocPhuTroi: 0, giaThuThucTe: 0, loiNhuanUocTinh: 0, chiPhiVanChuyen: 0, dsVanChuyen: 0, datCoc: 0, thuBanTrucTiep: 0, tongThuKhach: 0, loiNhuanSauTru: 0 });
 
   const renderCell = (col, record, index) => {
     const rowEdited = editedRows[record.id];
