@@ -1999,8 +1999,11 @@ export default function Zalo() {
     isPhoneQuery(search) &&
     (searchLoading || searchResults.length > 0);
 
-  // ── IDLE (đã dừng thủ công) ──
-  if (status === 'idle') {
+  // Non-admin: ZCA mất kết nối → hiển thị màn hình đăng nhập lại
+  const effectiveStatus = (!isAdmin && zcaDisconnected && status === 'logged_in') ? 'idle' : status;
+
+  // ── IDLE (đã dừng thủ công hoặc ZCA mất kết nối với nhân viên) ──
+  if (effectiveStatus === 'idle') {
     return (
       <>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="zalo-page">
@@ -2013,6 +2016,11 @@ export default function Zalo() {
               </svg>
             </div>
             <h2 style={{ marginBottom: 4 }}>Đăng nhập Zalo</h2>
+            {zcaDisconnected && !isAdmin && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 14px', marginBottom: 10, fontSize: 12, color: '#DC2626', textAlign: 'center' }}>
+                Kết nối Zalo bị gián đoạn — vui lòng đăng nhập lại
+              </div>
+            )}
             <Tag color="blue" style={{ fontSize: 13, padding: '2px 10px', marginBottom: 20 }}>
               Tài khoản: <strong>{effectiveSessionId}</strong>
             </Tag>
