@@ -1270,15 +1270,14 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
     };
   });
 
-  // zcaMode + zcaConnected=false → disconnected (đỏ), nhưng nếu Puppeteer vẫn logged_in thì vẫn Online
   const statusClass = (u) => {
-    if (u.zcaMode && u.zcaConnected === false && u.status !== 'logged_in') return 'zca-disconnected';
+    if (u.zcaMode && u.zcaConnected === false) return 'zca-disconnected';
     const s = u.status;
     return s === 'logged_in' ? 'online' : s === 'waiting_qr' || s === 'loading' ? 'waiting' : 'offline';
   };
 
   const statusText = (u) => {
-    if (u.zcaMode && u.zcaConnected === false && u.status !== 'logged_in') return 'Mất kết nối';
+    if (u.zcaMode && u.zcaConnected === false) return 'ZCA mất kết nối';
     const s = u.status;
     return s === 'logged_in' ? 'Online' : s === 'waiting_qr' ? 'Chờ QR' : s === 'loading' ? 'Đang tải' : 'Offline';
   };
