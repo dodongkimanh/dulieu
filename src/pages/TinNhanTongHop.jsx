@@ -54,22 +54,28 @@ function ZaloAvatar({ name, src, size = 40 }) {
 
 function SessionStatusStrip({ sessionPills, sessionContacts }) {
   if (sessionPills.length === 0) return null;
-  const statusClass = (s) =>
-    s === 'logged_in' ? 'online' : s === 'waiting_qr' || s === 'loading' ? 'waiting' : 'offline';
-  const statusText = (s) =>
-    s === 'logged_in' ? 'Online' : s === 'waiting_qr' ? 'Chờ QR' : s === 'loading' ? 'Đang tải' : 'Offline';
+  const statusClass = (u) => {
+    if (u.zcaMode && u.zcaConnected === false) return 'zca-disconnected';
+    const s = u.status;
+    return s === 'logged_in' ? 'online' : s === 'waiting_qr' || s === 'loading' ? 'waiting' : 'offline';
+  };
+  const statusText = (u) => {
+    if (u.zcaMode && u.zcaConnected === false) return 'ZCA mất kết nối';
+    const s = u.status;
+    return s === 'logged_in' ? 'Online' : s === 'waiting_qr' ? 'Chờ QR' : s === 'loading' ? 'Đang tải' : 'Offline';
+  };
 
   return (
     <div className="zadmin-strip">
       {sessionPills.map((u) => {
-        const sc = statusClass(u.status);
+        const sc = statusClass(u);
         const count = (sessionContacts[u.username] || []).length;
         return (
           <div key={u.username} className={`zadmin-pill ${sc}`} style={{ cursor: 'default' }}>
             <span className="zadmin-pill-dot" />
             <span className="zadmin-pill-name">{u.label}</span>
             {count > 0 && <span className="zadmin-pill-badge">{count}</span>}
-            <span className="zadmin-pill-status">{statusText(u.status)}</span>
+            <span className="zadmin-pill-status">{statusText(u)}</span>
           </div>
         );
       })}
@@ -370,6 +376,8 @@ export default function TinNhanTongHop() {
         username: u.username,
         label: u.fullName || u.username,
         status: live?.status || 'idle',
+        zcaMode: live?.zcaMode || false,
+        zcaConnected: live?.zcaConnected ?? null,
         connected: !!sessionConnected[u.username],
       };
     }),
