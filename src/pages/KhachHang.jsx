@@ -638,26 +638,22 @@ export default function KhachHang() {
     setZaloPopup({ open: true, record, contact: zInfo.contact, messages: [], loading: true });
 
     const session = zInfo.saleSession;
+    const contactId = zInfo.contact.id;
 
     try {
-      await fetch(
-        `${ZALO_SERVICE}/open-contact?session=${encodeURIComponent(session)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: zInfo.contact.id, name: zInfo.contact.name, phone: record.sdt }),
-        }
+      const resp = await fetch(
+        `${ZALO_SERVICE}/messages-db?session=${encodeURIComponent(session)}&contactId=${encodeURIComponent(contactId)}`
       );
-      await new Promise(r => setTimeout(r, 1800));
-      const resp = await fetch(`${ZALO_SERVICE}/messages?session=${encodeURIComponent(session)}`);
       const msgs = await resp.json();
       const initialMsgs = Array.isArray(msgs) ? msgs : [];
       setZaloPopup(prev => ({ ...prev, messages: initialMsgs, loading: false }));
 
-      // Start polling for new messages every 3 seconds
+      // Poll for new messages every 5 seconds
       msgPollerRef.current = setInterval(async () => {
         try {
-          const r2 = await fetch(`${ZALO_SERVICE}/messages?session=${encodeURIComponent(session)}`);
+          const r2 = await fetch(
+            `${ZALO_SERVICE}/messages-db?session=${encodeURIComponent(session)}&contactId=${encodeURIComponent(contactId)}`
+          );
           if (!r2.ok) return;
           const latest = await r2.json();
           if (!Array.isArray(latest)) return;
@@ -668,7 +664,7 @@ export default function KhachHang() {
             return { ...prev, messages: latest };
           });
         } catch {}
-      }, 3000);
+      }, 5000);
     } catch {
       message.error('Không thể tải tin nhắn Zalo — kiểm tra Zalo service đang chạy');
       setZaloPopup(prev => ({ ...prev, loading: false }));
