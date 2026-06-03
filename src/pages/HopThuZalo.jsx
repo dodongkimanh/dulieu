@@ -56,11 +56,32 @@ function formatMsgTime(ts) {
   return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
 }
 
+function parseDuration(sec) {
+  if (!sec) return '';
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? `${m}p ${s}s` : `${s}s`;
+}
+
+function parseJsonCall(text) {
+  if (!text || typeof text !== 'string') return null;
+  try {
+    const d = JSON.parse(text);
+    if (!d || typeof d !== 'object') return null;
+    if (d.title === 'sendBubbleMessage' || String(d.action || '').includes('call')) {
+      let p = {};
+      try { p = typeof d.params === 'string' ? JSON.parse(d.params) : (d.params || {}); } catch {}
+      return { isVideo: p.calltype === 1, isCaller: !!p.isCaller, duration: p.duration || 0, hasCallback: !!p.isEnableCallback };
+    }
+  } catch {}
+  return null;
+}
+
 function MessageBubble({ msg, prevMsg }) {
   const isSelf = msg.isSelf;
   const sameAsPrev = prevMsg && prevMsg.isSelf === msg.isSelf;
   const isCall = msg.type === 'voice_call' || msg.type === 'video_call';
   const callInfo = msg.callInfo ? (typeof msg.callInfo === 'string' ? JSON.parse(msg.callInfo) : msg.callInfo) : null;
+  const jsonCall = !isCall && !callInfo ? parseJsonCall(msg.text) : null;
 
   let content = null;
   if (isCall || callInfo) {
@@ -70,6 +91,22 @@ function MessageBubble({ msg, prevMsg }) {
         {isVideo ? <VideoCameraOutlined /> : <PhoneOutlined />}
         <span>{isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'}</span>
         {callInfo?.duration ? <span style={{ fontSize: 11 }}>· {callInfo.duration}s</span> : null}
+      </div>
+    );
+  } else if (jsonCall) {
+    const iconColor = '#22c55e';
+    content = (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180, padding: '2px 0' }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f0fdf4', border: `1.5px solid ${iconColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {jsonCall.isVideo ? <VideoCameraOutlined style={{ color: iconColor, fontSize: 16 }} /> : <PhoneOutlined style={{ color: iconColor, fontSize: 16 }} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: '#1f2937', lineHeight: 1.3 }}>
+            {jsonCall.isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} {jsonCall.isCaller ? 'đi' : 'đến'}
+          </div>
+          {jsonCall.duration > 0 && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>▶ {parseDuration(jsonCall.duration)}</div>}
+          {jsonCall.hasCallback && <div style={{ marginTop: 5, display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#0068ff', border: '1px solid #0068ff', borderRadius: 12, padding: '2px 10px' }}>GỌI LẠI</div>}
+        </div>
       </div>
     );
   } else if (msg.imageUrl) {
@@ -98,7 +135,7 @@ function MessageBubble({ msg, prevMsg }) {
       <Tooltip title={formatMsgTime(msg.timestamp)} placement={isSelf ? 'left' : 'right'}>
         <div style={{
           maxWidth: '65%',
-          padding: isCall || callInfo ? '8px 14px' : msg.imageUrl ? '4px' : '8px 14px',
+          padding: isCall || callInfo || jsonCall ? '8px 14px' : msg.imageUrl ? '4px' : '8px 14px',
           borderRadius: isSelf ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
           background: isSelf
             ? 'linear-gradient(135deg, #0068FF 0%, #0052cc 100%)'
