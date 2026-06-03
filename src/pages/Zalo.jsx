@@ -1572,9 +1572,18 @@ export default function Zalo() {
           setStatus(msg.status);
           if (msg.status === 'logged_in') {
             setZcaDisconnected(false);
-            // Load proxy đang dùng
+            // Load proxy đang dùng — nếu localStorage trống thì pre-fill từ server
             fetch(`${SERVICE_BASE}/get-proxy${qp}`).then(r => r.json()).then(d => {
               setSessionProxy(d.proxyDisplay || null);
+              if (d.proxy) {
+                setProxyInput(prev => {
+                  if (!prev) {
+                    try { localStorage.setItem(`zalo_proxy_${effectiveSessionId}`, d.proxy); } catch {}
+                    return d.proxy;
+                  }
+                  return prev;
+                });
+              }
             }).catch(() => {});
           }
         }
