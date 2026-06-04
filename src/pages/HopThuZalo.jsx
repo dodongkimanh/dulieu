@@ -111,12 +111,15 @@ function MessageBubble({ msg, prevMsg }) {
     );
   } else if (msg.imageUrl) {
     content = (
-      <img
-        src={msg.imageUrl}
-        alt="ảnh"
-        style={{ maxWidth: 220, maxHeight: 220, borderRadius: 8, display: 'block', cursor: 'pointer' }}
-        onClick={() => window.open(msg.imageUrl, '_blank')}
-      />
+      <>
+        <img
+          src={msg.imageUrl}
+          alt="ảnh"
+          style={{ maxWidth: 220, maxHeight: 220, borderRadius: 8, display: 'block', cursor: 'pointer', marginBottom: msg.text ? 4 : 0 }}
+          onClick={() => window.open(msg.imageUrl, '_blank')}
+        />
+        {msg.text && <span style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', display: 'block' }}>{msg.text}</span>}
+      </>
     );
   } else {
     content = <span style={{ fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.text || ''}</span>;
