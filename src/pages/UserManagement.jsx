@@ -410,6 +410,14 @@ export default function UserManagement() {
           <Form.Item name="sim" label="Sim">
             <Input placeholder="Số điện thoại Sim" />
           </Form.Item>
+          <Form.Item
+            name="password"
+            label="Mật khẩu đăng nhập mới"
+            rules={[{ min: 6, message: 'Tối thiểu 6 ký tự' }]}
+            extra={<span style={{ fontSize: 12, color: '#6B7280' }}>Để trống nếu không muốn đổi mật khẩu</span>}
+          >
+            <Input.Password prefix={<LockOutlined />} placeholder="Nhập mật khẩu mới (tùy chọn)" />
+          </Form.Item>
         </Form>
       </Modal>
     </motion.div>
