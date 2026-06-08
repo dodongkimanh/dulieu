@@ -101,7 +101,7 @@ export default function NhapLieu() {
     ? _coc
     : mTongThu > 0 ? mTongThu - Number(mGiaVon || 0) - Number(mCpVc || 0) : 0;
 
-  const [colFilters, setColFilters] = useState({ sale: null, tinhTrang: null });
+  const [colFilters, setColFilters] = useState({ sale: null, tinhTrang: null, page: null });
   const [openFilterCol, setOpenFilterCol] = useState(null);
   const [tempFilter, setTempFilter] = useState([]);
 
@@ -141,11 +141,17 @@ export default function NhapLieu() {
 
   const COLUMNS = COLUMNS_DEFAULT.map(c => ({ ...c, width: colWidths[c.key] || c.width }));
 
-  const getFilterOptions = (colKey) => colKey === 'sale' ? salesList : STATUS_OPTIONS;
+  const getFilterOptions = (colKey) => {
+    if (colKey === 'sale') return salesList;
+    if (colKey === 'tinhTrang') return STATUS_OPTIONS;
+    if (colKey === 'page') return Object.values(pageChannels).flat().map(item => item.name);
+    return [];
+  };
 
   const filteredData = data.filter(row => {
     if (colFilters.sale && !colFilters.sale.includes(row.sale)) return false;
     if (colFilters.tinhTrang && !colFilters.tinhTrang.includes(row.tinhTrang)) return false;
+    if (colFilters.page && !colFilters.page.includes(row.page)) return false;
     return true;
   });
 
@@ -343,7 +349,7 @@ export default function NhapLieu() {
   const editedCount = Object.keys(editedRows).length;
 
   // Use backend totals (all pages) when available; fall back to summing current page
-  const summary = backendTotals && !colFilters.sale && !colFilters.tinhTrang
+  const summary = backendTotals && !colFilters.sale && !colFilters.tinhTrang && !colFilters.page
     ? {
         giaVon: Number(backendTotals.giaVon || 0),
         tongTienNiemYet: Number(backendTotals.tongTienNiemYet || 0),
@@ -555,7 +561,7 @@ export default function NhapLieu() {
           {/* Header */}
           <div className="nl-header-row">
             {COLUMNS.map(col => {
-              const isFilterable = col.key === 'sale' || col.key === 'tinhTrang';
+              const isFilterable = col.key === 'sale' || col.key === 'tinhTrang' || col.key === 'page';
               const hasActiveFilter = isFilterable && colFilters[col.key] !== null;
               const filterOptions = isFilterable ? getFilterOptions(col.key) : [];
               return (
