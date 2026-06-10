@@ -57,6 +57,18 @@ body {
 
 /* Scrollbar styling handled via WebKit pseudo-elements for broader support checks */
 
+/* Anti-copy protection for sensitive data columns */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+.phone-masked {
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ============================================
    LOGIN PAGE - SmoothGate Split Layout
    ============================================ */

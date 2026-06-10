@@ -180,6 +180,26 @@ function formatZaloTime(ts) {
   return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 }
 
+function maskPhone(phone) {
+  if (!phone) return '—';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length <= 5) return phone;
+  return digits.slice(0, 4) + ' *** ' + digits.slice(-2);
+}
+
+function PhoneDisplay({ phone, masked }) {
+  const display = masked ? maskPhone(phone) : (phone || '—');
+  return (
+    <span
+      className={`no-select phone-masked${masked ? '' : ''}`}
+      onContextMenu={(e) => e.preventDefault()}
+      title={masked ? 'Số điện thoại đã được ẩn' : undefined}
+    >
+      {display}
+    </span>
+  );
+}
+
 const { Option, OptGroup } = Select;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
@@ -775,8 +795,8 @@ export default function KhachHang() {
 
   const baseColumns = [
     { title: 'Ngày', dataIndex: 'ngayThang', _defaultWidth: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
-    { title: 'Khách hàng', dataIndex: 'khachHang', _defaultWidth: 140, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
-    { title: 'SĐT', dataIndex: 'sdt', _defaultWidth: 100 },
+    { title: 'Khách hàng', dataIndex: 'khachHang', _defaultWidth: 140, ellipsis: true, render: (v) => <span className="no-select" style={{ fontWeight: 600 }} onContextMenu={(e) => e.preventDefault()}>{v}</span> },
+    { title: 'SĐT', dataIndex: 'sdt', _defaultWidth: 100, render: (v) => <PhoneDisplay phone={v} masked={isSaler} /> },
     { title: 'Zalo', dataIndex: 'zalo', _defaultWidth: 145, render: (_, record) => {
       const normStr = s => (s || '').replace(/\s+/g, ' ').trim();
       const saleUser = allCrmUsers.find(u => normStr(u.fullName) === normStr(record.sale));
@@ -945,8 +965,8 @@ export default function KhachHang() {
       <div className="expand-section">
         <div className="expand-section-title"><UserOutlined /> Thông tin khách hàng</div>
         <div className="expand-items">
-          <div className="expand-item"><span className="expand-label">Khách hàng</span><span className="expand-value">{record.khachHang || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">SĐT</span><span className="expand-value">{record.sdt || '—'}</span></div>
+          <div className="expand-item"><span className="expand-label">Khách hàng</span><span className="expand-value no-select" onContextMenu={(e) => e.preventDefault()}>{record.khachHang || '—'}</span></div>
+          <div className="expand-item"><span className="expand-label">SĐT</span><span className="expand-value"><PhoneDisplay phone={record.sdt} masked={isSaler} /></span></div>
           <div className="expand-item"><span className="expand-label">Sale</span><span className="expand-value">{record.sale || '—'}</span></div>
           <div className="expand-item"><span className="expand-label">Loại Mess</span><span className="expand-value">{LOAI_MESS_OPTIONS.find(o => o.value === (record.loaiMess || 'mess_moi'))?.label || 'Mess Mới'}</span></div>
           {record.assignedFrom && <div className="expand-item"><span className="expand-label">Chuyển từ</span><span className="expand-value" style={{ color: '#06B6D4', fontWeight: 600 }}>{record.assignedFrom}</span></div>}
@@ -1328,9 +1348,9 @@ export default function KhachHang() {
                   padding: '6px 8px', borderBottom: i < selectedRowKeys.length - 1 ? '1px solid #F1F5F9' : 'none',
                   fontSize: 13
                 }}>
-                  <span style={{ fontWeight: 600, color: '#1F2937' }}>{kh.khachHang}</span>
+                  <span className="no-select" style={{ fontWeight: 600, color: '#1F2937' }}>{kh.khachHang}</span>
                   <div style={{ display: 'flex', gap: 12 }}>
-                    <span style={{ color: '#64748B' }}>{kh.sdt || '—'}</span>
+                    <span style={{ color: '#64748B' }}><PhoneDisplay phone={kh.sdt} masked={isSaler} /></span>
                     <span style={{ color: '#EF4444', fontWeight: 500, minWidth: 80, textAlign: 'right' }}>{kh.sale || '—'}</span>
                   </div>
                 </div>
@@ -1374,7 +1394,7 @@ export default function KhachHang() {
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, color: '#1F2937' }}>Bản ghi âm cuộc gọi</div>
               <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 400 }}>
-                KH: {audioModal.record?.khachHang} · SĐT: {audioModal.record?.sdt}
+                KH: <span className="no-select">{audioModal.record?.khachHang}</span> · SĐT: <PhoneDisplay phone={audioModal.record?.sdt} masked={isSaler} />
               </div>
             </div>
           </div>
@@ -1501,7 +1521,7 @@ export default function KhachHang() {
                 )}
               </div>
               <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 400 }}>
-                KH: {zaloPopup.record?.khachHang} · SĐT: {zaloPopup.record?.sdt} · Sale: {zaloPopup.record?.sale}
+                KH: <span className="no-select">{zaloPopup.record?.khachHang}</span> · SĐT: <PhoneDisplay phone={zaloPopup.record?.sdt} masked={isSaler} /> · Sale: {zaloPopup.record?.sale}
               </div>
             </div>
           </div>
