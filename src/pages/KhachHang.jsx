@@ -796,7 +796,7 @@ export default function KhachHang() {
   const baseColumns = [
     { title: 'Ngày', dataIndex: 'ngayThang', _defaultWidth: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
     { title: 'Khách hàng', dataIndex: 'khachHang', _defaultWidth: 140, ellipsis: true, render: (v) => <span className="no-select" style={{ fontWeight: 600 }} onContextMenu={(e) => e.preventDefault()}>{v}</span> },
-    { title: 'SĐT', dataIndex: 'sdt', _defaultWidth: 100, render: (v) => <PhoneDisplay phone={v} masked={isSaler} /> },
+    { title: 'SĐT', dataIndex: 'sdt', _defaultWidth: 100, render: (v) => <PhoneDisplay phone={v} masked={isSaler && activeTab !== 'assigned'} /> },
     { title: 'Zalo', dataIndex: 'zalo', _defaultWidth: 145, render: (_, record) => {
       const normStr = s => (s || '').replace(/\s+/g, ' ').trim();
       const saleUser = allCrmUsers.find(u => normStr(u.fullName) === normStr(record.sale));
@@ -966,7 +966,7 @@ export default function KhachHang() {
         <div className="expand-section-title"><UserOutlined /> Thông tin khách hàng</div>
         <div className="expand-items">
           <div className="expand-item"><span className="expand-label">Khách hàng</span><span className="expand-value no-select" onContextMenu={(e) => e.preventDefault()}>{record.khachHang || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">SĐT</span><span className="expand-value"><PhoneDisplay phone={record.sdt} masked={isSaler} /></span></div>
+          <div className="expand-item"><span className="expand-label">SĐT</span><span className="expand-value"><PhoneDisplay phone={record.sdt} masked={isSaler && activeTab !== 'assigned'} /></span></div>
           <div className="expand-item"><span className="expand-label">Sale</span><span className="expand-value">{record.sale || '—'}</span></div>
           <div className="expand-item"><span className="expand-label">Loại Mess</span><span className="expand-value">{LOAI_MESS_OPTIONS.find(o => o.value === (record.loaiMess || 'mess_moi'))?.label || 'Mess Mới'}</span></div>
           {record.assignedFrom && <div className="expand-item"><span className="expand-label">Chuyển từ</span><span className="expand-value" style={{ color: '#06B6D4', fontWeight: 600 }}>{record.assignedFrom}</span></div>}
