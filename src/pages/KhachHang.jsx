@@ -796,7 +796,7 @@ export default function KhachHang() {
   const baseColumns = [
     { title: 'Ngày', dataIndex: 'ngayThang', _defaultWidth: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
     { title: 'Khách hàng', dataIndex: 'khachHang', _defaultWidth: 140, ellipsis: true, render: (v) => <span className="no-select" style={{ fontWeight: 600 }} onContextMenu={(e) => e.preventDefault()}>{v}</span> },
-    { title: 'SĐT', dataIndex: 'sdt', _defaultWidth: 100, render: (v) => <PhoneDisplay phone={v} masked={isSaler && activeTab !== 'assigned'} /> },
+    { title: 'SĐT', dataIndex: 'sdt', _defaultWidth: 100, render: (v) => <PhoneDisplay phone={v} masked={false} /> },
     { title: 'Zalo', dataIndex: 'zalo', _defaultWidth: 145, render: (_, record) => {
       const normStr = s => (s || '').replace(/\s+/g, ' ').trim();
       const saleUser = allCrmUsers.find(u => normStr(u.fullName) === normStr(record.sale));
@@ -966,7 +966,7 @@ export default function KhachHang() {
         <div className="expand-section-title"><UserOutlined /> Thông tin khách hàng</div>
         <div className="expand-items">
           <div className="expand-item"><span className="expand-label">Khách hàng</span><span className="expand-value no-select" onContextMenu={(e) => e.preventDefault()}>{record.khachHang || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">SĐT</span><span className="expand-value"><PhoneDisplay phone={record.sdt} masked={isSaler && activeTab !== 'assigned'} /></span></div>
+          <div className="expand-item"><span className="expand-label">SĐT</span><span className="expand-value"><PhoneDisplay phone={record.sdt} masked={false} /></span></div>
           <div className="expand-item"><span className="expand-label">Sale</span><span className="expand-value">{record.sale || '—'}</span></div>
           <div className="expand-item"><span className="expand-label">Loại Mess</span><span className="expand-value">{LOAI_MESS_OPTIONS.find(o => o.value === (record.loaiMess || 'mess_moi'))?.label || 'Mess Mới'}</span></div>
           {record.assignedFrom && <div className="expand-item"><span className="expand-label">Chuyển từ</span><span className="expand-value" style={{ color: '#06B6D4', fontWeight: 600 }}>{record.assignedFrom}</span></div>}
@@ -1350,7 +1350,7 @@ export default function KhachHang() {
                 }}>
                   <span className="no-select" style={{ fontWeight: 600, color: '#1F2937' }}>{kh.khachHang}</span>
                   <div style={{ display: 'flex', gap: 12 }}>
-                    <span style={{ color: '#64748B' }}><PhoneDisplay phone={kh.sdt} masked={isSaler} /></span>
+                    <span style={{ color: '#64748B' }}><PhoneDisplay phone={kh.sdt} masked={false} /></span>
                     <span style={{ color: '#EF4444', fontWeight: 500, minWidth: 80, textAlign: 'right' }}>{kh.sale || '—'}</span>
                   </div>
                 </div>
@@ -1394,7 +1394,7 @@ export default function KhachHang() {
             <div>
               <div style={{ fontWeight: 700, fontSize: 15, color: '#1F2937' }}>Bản ghi âm cuộc gọi</div>
               <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 400 }}>
-                KH: <span className="no-select">{audioModal.record?.khachHang}</span> · SĐT: <PhoneDisplay phone={audioModal.record?.sdt} masked={isSaler} />
+                KH: <span className="no-select">{audioModal.record?.khachHang}</span> · SĐT: <PhoneDisplay phone={audioModal.record?.sdt} masked={false} />
               </div>
             </div>
           </div>
@@ -1521,7 +1521,7 @@ export default function KhachHang() {
                 )}
               </div>
               <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 400 }}>
-                KH: <span className="no-select">{zaloPopup.record?.khachHang}</span> · SĐT: <PhoneDisplay phone={zaloPopup.record?.sdt} masked={isSaler} /> · Sale: {zaloPopup.record?.sale}
+                KH: <span className="no-select">{zaloPopup.record?.khachHang}</span> · SĐT: <PhoneDisplay phone={zaloPopup.record?.sdt} masked={false} /> · Sale: {zaloPopup.record?.sale}
               </div>
             </div>
           </div>
