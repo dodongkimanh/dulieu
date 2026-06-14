@@ -59,7 +59,7 @@ const getGroupKey = (chucVu) => {
 
 const TOTAL_COLS = 19;
 
-function EditableCell({ value, rowId, field, onSave }) {
+function EditableCell({ value, rowId, field, onSave, readOnly }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
 
@@ -67,6 +67,10 @@ function EditableCell({ value, rowId, field, onSave }) {
     setEditing(false);
     if (draft !== value) onSave(rowId, field, draft);
   };
+
+  if (readOnly) return (
+    <span style={{ color: '#374151', display: 'inline-block', minWidth: 60 }}>{vnd(value)}</span>
+  );
 
   if (editing) return (
     <InputNumber
@@ -110,6 +114,7 @@ function computeTongLuong(emp) {
 
 export default function BangLuong() {
   const { isEmployeeView, isAdmin, isKeToan } = useAuth();
+  const canEdit = isAdmin || isKeToan;
   const [month, setMonth] = useState(dayjs());
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -481,7 +486,7 @@ export default function BangLuong() {
       title: 'Công Phép', dataIndex: 'soCongNghiLe', width: 100, align: 'center',
       render: wr((v, r) => (
         <div>
-          <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="soCongNghiLe" onSave={handleCellEdit} />
+          <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="soCongNghiLe" onSave={handleCellEdit} readOnly={!canEdit} />
           <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>
             {`${vnd(Math.round((r.luongCung || 0) / 26))}/ngày → Lương CT`}
           </div>
@@ -522,7 +527,7 @@ export default function BangLuong() {
       title: 'Hoa Hồng', dataIndex: 'hoaHong', width: 120, align: 'right',
       render: wr((v, r) => (
         <div>
-          <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="hoaHong" onSave={handleCellEdit} />
+          <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="hoaHong" onSave={handleCellEdit} readOnly={!canEdit} />
           {Number(v || 0) > 0 && <span style={{ fontSize: 10, color: '#7C3AED' }}> +</span>}
         </div>
       )),
@@ -552,19 +557,19 @@ export default function BangLuong() {
           <b style={{ color: '#15803D' }}>{vnd(r.phuCapLaiXe || 0)}</b>
           <div style={{ fontSize: 10, color: '#94A3B8' }}>từ chấm công</div>
           <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>+thêm:</div>
-          <EditableCell value={v} rowId={r.nhanVienId} field="phuCap" onSave={handleCellEdit} />
+          <EditableCell value={v} rowId={r.nhanVienId} field="phuCap" onSave={handleCellEdit} readOnly={!canEdit} />
         </div>
       ) : (
-        <EditableCell value={v} rowId={r.nhanVienId} field="phuCap" onSave={handleCellEdit} />
+        <EditableCell value={v} rowId={r.nhanVienId} field="phuCap" onSave={handleCellEdit} readOnly={!canEdit} />
       )),
     },
     {
       title: 'Ứng Lương', dataIndex: 'ungLuong', width: 110, align: 'right',
-      render: wr((v, r) => <EditableCell value={v} rowId={r.nhanVienId} field="ungLuong" onSave={handleCellEdit} />),
+      render: wr((v, r) => <EditableCell value={v} rowId={r.nhanVienId} field="ungLuong" onSave={handleCellEdit} readOnly={!canEdit} />),
     },
     {
       title: 'Phạt', dataIndex: 'phat', width: 100, align: 'right',
-      render: wr((v, r) => <EditableCell value={v} rowId={r.nhanVienId} field="phat" onSave={handleCellEdit} />),
+      render: wr((v, r) => <EditableCell value={v} rowId={r.nhanVienId} field="phat" onSave={handleCellEdit} readOnly={!canEdit} />),
     },
     {
       title: 'Phạt Đi Muộn', dataIndex: 'phatTuChamCong', width: 110, align: 'right',
@@ -581,14 +586,14 @@ export default function BangLuong() {
       title: 'Sim ĐT', dataIndex: 'simDt', width: 105, align: 'right',
       render: wr((v, r) => (
         <div>
-          <EditableCell value={v} rowId={r.nhanVienId} field="simDt" onSave={handleCellEdit} />
+          <EditableCell value={v} rowId={r.nhanVienId} field="simDt" onSave={handleCellEdit} readOnly={!canEdit} />
           {v > 0 && <span style={{ fontSize: 10, color: '#059669' }}> +</span>}
         </div>
       )),
     },
     {
       title: 'Chi VT', dataIndex: 'chiVt', width: 105, align: 'right',
-      render: wr((v, r) => <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="chiVt" onSave={handleCellEdit} />),
+      render: wr((v, r) => <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="chiVt" onSave={handleCellEdit} readOnly={!canEdit} />),
     },
     {
       title: 'Tổng Lương', dataIndex: 'tongLuong', width: 130, align: 'right', fixed: 'right',

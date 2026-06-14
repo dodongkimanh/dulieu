@@ -1,28 +1,25 @@
-﻿import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Input, Select, DatePicker, Tag, Popconfirm, message, Row, Col, Tooltip, Badge } from 'antd';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Table, Button, Input, InputNumber, Select, Tag, Popconfirm, message, Tooltip, Badge } from 'antd';
 import {
   SearchOutlined,
   DeleteOutlined,
   FileExcelOutlined,
   ReloadOutlined,
-  ShoppingCartOutlined,
+  CalendarOutlined,
   FilterOutlined,
-  InfoCircleOutlined,
-  DollarOutlined,
-  CarOutlined,
-  FileTextOutlined,
+  EditOutlined,
+  CheckOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
-import { motion, AnimatePresence } from 'framer-motion';
-import { donHangApi, authApi, kenhTiepThiApi } from '../api';
+import { DatePicker } from 'antd';
+import { motion } from 'framer-motion';
+import { donHangApi, authApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import dayjs from 'dayjs';
 
-const { Option, OptGroup } = Select;
+const { Option } = Select;
 
-const STATUS_OPTIONS = [
-  'Đã Giao Thành Công', 'Đang Chờ', 'KH Showroom', 'Hoàn hàng',
-  'Đang vận chuyển', 'Đang giao', 'HỦY ĐƠN', 'Khách Đặt Cọc', 'Kho đang gọi hàng',
-];
+const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
 
 const statusColors = {
   'Đã Giao Thành Công': { color: '#059669', bg: '#D1FAE5' },
@@ -36,204 +33,491 @@ const statusColors = {
   'Kho đang gọi hàng': { color: '#0D9488', bg: '#CCFBF1' },
 };
 
-const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
+// Inline editable note cell
+function NoteCell({ value, recordId, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || '');
+  const inputRef = useRef(null);
+
+  const startEdit = (e) => {
+    e.stopPropagation();
+    setDraft(value || '');
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const save = async (e) => {
+    e?.stopPropagation();
+    setEditing(false);
+    if (draft !== (value || '')) {
+      await onSave(recordId, draft);
+    }
+  };
+
+  const cancel = (e) => {
+    e?.stopPropagation();
+    setEditing(false);
+    setDraft(value || '');
+  };
+
+  if (editing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+        <Input
+          ref={inputRef}
+          size="small"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onPressEnter={save}
+          onBlur={save}
+          style={{ fontSize: 12, width: 140 }}
+        />
+        <Button type="text" size="small" icon={<CheckOutlined />} onClick={save} style={{ color: '#059669', padding: 2 }} />
+        <Button type="text" size="small" icon={<CloseOutlined />} onClick={cancel} style={{ color: '#94A3B8', padding: 2 }} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', minHeight: 22 }}
+      onClick={startEdit}
+    >
+      {value ? (
+        <Tooltip title={value}>
+          <span style={{ color: '#374151', fontSize: 12, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+            {value}
+          </span>
+        </Tooltip>
+      ) : (
+        <span style={{ color: '#CBD5E1', fontSize: 11, fontStyle: 'italic' }}>Thêm ghi chú...</span>
+      )}
+      <EditOutlined style={{ fontSize: 10, color: '#CBD5E1', flexShrink: 0 }} />
+    </div>
+  );
+}
+
+function HoaHongCell({ value, recordId, onSave, canEdit }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || 0);
+  const inputRef = useRef(null);
+
+  const val = Number(value || 0);
+
+  if (!canEdit) {
+    return (
+      <div style={{ textAlign: 'right', minHeight: 22 }}>
+        {val > 0
+          ? <b style={{ color: '#059669', fontSize: 13 }}>{val.toLocaleString('vi-VN')}</b>
+          : <span style={{ color: '#CBD5E1', fontSize: 11 }}>—</span>
+        }
+      </div>
+    );
+  }
+
+  const startEdit = (e) => {
+    e.stopPropagation();
+    setDraft(value || 0);
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const save = async (e) => {
+    e?.stopPropagation();
+    setEditing(false);
+    if (draft !== (value || 0)) {
+      await onSave(recordId, draft || 0);
+    }
+  };
+
+  const cancel = (e) => {
+    e?.stopPropagation();
+    setEditing(false);
+    setDraft(value || 0);
+  };
+
+  if (editing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={(e) => e.stopPropagation()}>
+        <InputNumber
+          ref={inputRef}
+          size="small"
+          value={draft}
+          onChange={(v) => setDraft(v)}
+          onPressEnter={save}
+          onBlur={save}
+          min={0}
+          formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+          parser={(v) => v.replace(/,/g, '')}
+          controls={false}
+          style={{ fontSize: 12, width: 110 }}
+        />
+        <Button type="text" size="small" icon={<CheckOutlined />} onClick={save} style={{ color: '#059669', padding: 2 }} />
+        <Button type="text" size="small" icon={<CloseOutlined />} onClick={cancel} style={{ color: '#94A3B8', padding: 2 }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, cursor: 'pointer', minHeight: 22 }} onClick={startEdit}>
+      {val > 0
+        ? <b style={{ color: '#059669', fontSize: 13 }}>{val.toLocaleString('vi-VN')}</b>
+        : <span style={{ color: '#CBD5E1', fontSize: 11 }}>—</span>
+      }
+      <EditOutlined style={{ fontSize: 10, color: '#CBD5E1', flexShrink: 0 }} />
+    </div>
+  );
+}
 
 export default function DonHang() {
   const { isAdmin, isKeToan, isSaler, user } = useAuth();
   const canEdit = isAdmin || isKeToan;
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
-  const [filters, setFilters] = useState(() => ({
-    keyword: '', tinhTrang: null,
-    sale: isSaler ? (user?.fullName || null) : null,
-    page: null, maIdQuangCao: '',
-  }));
-  const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 9999, total: 0 });
+  const [totals, setTotals] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(dayjs());
+  const [keyword, setKeyword] = useState('');
+  const [sale, setSale] = useState(isSaler ? (user?.fullName || null) : null);
   const [salesList, setSalesList] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
-  const [pageChannels, setPageChannels] = useState({});
 
-  const fetchData = useCallback(async (pg = 1, size = 20, overrides = {}) => {
+  const getMonthRange = (m) => ({
+    fromDate: m.startOf('month').format('YYYY-MM-DD'),
+    toDate: m.endOf('month').format('YYYY-MM-DD'),
+  });
+
+  const getMonthRangeLabel = (m) =>
+    `${m.startOf('month').format('DD/MM')} – ${m.endOf('month').format('DD/MM/YYYY')}`;
+
+  const fetchData = useCallback(async (pg = 1, size = 9999, overrides = {}) => {
     setLoading(true);
     try {
-      const f = { ...filters, ...overrides };
+      const { fromDate, toDate } = getMonthRange(overrides.month ?? selectedMonth);
       const params = {
-        pageNum: pg - 1, size,
-        keyword: f.keyword || undefined,
-        tinhTrang: f.tinhTrang || undefined,
-        sale: f.sale || undefined,
-        page: f.page || undefined,
-        maIdQuangCao: f.maIdQuangCao || undefined,
-        fromDate: dateRange[0]?.format('YYYY-MM-DD') || undefined,
-        toDate: dateRange[1]?.format('YYYY-MM-DD') || undefined,
+        pageNum: pg - 1,
+        size,
+        doanhSoMode: true,
+        fromDate,
+        toDate,
+        keyword: (overrides.keyword ?? keyword) || undefined,
+        sale: (overrides.sale !== undefined ? overrides.sale : sale) || undefined,
       };
       const res = await donHangApi.getAll(params);
       setData(res.data.content);
       setPagination({ current: pg, pageSize: size, total: res.data.totalElements });
-    } catch { message.error('Không thể tải danh sách đơn hàng'); }
-    finally { setLoading(false); }
-  }, [filters, dateRange]);
+      setTotals(res.data.totals || null);
+    } catch {
+      message.error('Không thể tải dữ liệu doanh số');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedMonth, keyword, sale]);
 
-  const fetchSales = async () => {
-    try { const res = await authApi.getSaleUsers(); setSalesList(res.data); } catch {}
+  useEffect(() => {
+    fetchData();
+    if (!isSaler) {
+      authApi.getSaleUsers().then(res => setSalesList(res.data || [])).catch(() => {});
+    }
+  }, []);
+
+  const handleMonthChange = (m) => {
+    if (!m) return;
+    setSelectedMonth(m);
+    fetchData(1, pagination.pageSize, { month: m });
   };
 
-  const fetchChannels = async () => {
-    try { const res = await kenhTiepThiApi.getGrouped(); setPageChannels(res.data || {}); } catch {}
-  };
-
-  useEffect(() => { fetchData(); fetchSales(); fetchChannels(); }, []);
-
-  const handleTableChange = (pag) => fetchData(pag.current, pag.pageSize);
   const handleSearch = () => fetchData(1, pagination.pageSize);
+
   const handleReset = () => {
-    const saleFilter = isSaler ? (user?.fullName || null) : null;
-    setFilters({ keyword: '', tinhTrang: null, sale: saleFilter, page: null, maIdQuangCao: '' });
-    setDateRange([dayjs().startOf('month'), dayjs().endOf('month')]);
-    fetchData(1, pagination.pageSize, { keyword: '', tinhTrang: null, sale: saleFilter, page: null, maIdQuangCao: '' });
+    const newSale = isSaler ? (user?.fullName || null) : null;
+    setKeyword('');
+    setSale(newSale);
+    setSelectedMonth(dayjs());
+    fetchData(1, pagination.pageSize, { keyword: '', sale: newSale, month: dayjs() });
   };
 
   const handleDelete = async (id) => {
-    try { await donHangApi.delete(id); message.success('Xóa thành công'); fetchData(pagination.current, pagination.pageSize); }
-    catch { message.error('Lỗi khi xóa'); }
+    try {
+      await donHangApi.delete(id);
+      message.success('Xóa thành công');
+      fetchData(pagination.current, pagination.pageSize);
+    } catch {
+      message.error('Lỗi khi xóa');
+    }
+  };
+
+  const handleSaveNote = async (id, ghiChuDoanhSo) => {
+    try {
+      await donHangApi.updateGhiChuDoanhSo(id, ghiChuDoanhSo);
+      setData(prev => prev.map(r => r.id === id ? { ...r, ghiChuDoanhSo } : r));
+    } catch {
+      message.error('Lỗi khi lưu ghi chú');
+    }
+  };
+
+  const handleSaveHoaHong = async (id, hoaHong) => {
+    try {
+      const record = data.find(r => r.id === id);
+      if (!record) return;
+      await donHangApi.update(id, { ...record, hoaHong });
+      setData(prev => prev.map(r => r.id === id ? { ...r, hoaHong } : r));
+    } catch {
+      message.error('Lỗi khi lưu hoa hồng');
+    }
   };
 
   const handleExport = async () => {
     try {
+      const { fromDate, toDate } = getMonthRange(selectedMonth);
       const params = {
-        keyword: filters.keyword || undefined,
-        tinhTrang: filters.tinhTrang || undefined,
-        sale: filters.sale || undefined,
-        page: filters.page || undefined,
-        maIdQuangCao: filters.maIdQuangCao || undefined,
-        fromDate: dateRange[0]?.format('YYYY-MM-DD') || undefined,
-        toDate: dateRange[1]?.format('YYYY-MM-DD') || undefined,
+        doanhSoMode: true,
+        fromDate,
+        toDate,
+        keyword: keyword || undefined,
+        sale: sale || undefined,
       };
       const res = await donHangApi.export(params);
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `don-hang-${dayjs().format('YYYY-MM-DD')}.xlsx`);
+      link.setAttribute('download', `DoanhSoThang_${selectedMonth.format('MM-YYYY')}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch { message.error('Lỗi khi xuất Excel'); }
+    } catch {
+      message.error('Lỗi khi xuất Excel');
+    }
   };
 
-  const adminColumns = [
-    { title: 'Ngày', dataIndex: 'ngay', width: 100, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
-    { title: 'Mã HĐ', dataIndex: 'maHoaDon', width: 130, render: (v) => <span style={{ color: '#4F46E5', fontWeight: 600 }}>{v}</span> },
-    { title: 'Khách hàng', dataIndex: 'khachHang', width: 160, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
-    { title: 'SĐT', dataIndex: 'sdt', width: 120 },
-    { title: 'Sale', dataIndex: 'sale', width: 120 },
-    { title: 'Giá Bán', dataIndex: 'giaBanLenDon', width: 130, align: 'right', render: (v) => <span style={{ fontWeight: 500 }}>{vnd(v)}</span> },
-    { title: 'Giá Thu TT', dataIndex: 'giaThuThucTe', width: 130, align: 'right', render: (v) => <b style={{ color: '#059669' }}>{vnd(v)}</b> },
-    { title: 'LN Ước Tính', dataIndex: 'loiNhuanUocTinh', width: 130, align: 'right', render: (v) => <b style={{ color: v >= 0 ? '#059669' : '#DC2626' }}>{vnd(v)}</b> },
-    { title: 'Tình Trạng', dataIndex: 'tinhTrang', width: 150, render: (v) => {
-      const sc = statusColors[v] || { color: '#64748B', bg: '#F1F5F9' };
-      return <Tag style={{ background: sc.bg, color: sc.color, border: 'none', fontWeight: 600, padding: '2px 10px', borderRadius: 6 }}>{v}</Tag>;
-    }},
-    ...(canEdit ? [{ title: '', width: 50, fixed: 'right', render: (_, record) => (
-      <Popconfirm title="Xác nhận xóa?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
-        <Tooltip title="Xóa"><Button type="text" size="small" icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} danger /></Tooltip>
-      </Popconfirm>
-    )}] : []),
+  const columns = [
+    {
+      title: 'Ngày',
+      dataIndex: 'ngay',
+      width: 100,
+      render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '',
+    },
+    {
+      title: 'Mã ĐH',
+      dataIndex: 'maDatHang',
+      width: 120,
+      render: (v, r) => (
+        <span style={{ color: '#4F46E5', fontWeight: 600 }}>
+          {v || r.maHoaDon || '—'}
+        </span>
+      ),
+    },
+    {
+      title: 'Khách hàng',
+      dataIndex: 'khachHang',
+      width: 155,
+      ellipsis: true,
+      render: (v) => <span style={{ fontWeight: 600 }}>{v}</span>,
+    },
+    {
+      title: 'SĐT',
+      dataIndex: 'sdt',
+      width: 115,
+    },
+    {
+      title: 'Sale',
+      dataIndex: 'sale',
+      width: 125,
+    },
+    {
+      title: 'Giá Bán',
+      dataIndex: 'giaBanLenDon',
+      width: 125,
+      align: 'right',
+      render: (v) => <span style={{ fontWeight: 500 }}>{vnd(v)}</span>,
+    },
+    {
+      title: 'Giá Thu TT',
+      dataIndex: 'giaThuThucTe',
+      width: 125,
+      align: 'right',
+      render: (v) => <b style={{ color: '#059669' }}>{vnd(v)}</b>,
+    },
+    {
+      title: 'Chiết Khấu',
+      dataIndex: 'tyLeCk',
+      width: 95,
+      align: 'center',
+      render: (v) => (
+        <span style={{ color: '#D97706', fontWeight: 600 }}>
+          {Number(v || 0).toFixed(1)}%
+        </span>
+      ),
+    },
+    {
+      title: '% DS',
+      dataIndex: 'huongDoanhSo',
+      width: 80,
+      align: 'center',
+      render: (v) => v ? (
+        <span style={{ color: '#7C3AED', fontWeight: 600, fontSize: 12 }}>{v}</span>
+      ) : <span style={{ color: '#CBD5E1', fontSize: 11 }}>—</span>,
+    },
+    {
+      title: 'DS Hưởng',
+      dataIndex: 'dsHuong',
+      width: 125,
+      align: 'right',
+      render: (v) => <b style={{ color: '#2563EB' }}>{vnd(v)}</b>,
+    },
+    {
+      title: 'Hoa Hồng',
+      dataIndex: 'hoaHong',
+      width: 145,
+      align: 'right',
+      render: (v, record) => (
+        <HoaHongCell value={v} recordId={record.id} onSave={handleSaveHoaHong} canEdit={canEdit} />
+      ),
+    },
+    {
+      title: 'Tình Trạng',
+      dataIndex: 'tinhTrang',
+      width: 155,
+      render: (v) => {
+        const sc = statusColors[v] || { color: '#64748B', bg: '#F1F5F9' };
+        return (
+          <Tag style={{ background: sc.bg, color: sc.color, border: 'none', fontWeight: 600, padding: '2px 10px', borderRadius: 6 }}>
+            {v}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Ghi chú',
+      dataIndex: 'ghiChuDoanhSo',
+      width: 170,
+      render: (v, record) => (
+        <NoteCell value={v} recordId={record.id} onSave={handleSaveNote} />
+      ),
+    },
+    ...(canEdit ? [{
+      title: '',
+      width: 50,
+      fixed: 'right',
+      render: (_, record) => (
+        <Popconfirm title="Xác nhận xóa?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
+          <Tooltip title="Xóa">
+            <Button type="text" size="small" icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} danger />
+          </Tooltip>
+        </Popconfirm>
+      ),
+    }] : []),
   ];
 
-  const salerColumns = [
-    { title: 'Ngày', dataIndex: 'ngay', width: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
-    { title: 'Mã HĐ', dataIndex: 'maHoaDon', width: 130, render: (v) => <span style={{ color: '#4F46E5', fontWeight: 600 }}>{v}</span> },
-    { title: 'Mã ĐH', dataIndex: 'maDatHang', width: 110 },
-    { title: 'Khách hàng', dataIndex: 'khachHang', width: 150, ellipsis: true, render: (v) => <span style={{ fontWeight: 600 }}>{v}</span> },
-    { title: 'SĐT', dataIndex: 'sdt', width: 115 },
-    { title: 'Sale', dataIndex: 'sale', width: 110 },
-    { title: 'Niêm Yết', dataIndex: 'tongTienNiemYet', width: 120, align: 'right', render: (v) => <span style={{ fontWeight: 500 }}>{vnd(v)}</span> },
-    { title: 'Giá Bán', dataIndex: 'giaBanLenDon', width: 120, align: 'right', render: (v) => <span style={{ fontWeight: 500 }}>{vnd(v)}</span> },
-    { title: 'Phụ Trội', dataIndex: 'cuocPhuTroi', width: 100, align: 'right', render: (v) => vnd(v) },
-    { title: 'CK %', dataIndex: 'tyLeCk', width: 80, align: 'center', render: (v) => `${Number(v || 0).toFixed(1)}%` },
-    { title: 'Tình Trạng', dataIndex: 'tinhTrang', width: 140, render: (v) => {
-      const sc = statusColors[v] || { color: '#64748B', bg: '#F1F5F9' };
-      return <Tag style={{ background: sc.bg, color: sc.color, border: 'none', fontWeight: 600, padding: '2px 10px', borderRadius: 6 }}>{v}</Tag>;
-    }},
-    { title: 'Mã Vận Đơn', dataIndex: 'maVanDon', width: 120 },
-  ];
-
-  const columns = isSaler ? salerColumns : adminColumns;
-
-  const expandedRowRender = (record) => (
-    <motion.div
-      className="expand-detail-grid"
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-    >
-      <div className="expand-section">
-        <div className="expand-section-title"><InfoCircleOutlined /> Thông tin đơn</div>
-        <div className="expand-items">
-          <div className="expand-item"><span className="expand-label">Mã ĐH</span><span className="expand-value">{record.maDatHang || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">Page</span><span className="expand-value">{record.page || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">Mã ID QC</span><span className="expand-value">{record.maIdQuangCao || '—'}</span></div>
-        </div>
-      </div>
-      {!isSaler && (
-        <div className="expand-section">
-          <div className="expand-section-title"><DollarOutlined /> Giá & Chiết khấu</div>
-          <div className="expand-items">
-            <div className="expand-item"><span className="expand-label">Giá Vốn</span><span className="expand-value">{vnd(record.giaVon)} đ</span></div>
-            <div className="expand-item"><span className="expand-label">Tổng Niêm Yết</span><span className="expand-value">{vnd(record.tongTienNiemYet)} đ</span></div>
-            <div className="expand-item"><span className="expand-label">Cước Phụ Trội</span><span className="expand-value">{vnd(record.cuocPhuTroi)} đ</span></div>
-            <div className="expand-item"><span className="expand-label">CK %</span><span className="expand-value">{Number(record.tyLeCk || 0).toFixed(1)}%</span></div>
-          </div>
-        </div>
-      )}
-      {!isSaler && (
-        <div className="expand-section">
-          <div className="expand-section-title"><CarOutlined /> Vận chuyển & Thanh toán</div>
-          <div className="expand-items">
-            <div className="expand-item"><span className="expand-label">Mã Vận Đơn</span><span className="expand-value">{record.maVanDon || '—'}</span></div>
-            <div className="expand-item"><span className="expand-label">CP Vận Chuyển</span><span className="expand-value">{vnd(record.chiPhiVanChuyen)} đ</span></div>
-            <div className="expand-item"><span className="expand-label">ĐS Vận Chuyển</span><span className="expand-value">{vnd(record.dsVanChuyen)} đ</span></div>
-            <div className="expand-item"><span className="expand-label">Đặt Cọc</span><span className="expand-value">{vnd(record.datCoc)} đ</span></div>
-            <div className="expand-item"><span className="expand-label">Thu Trực Tiếp</span><span className="expand-value">{vnd(record.thuBanTrucTiep)} đ</span></div>
-            <div className="expand-item highlight"><span className="expand-label">Tổng Thu Khách</span><span className="expand-value">{vnd(record.tongThuKhach)} đ</span></div>
-            <div className="expand-item highlight"><span className="expand-label">Lợi Nhuận Thực</span><span className="expand-value" style={{ color: record.loiNhuanSauTru >= 0 ? '#059669' : '#DC2626' }}>{vnd(record.loiNhuanSauTru)} đ</span></div>
-          </div>
-        </div>
-      )}
-      {record.ghiChu && (
-        <div className="expand-section full">
-          <div className="expand-section-title"><FileTextOutlined /> Ghi chú</div>
-          <p className="expand-note">{record.ghiChu}</p>
-        </div>
-      )}
-    </motion.div>
-  );
+  const summaryRow = () => {
+    if (!totals) return null;
+    if (isSaler) {
+      const t = data.reduce((acc, r) => ({
+        giaBanLenDon: acc.giaBanLenDon + Number(r.giaBanLenDon || 0),
+        giaThuThucTe: acc.giaThuThucTe + Number(r.giaThuThucTe || 0),
+        dsHuong:      acc.dsHuong      + Number(r.dsHuong      || 0),
+        hoaHong:      acc.hoaHong      + Number(r.hoaHong      || 0),
+      }), { giaBanLenDon: 0, giaThuThucTe: 0, dsHuong: 0, hoaHong: 0 });
+      return (
+        <Table.Summary fixed>
+          <Table.Summary.Row style={{ background: '#F0F9FF', fontWeight: 700 }}>
+            <Table.Summary.Cell index={0} colSpan={5}>
+              <span style={{ color: '#4F46E5', fontSize: 13 }}>Tổng cộng ({data.length} đơn)</span>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={5} align="right">
+              <span style={{ color: '#374151' }}>{vnd(t.giaBanLenDon)}</span>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={6} align="right">
+              <b style={{ color: '#059669' }}>{vnd(t.giaThuThucTe)}</b>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={7} />
+            <Table.Summary.Cell index={8} />
+            <Table.Summary.Cell index={9} align="right">
+              <b style={{ color: '#2563EB' }}>{vnd(t.dsHuong)}</b>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={10} align="right">
+              <b style={{ color: '#059669' }}>{vnd(t.hoaHong)}</b>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={11} colSpan={2} />
+          </Table.Summary.Row>
+        </Table.Summary>
+      );
+    }
+    const colCount = canEdit ? 3 : 2;
+    return (
+      <Table.Summary fixed>
+        <Table.Summary.Row style={{ background: '#F0F9FF', fontWeight: 700 }}>
+          <Table.Summary.Cell index={0} colSpan={5}>
+            <span style={{ color: '#4F46E5', fontSize: 13 }}>Tổng cộng ({pagination.total} đơn)</span>
+          </Table.Summary.Cell>
+          <Table.Summary.Cell index={5} align="right">
+            <span style={{ color: '#374151' }}>{vnd(totals.giaBanLenDon)}</span>
+          </Table.Summary.Cell>
+          <Table.Summary.Cell index={6} align="right">
+            <span style={{ color: '#059669' }}>{vnd(totals.giaThuThucTe)}</span>
+          </Table.Summary.Cell>
+          <Table.Summary.Cell index={7} />
+          <Table.Summary.Cell index={8} />
+          <Table.Summary.Cell index={9} align="right">
+            <span style={{ color: '#2563EB' }}>{vnd(totals.dsHuong)}</span>
+          </Table.Summary.Cell>
+          <Table.Summary.Cell index={10} align="right">
+            <span style={{ color: '#059669' }}>{vnd(totals.hoaHong)}</span>
+          </Table.Summary.Cell>
+          <Table.Summary.Cell index={11} colSpan={colCount} />
+        </Table.Summary.Row>
+      </Table.Summary>
+    );
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+      {/* Header */}
       <div className="page-header-premium">
         <div className="page-header-left">
           <div className="page-header-info">
-            <ShoppingCartOutlined style={{ fontSize: 20, color: '#4F46E5' }} />
-            <span className="page-header-title-text">Đơn hàng</span>
-            <Badge count={pagination.total} showZero style={{ backgroundColor: '#4F46E5' }} overflowCount={9999} />
+            <CalendarOutlined style={{ fontSize: 20, color: '#4F46E5' }} />
+            <span className="page-header-title-text">Doanh Số Tháng</span>
+            <Badge count={pagination.total} showZero style={{ backgroundColor: '#059669' }} overflowCount={9999} />
           </div>
         </div>
         <div className="page-header-right">
+          <Tooltip title={`Đang xem: ${getMonthRangeLabel(selectedMonth)}`} placement="bottom">
+            <DatePicker
+              picker="month"
+              value={selectedMonth}
+              onChange={handleMonthChange}
+              format="MM/YYYY"
+              allowClear={false}
+              style={{ width: 130 }}
+            />
+          </Tooltip>
+          <span style={{ fontSize: 12, color: '#94A3B8', whiteSpace: 'nowrap' }}>
+            {getMonthRangeLabel(selectedMonth)}
+          </span>
           <Input
-            placeholder="Tìm kiếm..."
+            placeholder="Tìm kiếm KH, SĐT..."
             prefix={<SearchOutlined style={{ color: '#94A3B8' }} />}
-            value={filters.keyword}
-            onChange={(e) => setFilters(f => ({ ...f, keyword: e.target.value }))}
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
             onPressEnter={handleSearch}
-            style={{ width: 200 }}
+            style={{ width: 190 }}
             allowClear
           />
-          <Tooltip title="Bộ lọc nâng cao">
-            <Button icon={<FilterOutlined />} onClick={() => setShowFilters(!showFilters)} type={showFilters ? 'primary' : 'default'} ghost={showFilters}>Bộ lọc</Button>
-          </Tooltip>
+          {!isSaler && (
+            <Tooltip title="Lọc theo Sale">
+              <Button
+                icon={<FilterOutlined />}
+                onClick={() => setShowFilters(!showFilters)}
+                type={showFilters ? 'primary' : 'default'}
+                ghost={showFilters}
+              >
+                Bộ lọc
+              </Button>
+            </Tooltip>
+          )}
           {canEdit && (
             <Tooltip title="Xuất Excel">
               <Button icon={<FileExcelOutlined />} onClick={handleExport} style={{ color: '#10B981' }}>Excel</Button>
@@ -242,61 +526,71 @@ export default function DonHang() {
         </div>
       </div>
 
-      <AnimatePresence>
-        {showFilters && (
-          <motion.div className="filter-panel-premium" initial={{ height: 0, opacity: 0, marginBottom: 0 }} animate={{ height: 'auto', opacity: 1, marginBottom: 16 }} exit={{ height: 0, opacity: 0, marginBottom: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }}>
-            <div className="filter-panel-inner">
-              <Row gutter={[12, 12]} align="middle">
-                <Col xs={24} sm={12} md={5}>
-                  <Select placeholder="Tình trạng" value={filters.tinhTrang} onChange={(v) => setFilters(f => ({ ...f, tinhTrang: v }))} allowClear style={{ width: '100%' }}>
-                    {STATUS_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
-                  </Select>
-                </Col>
-                {!isSaler && (
-                  <Col xs={24} sm={12} md={4}>
-                    <Select placeholder="Sale" value={filters.sale} onChange={(v) => setFilters(f => ({ ...f, sale: v }))} allowClear style={{ width: '100%' }}>
-                      {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
-                    </Select>
-                  </Col>
-                )}
-                <Col xs={24} sm={12} md={5}>
-                  <Select placeholder="Page" value={filters.page} onChange={(v) => setFilters(f => ({ ...f, page: v }))} allowClear style={{ width: '100%' }} showSearch optionFilterProp="children" popupMatchSelectWidth={false}>
-                    {Object.entries(pageChannels).map(([category, items]) => (
-                      <OptGroup key={category} label={<span style={{ fontWeight: 600, color: '#4F46E5', fontSize: 12 }}>{category}</span>}>
-                        {items.map(item => (
-                          <Option key={item.name} value={item.name}>{item.name}</Option>
-                        ))}
-                      </OptGroup>
-                    ))}
-                  </Select>
-                </Col>
-                <Col xs={24} sm={12} md={4}>
-                  <Input placeholder="Mã ID QC" value={filters.maIdQuangCao} onChange={(e) => setFilters(f => ({ ...f, maIdQuangCao: e.target.value }))} allowClear />
-                </Col>
-                <Col xs={24} sm={24} md={6}>
-                  <DatePicker.RangePicker value={dateRange} onChange={(v) => setDateRange(v || [null, null])} format="DD/MM/YYYY" style={{ width: '100%' }} placeholder={['Từ ngày', 'Đến ngày']} />
-                </Col>
-              </Row>
-              <div className="filter-actions">
-                <Button icon={<ReloadOutlined />} onClick={handleReset}>Reset</Button>
-                <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>Lọc</Button>
-              </div>
+      {/* Filter panel */}
+      {showFilters && !isSaler && (
+        <motion.div
+          className="filter-panel-premium"
+          initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+          animate={{ height: 'auto', opacity: 1, marginBottom: 16 }}
+          transition={{ duration: 0.25 }}
+        >
+          <div className="filter-panel-inner">
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Select
+                placeholder="Lọc theo Sale"
+                value={sale}
+                onChange={(v) => setSale(v)}
+                allowClear
+                style={{ width: 200 }}
+              >
+                {salesList.map(s => <Option key={s} value={s}>{s}</Option>)}
+              </Select>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <div className="filter-actions">
+              <Button icon={<ReloadOutlined />} onClick={handleReset}>Reset</Button>
+              <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>Lọc</Button>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
-      <motion.div className="sg-card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.4 }}>
+      {/* Tổng kết doanh số cho SALER — tính client-side vì backend không trả totals cho SALER */}
+      {isSaler && data.length > 0 && (() => {
+        const t = data.reduce((acc, r) => ({
+          giaBanLenDon: acc.giaBanLenDon + Number(r.giaBanLenDon || 0),
+          giaThuThucTe: acc.giaThuThucTe + Number(r.giaThuThucTe || 0),
+          dsHuong:      acc.dsHuong      + Number(r.dsHuong      || 0),
+          hoaHong:      acc.hoaHong      + Number(r.hoaHong      || 0),
+        }), { giaBanLenDon: 0, giaThuThucTe: 0, dsHuong: 0, hoaHong: 0 });
+        return (
+          <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Số đơn',         value: `${data.length} đơn`,         color: '#4F46E5' },
+              { label: 'Tổng Giá Bán',   value: `${vnd(t.giaBanLenDon)} đ`,   color: '#374151' },
+              { label: 'Tổng Giá Thu TT',value: `${vnd(t.giaThuThucTe)} đ`,   color: '#059669' },
+              { label: 'Tổng DS Hưởng',  value: `${vnd(t.dsHuong)} đ`,        color: '#2563EB' },
+              { label: 'Tổng Hoa Hồng',  value: `${vnd(t.hoaHong)} đ`,        color: '#059669' },
+            ].map(s => (
+              <div key={s.label} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 20px', minWidth: 170 }}>
+                <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 3 }}>{s.label}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: s.color }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* Table */}
+      <motion.div className="sg-card" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }}>
         <Table
           dataSource={data}
           columns={columns}
           rowKey="id"
           loading={loading}
-          pagination={{ ...pagination, showSizeChanger: true, showTotal: (t) => `Tổng ${t} đơn` }}
-          onChange={handleTableChange}
-          scroll={{ x: isSaler ? 1500 : 1300 }}
+          pagination={false}
+          scroll={{ x: 1250 }}
           size="middle"
-          expandable={{ expandedRowRender, expandRowByClick: true, rowExpandable: () => true }}
+          summary={summaryRow}
           rowClassName="clickable-row"
         />
       </motion.div>
