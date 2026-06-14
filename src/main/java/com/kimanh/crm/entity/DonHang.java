@@ -106,6 +106,23 @@ public class DonHang {
     @Column(name = "ghi_chu")
     private String ghiChu;
 
+    @Column(name = "ghi_chu_doanh_so")
+    private String ghiChuDoanhSo;
+
+    @Column(name = "ngay_tinh_doanh_so")
+    private LocalDate ngayTinhDoanhSo;
+
+    @Column(name = "huong_doanh_so", length = 10)
+    private String huongDoanhSo;
+
+    @Column(name = "ds_huong", precision = 15, scale = 0)
+    @Builder.Default
+    private BigDecimal dsHuong = BigDecimal.ZERO;
+
+    @Column(name = "hoa_hong", precision = 15, scale = 0)
+    @Builder.Default
+    private BigDecimal hoaHong = BigDecimal.ZERO;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 
@@ -171,5 +188,23 @@ public class DonHang {
         } else {
             loiNhuanSauTru = BigDecimal.ZERO;
         }
+
+        // CÔNG THỨC 6: DS Hưởng = Giá Thu Thực Tế × % Hưởng Doanh Số
+        dsHuong = giaThuThucTe.multiply(parseHuongDoanhSo(huongDoanhSo)).setScale(0, RoundingMode.HALF_UP);
+
+        // Hoa Hồng: nhập thủ công — không tính tự động
+    }
+
+    private BigDecimal parseHuongDoanhSo(String h) {
+        if (h == null) return BigDecimal.ZERO;
+        return switch (h) {
+            case "100%" -> new BigDecimal("1.00");
+            case "75%"  -> new BigDecimal("0.75");
+            case "60%"  -> new BigDecimal("0.60");
+            case "50%"  -> new BigDecimal("0.50");
+            case "30%"  -> new BigDecimal("0.30");
+            case "CK 1%" -> new BigDecimal("0.01");
+            default -> BigDecimal.ZERO;
+        };
     }
 }

@@ -51,6 +51,43 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
             @Param("toDate") LocalDate toDate,
             Pageable pageable);
 
+    // Aggregate totals with same filters (for NhapLieu footer)
+    @Query(value = "SELECT " +
+           "COALESCE(SUM(d.gia_von), 0), " +
+           "COALESCE(SUM(d.tong_tien_niem_yet), 0), " +
+           "COALESCE(SUM(d.gia_ban_len_don), 0), " +
+           "COALESCE(SUM(d.cuoc_phu_troi), 0), " +
+           "COALESCE(SUM(d.gia_thu_thuc_te), 0), " +
+           "COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0), " +
+           "COALESCE(SUM(d.chi_phi_van_chuyen), 0), " +
+           "COALESCE(SUM(d.ds_van_chuyen), 0), " +
+           "COALESCE(SUM(d.dat_coc), 0), " +
+           "COALESCE(SUM(d.thu_ban_truc_tiep), 0), " +
+           "COALESCE(SUM(d.tong_thu_khach), 0), " +
+           "COALESCE(SUM(d.loi_nhuan_sau_tru), 0) " +
+           "FROM public.don_hang d WHERE " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND d.tinh_trang NOT IN ('Hoàn hàng', 'HỦY ĐƠN') " +
+           "AND (CAST(:tinhTrang AS text) IS NULL OR d.tinh_trang = CAST(:tinhTrang AS text)) " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
+           nativeQuery = true)
+    List<Object[]> aggregateTotalsWithFilters(
+            @Param("keyword") String keyword,
+            @Param("tinhTrang") String tinhTrang,
+            @Param("sale") String sale,
+            @Param("page") String page,
+            @Param("maIdQuangCao") String maIdQuangCao,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
     // Export (no paging)
     @Query(value = "SELECT d.* FROM public.don_hang d WHERE " +
            "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
@@ -132,6 +169,184 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
     @Query(value = "SELECT COALESCE(MAX(CAST(SUBSTRING(ma_hoa_don FROM '[0-9]+$') AS INTEGER)), 0) " +
                    "FROM don_hang WHERE ma_hoa_don LIKE :prefix || '%'", nativeQuery = true)
     int findMaxInvoiceSeq(@Param("prefix") String prefix);
+
+    // Doanh Số Tháng mode — Đã Giao Thành Công only, date filter uses COALESCE(ngay_tinh_doanh_so, ngay)
+    @Query(value = "SELECT d.* FROM public.don_hang d WHERE " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND d.tinh_trang = 'Đã Giao Thành Công' " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR COALESCE(d.ngay_tinh_doanh_so, d.ngay) >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR COALESCE(d.ngay_tinh_doanh_so, d.ngay) <= CAST(:toDate AS date)) " +
+           "ORDER BY COALESCE(d.ngay_tinh_doanh_so, d.ngay) DESC, d.id DESC",
+           countQuery = "SELECT COUNT(*) FROM public.don_hang d WHERE " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND d.tinh_trang = 'Đã Giao Thành Công' " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR COALESCE(d.ngay_tinh_doanh_so, d.ngay) >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR COALESCE(d.ngay_tinh_doanh_so, d.ngay) <= CAST(:toDate AS date))",
+           nativeQuery = true)
+    Page<DonHang> findWithFiltersDoanhSo(
+            @Param("keyword") String keyword,
+            @Param("sale") String sale,
+            @Param("page") String page,
+            @Param("maIdQuangCao") String maIdQuangCao,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate,
+            Pageable pageable);
+
+    // Doanh Số Tháng — export (no paging)
+    @Query(value = "SELECT d.* FROM public.don_hang d WHERE " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND d.tinh_trang = 'Đã Giao Thành Công' " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR COALESCE(d.ngay_tinh_doanh_so, d.ngay) >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR COALESCE(d.ngay_tinh_doanh_so, d.ngay) <= CAST(:toDate AS date)) " +
+           "ORDER BY COALESCE(d.ngay_tinh_doanh_so, d.ngay) DESC, d.id DESC",
+           nativeQuery = true)
+    List<DonHang> findAllWithFiltersDoanhSo(
+            @Param("keyword") String keyword,
+            @Param("sale") String sale,
+            @Param("page") String page,
+            @Param("maIdQuangCao") String maIdQuangCao,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    // Doanh Số Tháng — aggregate totals
+    @Query(value = "SELECT " +
+           "COALESCE(SUM(d.gia_von), 0), COALESCE(SUM(d.tong_tien_niem_yet), 0), " +
+           "COALESCE(SUM(d.gia_ban_len_don), 0), COALESCE(SUM(d.cuoc_phu_troi), 0), " +
+           "COALESCE(SUM(d.gia_thu_thuc_te), 0), COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0), " +
+           "COALESCE(SUM(d.chi_phi_van_chuyen), 0), COALESCE(SUM(d.ds_van_chuyen), 0), " +
+           "COALESCE(SUM(d.dat_coc), 0), COALESCE(SUM(d.thu_ban_truc_tiep), 0), " +
+           "COALESCE(SUM(d.tong_thu_khach), 0), COALESCE(SUM(d.loi_nhuan_sau_tru), 0), " +
+           "COALESCE(SUM(d.ds_huong), 0), COALESCE(SUM(d.hoa_hong), 0) " +
+           "FROM public.don_hang d WHERE " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND d.tinh_trang = 'Đã Giao Thành Công' " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR COALESCE(d.ngay_tinh_doanh_so, d.ngay) >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR COALESCE(d.ngay_tinh_doanh_so, d.ngay) <= CAST(:toDate AS date))",
+           nativeQuery = true)
+    List<Object[]> aggregateTotalsDoanhSo(
+            @Param("keyword") String keyword,
+            @Param("sale") String sale,
+            @Param("page") String page,
+            @Param("maIdQuangCao") String maIdQuangCao,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    // Qualified statuses only — paginated (Doanh Số Tháng view)
+    @Query(value = "SELECT d.* FROM public.don_hang d WHERE " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND d.tinh_trang IN ('Đã Giao Thành Công','KH Showroom','Đang vận chuyển','Đang giao','Khách Đặt Cọc','Kho đang gọi hàng') " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "ORDER BY d.ngay DESC, d.id DESC",
+           countQuery = "SELECT COUNT(*) FROM public.don_hang d WHERE " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND d.tinh_trang IN ('Đã Giao Thành Công','KH Showroom','Đang vận chuyển','Đang giao','Khách Đặt Cọc','Kho đang gọi hàng') " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
+           nativeQuery = true)
+    Page<DonHang> findWithFiltersQualified(
+            @Param("keyword") String keyword,
+            @Param("sale") String sale,
+            @Param("page") String page,
+            @Param("maIdQuangCao") String maIdQuangCao,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate,
+            Pageable pageable);
+
+    // Qualified statuses only — export (no paging)
+    @Query(value = "SELECT d.* FROM public.don_hang d WHERE " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND d.tinh_trang IN ('Đã Giao Thành Công','KH Showroom','Đang vận chuyển','Đang giao','Khách Đặt Cọc','Kho đang gọi hàng') " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date)) " +
+           "ORDER BY d.ngay DESC, d.id DESC",
+           nativeQuery = true)
+    List<DonHang> findAllWithFiltersQualified(
+            @Param("keyword") String keyword,
+            @Param("sale") String sale,
+            @Param("page") String page,
+            @Param("maIdQuangCao") String maIdQuangCao,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
+
+    // Aggregate totals for qualified statuses only
+    @Query(value = "SELECT " +
+           "COALESCE(SUM(d.gia_von), 0), COALESCE(SUM(d.tong_tien_niem_yet), 0), " +
+           "COALESCE(SUM(d.gia_ban_len_don), 0), COALESCE(SUM(d.cuoc_phu_troi), 0), " +
+           "COALESCE(SUM(d.gia_thu_thuc_te), 0), COALESCE(SUM(d.loi_nhuan_uoc_tinh), 0), " +
+           "COALESCE(SUM(d.chi_phi_van_chuyen), 0), COALESCE(SUM(d.ds_van_chuyen), 0), " +
+           "COALESCE(SUM(d.dat_coc), 0), COALESCE(SUM(d.thu_ban_truc_tiep), 0), " +
+           "COALESCE(SUM(d.tong_thu_khach), 0), COALESCE(SUM(d.loi_nhuan_sau_tru), 0), " +
+           "COALESCE(SUM(d.ds_huong), 0), COALESCE(SUM(d.hoa_hong), 0) " +
+           "FROM public.don_hang d WHERE " +
+           "(CAST(:keyword AS text) IS NULL OR LOWER(d.ma_hoa_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_dat_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.khach_hang) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.sdt) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%')) " +
+           "OR LOWER(d.ma_van_don) LIKE LOWER(CONCAT('%',CAST(:keyword AS text),'%'))) " +
+           "AND d.tinh_trang IN ('Đã Giao Thành Công','KH Showroom','Đang vận chuyển','Đang giao','Khách Đặt Cọc','Kho đang gọi hàng') " +
+           "AND (CAST(:sale AS text) IS NULL OR REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text)) " +
+           "AND (CAST(:page AS text) IS NULL OR d.page = CAST(:page AS text)) " +
+           "AND (CAST(:maIdQuangCao AS text) IS NULL OR d.ma_id_quang_cao = CAST(:maIdQuangCao AS text)) " +
+           "AND (CAST(:fromDate AS date) IS NULL OR d.ngay >= CAST(:fromDate AS date)) " +
+           "AND (CAST(:toDate AS date) IS NULL OR d.ngay <= CAST(:toDate AS date))",
+           nativeQuery = true)
+    List<Object[]> aggregateTotalsQualified(
+            @Param("keyword") String keyword,
+            @Param("sale") String sale,
+            @Param("page") String page,
+            @Param("maIdQuangCao") String maIdQuangCao,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
 
     // Analytics: aggregate by sale + tinhTrang
     @Query(value = "SELECT REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') as sale_name, d.tinh_trang, " +
@@ -294,4 +509,22 @@ public interface DonHangRepository extends JpaRepository<DonHang, Long> {
     List<Object[]> aggregateByPageAndStatus(
             @Param("fromDate") LocalDate fromDate,
             @Param("toDate") LocalDate toDate);
+
+    // Bảng Lương: tổng DS Hưởng của một sale trong tháng (chỉ đơn Đã Giao Thành Công)
+    @Query(value = "SELECT COALESCE(SUM(d.ds_huong), 0) FROM don_hang d WHERE " +
+           "REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
+           "AND d.tinh_trang = 'Đã Giao Thành Công' " +
+           "AND EXTRACT(MONTH FROM COALESCE(d.ngay_tinh_doanh_so, d.ngay)) = :thang " +
+           "AND EXTRACT(YEAR FROM COALESCE(d.ngay_tinh_doanh_so, d.ngay)) = :nam",
+           nativeQuery = true)
+    BigDecimal sumDsHuongBySaleAndMonth(@Param("sale") String sale, @Param("thang") int thang, @Param("nam") int nam);
+
+    // Bảng Lương: tổng Hoa Hồng đơn hàng của một sale trong tháng (chỉ đơn Đã Giao Thành Công)
+    @Query(value = "SELECT COALESCE(SUM(d.hoa_hong), 0) FROM don_hang d WHERE " +
+           "REGEXP_REPLACE(TRIM(d.sale), '\\s+', ' ', 'g') = CAST(:sale AS text) " +
+           "AND d.tinh_trang = 'Đã Giao Thành Công' " +
+           "AND EXTRACT(MONTH FROM COALESCE(d.ngay_tinh_doanh_so, d.ngay)) = :thang " +
+           "AND EXTRACT(YEAR FROM COALESCE(d.ngay_tinh_doanh_so, d.ngay)) = :nam",
+           nativeQuery = true)
+    BigDecimal sumHoaHongBySaleAndMonth(@Param("sale") String sale, @Param("thang") int thang, @Param("nam") int nam);
 }

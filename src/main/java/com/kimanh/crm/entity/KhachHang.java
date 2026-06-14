@@ -6,6 +6,7 @@ import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 @Entity
 @Table(name = "data_dulieukhach", schema = "public")
@@ -58,6 +59,15 @@ public class KhachHang implements Serializable {
 
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
+
+    @Column(name = "kho_noi_claimed_by")
+    private String khoNoiClaimedBy;
+
+    @Column(name = "kho_noi_claimed_at")
+    private OffsetDateTime khoNoiClaimedAt;
+
+    @Column(name = "from_kho_noi")
+    private Boolean fromKhoNoi;
 
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 

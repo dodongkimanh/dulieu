@@ -13,6 +13,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.text.Normalizer;
 import java.util.List;
 import java.util.Objects;
@@ -29,6 +32,7 @@ public class InitDataConfig {
     private final PasswordEncoder passwordEncoder;
     private final KenhTiepThiService kenhTiepThiService;
     private final EntityManager entityManager;
+    private final DataSource dataSource;
 
     private static final String ADMIN_USERNAME = "dangducky@kimanh.com";
     private static final String ADMIN_PASSWORD = "Admin@123";
@@ -49,6 +53,9 @@ public class InitDataConfig {
         // 0. Fix PostgreSQL identity sequences — prevent "duplicate key" errors
         // when tables have pre-imported data with explicit IDs
         syncSequences();
+
+        // 0b. Migrations: add new columns if not exist
+        runMigrations();
 
         // 1. Create/update admin account
         try {
@@ -180,8 +187,32 @@ public class InitDataConfig {
         return s + "@kimanh.com";
     }
 
+    private void runMigrations() {
+        String[] migrations = {
+            "ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS phat_khong_cham_cong BIGINT DEFAULT 0",
+            "ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS duyet_cong NUMERIC(3,2)",
+            "ALTER TABLE bang_luong ADD COLUMN IF NOT EXISTS sim_dt BIGINT",
+            "ALTER TABLE bang_luong ADD COLUMN IF NOT EXISTS chi_vt BIGINT DEFAULT 0",
+            "ALTER TABLE bang_luong ADD COLUMN IF NOT EXISTS da_xac_nhan BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE bang_luong ADD COLUMN IF NOT EXISTS ngay_xac_nhan TIMESTAMPTZ",
+            "ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS an_trong_bang BOOLEAN DEFAULT FALSE",
+        };
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            for (String sql : migrations) {
+                try {
+                    stmt.execute(sql);
+                    log.info("Migration OK: {}", sql);
+                } catch (Exception e) {
+                    log.warn("Migration skipped: {} — {}", sql, e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Migration connection failed: {}", e.getMessage());
+        }
+    }
+
     /**
-     * Sync PostgreSQL identity sequences to MAX(id) + 1 for all tables.
      * Fixes "duplicate key value violates unique constraint" errors caused by
      * bulk-imported data with explicit IDs that leave the sequence behind.
      *

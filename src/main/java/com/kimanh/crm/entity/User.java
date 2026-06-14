@@ -45,6 +45,9 @@ public class User {
     @Column
     private String sim;
 
+    @Column(name = "nhan_vien_id")
+    private Long nhanVienId;
+
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
 

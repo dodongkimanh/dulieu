@@ -161,6 +161,13 @@ public class ChamCongService {
         return saved;
     }
 
+    public ChamCong saveGhiChuNv(Long id, String ghiChuNv) {
+        ChamCong cc = chamCongRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Không tìm thấy bản ghi: " + id));
+        cc.setGhiChuNv(ghiChuNv);
+        return chamCongRepository.save(cc);
+    }
+
     @Transactional
     public ChamCong duyetRecord(Long id, boolean duyetKhongPhat, String duyetNote, Double duyetCong) {
         ChamCong cc = chamCongRepository.findById(id)
