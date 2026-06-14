@@ -261,8 +261,10 @@ export default function DonHang() {
     try {
       await donHangApi.updateHoaHong(id, hoaHong);
       setData(prev => prev.map(r => r.id === id ? { ...r, hoaHong } : r));
-    } catch {
-      message.error('Lỗi khi lưu hoa hồng');
+    } catch (err) {
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message || '';
+      message.error(`Lỗi ${status || ''}: ${msg || 'không lưu được hoa hồng'}`, 6);
     }
   };
 
