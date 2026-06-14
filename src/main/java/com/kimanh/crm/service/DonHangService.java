@@ -206,6 +206,12 @@ public class DonHangService {
         return repository.save(e);
     }
 
+    public DonHang updateHoaHong(Long id, Object value) {
+        DonHang e = findById(id);
+        e.setHoaHong(value != null ? new java.math.BigDecimal(value.toString()).setScale(0, java.math.RoundingMode.HALF_UP) : java.math.BigDecimal.ZERO);
+        return repository.save(e);
+    }
+
     public DonHang updateNgayTinhDoanhSo(Long id, LocalDate ngayTinhDoanhSo) {
         DonHang e = findById(id);
         e.setNgayTinhDoanhSo(ngayTinhDoanhSo);
