@@ -259,9 +259,7 @@ export default function DonHang() {
 
   const handleSaveHoaHong = async (id, hoaHong) => {
     try {
-      const record = data.find(r => r.id === id);
-      if (!record) return;
-      await donHangApi.update(id, { ...record, hoaHong });
+      await donHangApi.updateHoaHong(id, hoaHong);
       setData(prev => prev.map(r => r.id === id ? { ...r, hoaHong } : r));
     } catch {
       message.error('Lỗi khi lưu hoa hồng');

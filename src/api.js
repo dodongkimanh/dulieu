@@ -68,6 +68,9 @@ export const donHangApi = {
   getSales: () => api.get('/don-hang/sales'),
   getPages: () => api.get('/don-hang/pages'),
   export: (params) => api.get('/don-hang/export', { params, responseType: 'blob' }),
+  updateGhiChuDoanhSo: (id, ghiChuDoanhSo) => api.patch(`/don-hang/${id}/ghi-chu-doanh-so`, { ghiChuDoanhSo }),
+  updateHoaHong: (id, hoaHong) => api.patch(`/don-hang/${id}/hoa-hong`, { hoaHong }),
+  dayDoanhSo: (id, ngayTinhDoanhSo) => api.patch(`/don-hang/${id}/day-doanh-so`, { ngayTinhDoanhSo: ngayTinhDoanhSo || '' }),
 };
 
 // Khach Hang (Customers) APIs
@@ -86,6 +89,10 @@ export const khachHangApi = {
   updateNotes: (id, notes) => api.patch(`/khach-hang/${id}/notes`, { notes }),
   updateLoaiMess: (id, loaiMess) => api.patch(`/khach-hang/${id}/loai-mess`, { loaiMess }),
   getAssignedCount: () => api.get('/khach-hang/assigned-count'),
+  getKhoSoNoi: () => api.get('/khach-hang/kho-so-noi'),
+  getMyClaimCount: () => api.get('/khach-hang/kho-so-noi/my-count'),
+  claimKhoSoNoi: (id) => api.post(`/khach-hang/${id}/nhan-kho-noi`),
+  getKhoNoiClaimStats: () => api.get('/khach-hang/kho-so-noi/claim-stats'),
 };
 
 // Kenh Tiep Thi (Marketing Channels) APIs
@@ -114,6 +121,57 @@ export const callRecordingApi = {
   },
   upload: (formData, config = {}) => api.post('/call-recordings/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }, ...config }),
   delete: (id) => api.delete(`/call-recordings/${id}`),
+};
+
+// Nhân Viên APIs
+export const nhanVienApi = {
+  getAll: () => api.get('/nhan-vien'),
+  getActive: () => api.get('/nhan-vien/active'),
+  create: (data) => api.post('/nhan-vien', data),
+  update: (id, data) => api.put(`/nhan-vien/${id}`, data),
+  delete: (id) => api.delete(`/nhan-vien/${id}`),
+  updateLuongCoBan: (id, luongCoBan) => api.patch(`/nhan-vien/${id}/luong-co-ban`, { luongCoBan }),
+};
+
+// Chấm Công APIs
+export const chamCongApi = {
+  getByMonth: (thang, nam) => api.get('/cham-cong', { params: { thang, nam } }),
+  getMyData: (thang, nam) => api.get('/cham-cong/my', { params: { thang, nam } }),
+  saveOne: (data) => api.post('/cham-cong/save', data),
+  saveBulk: (records) => api.post('/cham-cong/bulk', records),
+  duyet: (thang, nam) => api.post('/cham-cong/duyet', null, { params: { thang, nam } }),
+  duyetRecord: (id, duyetKhongPhat, duyetNote, duyetCong) =>
+    api.post(`/cham-cong/${id}/duyet`, null, { params: { duyetKhongPhat, duyetNote: duyetNote || '', ...(duyetCong != null ? { duyetCong } : {}) } }),
+  importExcel: (file, thang, nam) => {
+    const form = new FormData(); form.append('file', file);
+    return api.post('/cham-cong/import', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      params: { thang, nam },
+    });
+  },
+  downloadTemplate: (thang, nam) =>
+    api.get('/cham-cong/template', { params: { thang, nam }, responseType: 'blob' }),
+  recalculate: (thang, nam) =>
+    api.post('/cham-cong/recalculate', null, { params: { thang, nam } }),
+};
+
+// Bảng Lương APIs
+export const bangLuongApi = {
+  getByMonth: (thang, nam) => api.get('/bang-luong', { params: { thang, nam } }),
+  getMyData: (thang, nam) => api.get('/bang-luong/my', { params: { thang, nam } }),
+  upsertAdjust: (data) => api.post('/bang-luong/adjust', data),
+};
+
+// Cơ cấu lương Sale (editable tiers)
+export const luongCoCauSaleApi = {
+  getAll: () => api.get('/luong-co-cau-sale'),
+  update: (id, data) => api.put(`/luong-co-cau-sale/${id}`, data),
+};
+
+// Cơ cấu lương Văn Phòng / Lái Xe
+export const luongCoCauApi = {
+  getAll: () => api.get('/luong-co-cau'),
+  update: (chucVu, luongCoBan) => api.put(`/luong-co-cau/${chucVu}`, { luongCoBan }),
 };
 
 // Mess Config APIs
