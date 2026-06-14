@@ -45,11 +45,62 @@ public class DonHangService {
     @Transactional(readOnly = true)
     public Page<DonHang> findAll(String keyword, String tinhTrang, String sale,
                                   String page, String maIdQuangCao,
-                                  LocalDate fromDate, LocalDate toDate, Pageable pageable) {
+                                  LocalDate fromDate, LocalDate toDate,
+                                  boolean successOnly, boolean doanhSoMode, Pageable pageable) {
         Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        if (doanhSoMode) {
+            return repository.findWithFiltersDoanhSo(
+                    blankToNull(keyword), blankToNull(sale),
+                    blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate, unsorted);
+        }
+        if (successOnly) {
+            return repository.findWithFiltersQualified(
+                    blankToNull(keyword), blankToNull(sale),
+                    blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate, unsorted);
+        }
         return repository.findWithFilters(
                 blankToNull(keyword), blankToNull(tinhTrang), blankToNull(sale),
                 blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate, unsorted);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> findTotals(String keyword, String tinhTrang, String sale,
+                                           String page, String maIdQuangCao,
+                                           LocalDate fromDate, LocalDate toDate,
+                                           boolean successOnly, boolean doanhSoMode) {
+        List<Object[]> rows;
+        if (doanhSoMode) {
+            rows = repository.aggregateTotalsDoanhSo(
+                    blankToNull(keyword), blankToNull(sale),
+                    blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate);
+        } else if (successOnly) {
+            rows = repository.aggregateTotalsQualified(
+                    blankToNull(keyword), blankToNull(sale),
+                    blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate);
+        } else {
+            rows = repository.aggregateTotalsWithFilters(
+                    blankToNull(keyword), blankToNull(tinhTrang), blankToNull(sale),
+                    blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate);
+        }
+        Map<String, Object> t = new HashMap<>();
+        if (!rows.isEmpty()) {
+            Object[] r = rows.get(0);
+            t.put("giaVon", r[0]);
+            t.put("tongTienNiemYet", r[1]);
+            t.put("giaBanLenDon", r[2]);
+            t.put("cuocPhuTroi", r[3]);
+            t.put("giaThuThucTe", r[4]);
+            t.put("loiNhuanUocTinh", r[5]);
+            t.put("chiPhiVanChuyen", r[6]);
+            t.put("dsVanChuyen", r[7]);
+            t.put("datCoc", r[8]);
+            t.put("thuBanTrucTiep", r[9]);
+            t.put("tongThuKhach", r[10]);
+            t.put("loiNhuanSauTru", r[11]);
+            if (r.length > 12) t.put("dsHuong", r[12]);
+            if (r.length > 13) t.put("hoaHong", r[13]);
+        }
+        return t;
     }
 
     @Transactional(readOnly = true)
@@ -129,6 +180,9 @@ public class DonHangService {
         e.setPage(data.getPage());
         e.setMaIdQuangCao(data.getMaIdQuangCao());
         e.setGhiChu(data.getGhiChu());
+        e.setHuongDoanhSo(data.getHuongDoanhSo());
+        e.setHoaHong(data.getHoaHong());
+        if (data.getNgayTinhDoanhSo() != null) e.setNgayTinhDoanhSo(data.getNgayTinhDoanhSo());
         return repository.save(e);
     }
 
@@ -143,6 +197,18 @@ public class DonHangService {
     public DonHang updateStatus(Long id, String tinhTrang) {
         DonHang e = findById(id);
         e.setTinhTrang(tinhTrang);
+        return repository.save(e);
+    }
+
+    public DonHang updateGhiChuDoanhSo(Long id, String ghiChu) {
+        DonHang e = findById(id);
+        e.setGhiChuDoanhSo(ghiChu);
+        return repository.save(e);
+    }
+
+    public DonHang updateNgayTinhDoanhSo(Long id, LocalDate ngayTinhDoanhSo) {
+        DonHang e = findById(id);
+        e.setNgayTinhDoanhSo(ngayTinhDoanhSo);
         return repository.save(e);
     }
 
@@ -436,11 +502,23 @@ public class DonHangService {
     // Professional Excel export with premium styling
     public byte[] exportToExcel(String keyword, String tinhTrang, String sale,
                                  String page, String maIdQuangCao,
-                                 LocalDate fromDate, LocalDate toDate) throws IOException {
+                                 LocalDate fromDate, LocalDate toDate,
+                                 boolean successOnly, boolean doanhSoMode) throws IOException {
 
-        List<DonHang> orders = repository.findAllWithFilters(
-                blankToNull(keyword), blankToNull(tinhTrang), blankToNull(sale),
-                blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate);
+        List<DonHang> orders;
+        if (doanhSoMode) {
+            orders = repository.findAllWithFiltersDoanhSo(
+                    blankToNull(keyword), blankToNull(sale),
+                    blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate);
+        } else if (successOnly) {
+            orders = repository.findAllWithFiltersQualified(
+                    blankToNull(keyword), blankToNull(sale),
+                    blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate);
+        } else {
+            orders = repository.findAllWithFilters(
+                    blankToNull(keyword), blankToNull(tinhTrang), blankToNull(sale),
+                    blankToNull(page), blankToNull(maIdQuangCao), fromDate, toDate);
+        }
 
         try (XSSFWorkbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Đơn hàng");
