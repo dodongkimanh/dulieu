@@ -127,18 +127,16 @@ export default function BangLuong() {
   const [saleSaving, setSaleSaving] = useState(false);
 
   useEffect(() => {
-    if (isAdmin || isKeToan) {
-      luongCoCauSaleApi.getAll()
-        .then(res => {
-          const list = res.data || [];
-          setSaleTiersDb(list);
-          const draft = {};
-          list.forEach(t => { draft[t.id] = { luongCung: t.luongCung, hoaHongBp: t.hoaHongBp, thuongBp: t.thuongBp }; });
-          setSaleDraft(draft);
-        })
-        .catch(() => {});
-    }
-  }, [isAdmin, isKeToan]);
+    luongCoCauSaleApi.getAll()
+      .then(res => {
+        const list = res.data || [];
+        setSaleTiersDb(list);
+        const draft = {};
+        list.forEach(t => { draft[t.id] = { luongCung: t.luongCung, hoaHongBp: t.hoaHongBp, thuongBp: t.thuongBp }; });
+        setSaleDraft(draft);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSaveSaleTiers = async () => {
     setSaleSaving(true);
