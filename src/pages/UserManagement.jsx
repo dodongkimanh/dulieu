@@ -13,7 +13,7 @@ import {
   UploadOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
-import { authApi, zaloServiceApi } from '../api';
+import { authApi, nhanVienApi, zaloServiceApi } from '../api';
 import dayjs from 'dayjs';
 
 const { Option } = Select;
@@ -23,10 +23,13 @@ const roleLabels = {
   ADMIN: { label: 'Quản trị viên', color: '#7C3AED', bg: '#EDE9FE' },
   KE_TOAN: { label: 'Kế toán', color: '#2563EB', bg: '#DBEAFE' },
   SALER: { label: 'Nhân viên Sale', color: '#059669', bg: '#D1FAE5' },
+  LAI_XE: { label: 'Lái xe', color: '#D97706', bg: '#FEF3C7' },
+  NHAN_VIEN: { label: 'Nhân viên', color: '#0891B2', bg: '#CFFAFE' },
 };
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
+  const [nhanVienList, setNhanVienList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -40,7 +43,9 @@ export default function UserManagement() {
   const [syncModal, setSyncModal] = useState({ open: false, username: '', label: '' });
   const [syncLoading, setSyncLoading] = useState(false);
   const syncFileRef = useRef(null);
-  const ROLE_ORDER = { ADMIN: 0, KE_TOAN: 1, SALER: 2 };
+  const ROLE_ORDER = { ADMIN: 0, KE_TOAN: 1, SALER: 2, LAI_XE: 3, NHAN_VIEN: 4 };
+  const watchRole = Form.useWatch('role', form);
+  const watchEditRole = Form.useWatch('role', editForm);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -53,7 +58,10 @@ export default function UserManagement() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    fetchUsers();
+    nhanVienApi.getAll().then(res => setNhanVienList(res.data || [])).catch(() => {});
+  }, []);
 
   // Filtered users based on search + role filter
   const filteredUsers = users.filter(u => {
@@ -104,14 +112,30 @@ export default function UserManagement() {
   const handleEdit = (record) => {
     setEditingUser(record);
     editForm.resetFields();
-    editForm.setFieldsValue({ username: record.username, fullName: record.fullName, zalo: record.zalo, zaloPassword: record.zaloPassword || '', sim: record.sim });
+    editForm.setFieldsValue({
+      username: record.username,
+      fullName: record.fullName,
+      zalo: record.zalo,
+      zaloPassword: record.zaloPassword || '',
+      sim: record.sim,
+      role: record.role,
+      nhanVienId: record.nhanVienId || undefined,
+    });
     setEditModalOpen(true);
   };
 
   const handleEditSubmit = async () => {
     try {
       const values = await editForm.validateFields();
-      const data = { fullName: values.fullName, username: values.username, zalo: values.zalo || '', zaloPassword: values.zaloPassword || '', sim: values.sim || '' };
+      const data = {
+        fullName: values.fullName,
+        username: values.username,
+        zalo: values.zalo || '',
+        zaloPassword: values.zaloPassword || '',
+        sim: values.sim || '',
+        nhanVienId: values.nhanVienId || null,
+        role: values.role,
+      };
       const pw = values.password?.trim();
       if (pw) data.password = pw;
       const res = await authApi.updateUser(editingUser.id, data);
@@ -181,9 +205,15 @@ export default function UserManagement() {
     { title: 'Zalo', dataIndex: 'zalo', width: 120, render: (v) => v || <span style={{ color: '#CBD5E1' }}>—</span> },
     { title: 'MK Zalo', dataIndex: 'zaloPassword', width: 140, render: (v) => v || <span style={{ color: '#CBD5E1' }}>—</span> },
     { title: 'Sim', dataIndex: 'sim', width: 120, render: (v) => v || <span style={{ color: '#CBD5E1' }}>—</span> },
-    { title: 'Vai trò', dataIndex: 'role', width: 150, render: (v) => {
+    { title: 'Vai trò', dataIndex: 'role', width: 150, render: (v, record) => {
       const r = roleLabels[v] || { label: v, color: '#64748B', bg: '#F1F5F9' };
-      return <Tag style={{ background: r.bg, color: r.color, border: 'none', fontWeight: 600, padding: '2px 10px', borderRadius: 6 }}>{r.label}</Tag>;
+      const nv = record.nhanVienId ? nhanVienList.find(n => n.id === record.nhanVienId) : null;
+      return (
+        <div>
+          <Tag style={{ background: r.bg, color: r.color, border: 'none', fontWeight: 600, padding: '2px 10px', borderRadius: 6 }}>{r.label}</Tag>
+          {nv && <div style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>→ {nv.hoTen}</div>}
+        </div>
+      );
     }},
     { title: 'Trạng thái', dataIndex: 'active', width: 120, render: (v) => v
       ? <Tag icon={<CheckCircleOutlined />} color="success">Hoạt động</Tag>
@@ -254,6 +284,8 @@ export default function UserManagement() {
             <Option value="ADMIN"><Tag style={{ background: '#EDE9FE', color: '#7C3AED', border: 'none', fontWeight: 600 }}>Quản trị viên</Tag></Option>
             <Option value="KE_TOAN"><Tag style={{ background: '#DBEAFE', color: '#2563EB', border: 'none', fontWeight: 600 }}>Kế toán</Tag></Option>
             <Option value="SALER"><Tag style={{ background: '#D1FAE5', color: '#059669', border: 'none', fontWeight: 600 }}>Nhân viên Sale</Tag></Option>
+            <Option value="LAI_XE"><Tag style={{ background: '#FEF3C7', color: '#D97706', border: 'none', fontWeight: 600 }}>Lái xe</Tag></Option>
+            <Option value="NHAN_VIEN"><Tag style={{ background: '#CFFAFE', color: '#0891B2', border: 'none', fontWeight: 600 }}>Nhân viên</Tag></Option>
           </Select>
         </div>
       </div>
@@ -322,10 +354,33 @@ export default function UserManagement() {
           </Form.Item>
           <Form.Item name="role" label="Vai trò">
             <Select>
-              <Option value="SALER">Nhân viên Sale</Option>
+              <Option value="SALER">
+                <div>Nhân viên Sale</div>
+                <div style={{ fontSize: 11, color: '#6B7280' }}>Doanh số, đơn hàng, Zalo, khách hàng, CC, bảng lương</div>
+              </Option>
               <Option value="KE_TOAN">Kế toán</Option>
+              <Option value="LAI_XE">
+                <div>Lái xe</div>
+                <div style={{ fontSize: 11, color: '#6B7280' }}>Chỉ xem CC + bảng lương của mình</div>
+              </Option>
+              <Option value="NHAN_VIEN">
+                <div>Nhân viên văn phòng</div>
+                <div style={{ fontSize: 11, color: '#6B7280' }}>Chỉ xem CC + bảng lương của mình</div>
+              </Option>
             </Select>
           </Form.Item>
+          {(watchRole === 'LAI_XE' || watchRole === 'NHAN_VIEN' || watchRole === 'SALER') && (
+            <Form.Item name="nhanVienId"
+              label={watchRole === 'SALER' ? 'Liên kết nhân viên (để xem CC + lương của mình)' : 'Liên kết nhân viên'}
+              rules={watchRole === 'SALER' ? [] : [{ required: true, message: 'Chọn nhân viên để liên kết' }]}
+            >
+              <Select placeholder="Chọn nhân viên..." showSearch optionFilterProp="label" allowClear
+                options={nhanVienList
+                  .filter(nv => watchRole === 'LAI_XE' ? nv.chucVu === 'LAI_XE' : true)
+                  .map(nv => ({ value: nv.id, label: `${nv.hoTen}${nv.chucVu ? ' — ' + nv.chucVu : ''}` }))}
+              />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 
@@ -410,6 +465,42 @@ export default function UserManagement() {
           <Form.Item name="sim" label="Sim">
             <Input placeholder="Số điện thoại Sim" />
           </Form.Item>
+          {editingUser?.role !== 'ADMIN' && (
+            <Form.Item name="role" label="Vai trò">
+              <Select>
+                <Option value="SALER">
+                  <div>Nhân viên Sale</div>
+                  <div style={{ fontSize: 11, color: '#6B7280' }}>Doanh số, đơn hàng, Zalo, khách hàng, CC, bảng lương</div>
+                </Option>
+                <Option value="KE_TOAN">Kế toán</Option>
+                <Option value="LAI_XE">
+                  <div>Lái xe</div>
+                  <div style={{ fontSize: 11, color: '#6B7280' }}>Chỉ xem CC + bảng lương của mình</div>
+                </Option>
+                <Option value="NHAN_VIEN">
+                  <div>Nhân viên văn phòng</div>
+                  <div style={{ fontSize: 11, color: '#6B7280' }}>Chỉ xem CC + bảng lương của mình</div>
+                </Option>
+              </Select>
+            </Form.Item>
+          )}
+          {watchEditRole === 'SALER' && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12, fontSize: 12 }}
+              message={<span><b>Nhân viên Sale</b> giữ đầy đủ menu. Liên kết nhân viên bên dưới để họ cũng xem được chấm công và bảng lương của mình.</span>}
+            />
+          )}
+          {(watchEditRole === 'LAI_XE' || watchEditRole === 'NHAN_VIEN' || watchEditRole === 'SALER') && (
+            <Form.Item name="nhanVienId" label="Liên kết nhân viên (để xem CC + lương của mình)">
+              <Select placeholder="Chọn nhân viên..." showSearch optionFilterProp="label" allowClear
+                options={nhanVienList
+                  .filter(nv => watchEditRole === 'LAI_XE' ? nv.chucVu === 'LAI_XE' : true)
+                  .map(nv => ({ value: nv.id, label: `${nv.hoTen}${nv.chucVu ? ' — ' + nv.chucVu : ''}` }))}
+              />
+            </Form.Item>
+          )}
           <Form.Item
             name="password"
             label="Mật khẩu đăng nhập mới"

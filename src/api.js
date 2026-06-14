@@ -39,6 +39,7 @@ export const authApi = {
   getSaleUsers: () => api.get('/auth/users/sales'),
   updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
   deleteUser: (id) => api.delete(`/auth/users/${id}`),
+  changePassword: (currentPassword, newPassword) => api.patch('/auth/change-password', { currentPassword, newPassword }),
 };
 
 // Dashboard APIs
@@ -131,6 +132,7 @@ export const nhanVienApi = {
   update: (id, data) => api.put(`/nhan-vien/${id}`, data),
   delete: (id) => api.delete(`/nhan-vien/${id}`),
   updateLuongCoBan: (id, luongCoBan) => api.patch(`/nhan-vien/${id}/luong-co-ban`, { luongCoBan }),
+  toggleAnTrongBang: (id) => api.patch(`/nhan-vien/${id}/an-trong-bang`),
 };
 
 // Chấm Công APIs
@@ -138,6 +140,7 @@ export const chamCongApi = {
   getByMonth: (thang, nam) => api.get('/cham-cong', { params: { thang, nam } }),
   getMyData: (thang, nam) => api.get('/cham-cong/my', { params: { thang, nam } }),
   saveOne: (data) => api.post('/cham-cong/save', data),
+  saveGhiChuNv: (id, ghiChuNv) => api.patch(`/cham-cong/${id}/ghi-chu-nv`, { ghiChuNv }),
   saveBulk: (records) => api.post('/cham-cong/bulk', records),
   duyet: (thang, nam) => api.post('/cham-cong/duyet', null, { params: { thang, nam } }),
   duyetRecord: (id, duyetKhongPhat, duyetNote, duyetCong) =>
@@ -160,6 +163,7 @@ export const bangLuongApi = {
   getByMonth: (thang, nam) => api.get('/bang-luong', { params: { thang, nam } }),
   getMyData: (thang, nam) => api.get('/bang-luong/my', { params: { thang, nam } }),
   upsertAdjust: (data) => api.post('/bang-luong/adjust', data),
+  xacNhan: (nhanVienId, thang, nam) => api.post('/bang-luong/xac-nhan', { nhanVienId, thang, nam }),
 };
 
 // Cơ cấu lương Sale (editable tiers)

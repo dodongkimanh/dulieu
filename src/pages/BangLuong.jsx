@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Button, DatePicker, InputNumber, message, Tag, Badge, Space, Select, Empty } from 'antd';
-import { ReloadOutlined, SaveOutlined, DollarOutlined, LeftOutlined, RightOutlined, LineChartOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { Table, Button, DatePicker, InputNumber, Input, message, Tag, Badge, Space, Select, Empty } from 'antd';
+import { ReloadOutlined, SaveOutlined, DollarOutlined, LeftOutlined, RightOutlined, LineChartOutlined, UnorderedListOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { bangLuongApi, nhanVienApi, luongCoCauSaleApi } from '../api';
 import { useAuth } from '../contexts/AuthContext';
@@ -57,7 +57,7 @@ const getGroupKey = (chucVu) => {
   return 'vanphong';
 };
 
-const TOTAL_COLS = 19;
+const TOTAL_COLS = 21;
 
 function EditableCell({ value, rowId, field, onSave, readOnly }) {
   const [editing, setEditing] = useState(false);
@@ -98,6 +98,36 @@ function EditableCell({ value, rowId, field, onSave, readOnly }) {
   );
 }
 
+function GhiChuCell({ value, rowId, onSave, readOnly }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || '');
+
+  if (readOnly) return (
+    <span style={{ fontSize: 12, color: '#374151' }}>{value || <span style={{ color: '#CBD5E1' }}>–</span>}</span>
+  );
+
+  if (editing) return (
+    <Input
+      autoFocus
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={() => { setEditing(false); if (draft !== (value || '')) onSave(rowId, 'ghiChu', draft); }}
+      onPressEnter={() => { setEditing(false); if (draft !== (value || '')) onSave(rowId, 'ghiChu', draft); }}
+      size="small"
+      style={{ width: 140, fontSize: 12 }}
+    />
+  );
+
+  return (
+    <span
+      onClick={() => { setDraft(value || ''); setEditing(true); }}
+      style={{ cursor: 'pointer', color: value ? '#374151' : '#CBD5E1', borderBottom: '1px dashed #CBD5E1', display: 'inline-block', minWidth: 60, fontSize: 12 }}
+    >
+      {value || 'Thêm ghi chú...'}
+    </span>
+  );
+}
+
 // Shared computation helper used in both normal view and compare view
 function computeTongLuong(emp) {
   const tongCong = Number(emp.soCongChinhThuc || 0);
@@ -113,10 +143,18 @@ function computeTongLuong(emp) {
 }
 
 export default function BangLuong() {
-  const { isEmployeeView, isAdmin, isKeToan } = useAuth();
+  const { isEmployeeView, isAdmin, isKeToan, user } = useAuth();
   const canEdit = isAdmin || isKeToan;
+
   const [month, setMonth] = useState(dayjs());
   const [data, setData] = useState([]);
+
+  // Xác nhận lương: hiện từ ngày 15 của tháng được chọn trở đi
+  const canXacNhan = useMemo(() => {
+    const today = dayjs();
+    const isCurrentOrPastMonth = month.isBefore(today, 'month') || month.isSame(today, 'month');
+    return isCurrentOrPastMonth && today.date() >= 15;
+  }, [month]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pendingAdj, setPendingAdj] = useState({});
@@ -259,13 +297,24 @@ export default function BangLuong() {
           soCongPhep:   adj.soCongPhep   ?? row.soCongPhep,
           simDt:        adj.simDt !== undefined ? adj.simDt : (row.simDtOverride ?? null),
           chiVt:        adj.chiVt ?? row.chiVt ?? 0,
-          hoaHong:      adj.hoaHong ?? row.hoaHong ?? 0,
+          ghiChu:       adj.ghiChu !== undefined ? adj.ghiChu : (row.ghiChu || ''),
         });
       }
       message.success(`Đã lưu ${rows.length} điều chỉnh`);
       fetchData();
     } catch { message.error('Lỗi khi lưu'); }
     finally { setSaving(false); }
+  };
+
+  const handleXacNhan = async (nhanVienId) => {
+    try {
+      await bangLuongApi.xacNhan(nhanVienId, month.month() + 1, month.year());
+      setData(prev => prev.map(r => r.nhanVienId === nhanVienId
+        ? { ...r, daXacNhan: true, ngayXacNhan: new Date().toISOString() }
+        : r
+      ));
+      message.success('Đã xác nhận lương tháng ' + month.format('MM/YYYY'));
+    } catch { message.error('Lỗi khi xác nhận'); }
   };
 
   const displayData = data.map(row => {
@@ -277,7 +326,8 @@ export default function BangLuong() {
     const soCongPhep   = adj.soCongPhep   ?? row.soCongPhep   ?? 0;
     const simDt        = adj.simDt !== undefined ? Number(adj.simDt) : (row.simDt || 0);
     const chiVt        = adj.chiVt        ?? row.chiVt        ?? 0;
-    const hoaHong      = adj.hoaHong      ?? row.hoaHong      ?? 0;
+    const ghiChu       = adj.ghiChu      !== undefined ? adj.ghiChu : (row.ghiChu || '');
+    const hoaHong      = Number(row.hoaHong || 0); // chỉ lấy từ đơn hàng, không sửa tay
 
     const tongCong     = Number(row.soCongChinhThuc || 0);
     const luongCT      = Math.round((row.luongCung || 0) * (Number(row.soCongChinhThuc || 0) + Number(soCongNghiLe)) / 26);
@@ -287,7 +337,7 @@ export default function BangLuong() {
                        + simDt + Number(chiVt) + Number(hoaHong) + chuyenCan
                        - Number(ungLuong) - Number(phat)
                        - 150_000 - Number(row.phatTuChamCong || 0);
-    return { ...row, phuCap, ungLuong, phat, soCongNghiLe, soCongPhep, tongCong, luongCT, simDt, chiVt, hoaHong, chuyenCan, tongLuong };
+    return { ...row, phuCap, ungLuong, phat, soCongNghiLe, soCongPhep, tongCong, luongCT, simDt, chiVt, ghiChu, hoaHong, chuyenCan, tongLuong };
   });
 
   // Apply employee filter
@@ -523,12 +573,10 @@ export default function BangLuong() {
     },
     {
       title: 'Hoa Hồng', dataIndex: 'hoaHong', width: 120, align: 'right',
-      render: wr((v, r) => (
-        <div>
-          <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="hoaHong" onSave={handleCellEdit} readOnly={!canEdit} />
-          {Number(v || 0) > 0 && <span style={{ fontSize: 10, color: '#7C3AED' }}> +</span>}
-        </div>
-      )),
+      render: wr(v => Number(v || 0) > 0
+        ? <b style={{ color: '#7C3AED' }}>{vnd(v)}</b>
+        : <span style={{ color: '#E2E8F0' }}>–</span>
+      ),
     },
     {
       title: 'Thưởng', dataIndex: 'thuongThem', width: 100, align: 'right',
@@ -598,6 +646,41 @@ export default function BangLuong() {
       render: wr(v => (
         <b style={{ color: v >= 0 ? '#059669' : '#DC2626', fontSize: 14 }}>{vnd(v)}</b>
       )),
+    },
+    {
+      title: 'Ghi Chú', dataIndex: 'ghiChu', width: 170, align: 'left', fixed: 'right',
+      render: wr((v, r) => (
+        <GhiChuCell value={v} rowId={r.nhanVienId} onSave={handleCellEdit} readOnly={!canEdit} />
+      )),
+    },
+    {
+      title: 'Xác Nhận', width: 110, align: 'center', fixed: 'right',
+      render: wr((_, r) => {
+        if (!canXacNhan) return <span style={{ color: '#CBD5E1', fontSize: 11 }}>–</span>;
+        if (r.daXacNhan) return (
+          <div style={{ textAlign: 'center' }}>
+            <CheckCircleOutlined style={{ color: '#059669', fontSize: 16 }} />
+            <div style={{ fontSize: 10, color: '#059669', marginTop: 2 }}>Đã xác nhận</div>
+            {r.ngayXacNhan && (
+              <div style={{ fontSize: 9, color: '#94A3B8' }}>
+                {dayjs(r.ngayXacNhan).format('DD/MM HH:mm')}
+              </div>
+            )}
+          </div>
+        );
+        // Chỉ nhân viên xác nhận lương của chính mình; admin xem trạng thái
+        if (isEmployeeView) return (
+          <Button
+            size="small"
+            type="primary"
+            style={{ background: '#4F46E5', borderColor: '#4F46E5', fontSize: 11 }}
+            onClick={() => handleXacNhan(r.nhanVienId)}
+          >
+            Xác nhận
+          </Button>
+        );
+        return <span style={{ color: '#F59E0B', fontSize: 11 }}>Chờ xác nhận</span>;
+      }),
     },
   ];
 
@@ -815,7 +898,7 @@ export default function BangLuong() {
             pagination={false}
             scroll={{ x: 1700 }}
             size="middle"
-            summary={filteredDisplayData.length > 0 ? summaryRow : undefined}
+            summary={filteredDisplayData.length > 0 && !isEmployeeView ? summaryRow : undefined}
             rowClassName={r => r._isHeader ? '' : (pendingAdj[r.nhanVienId] ? 'edited' : '')}
           />
         </div>

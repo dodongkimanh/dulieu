@@ -26,6 +26,8 @@ import {
   UploadOutlined,
   PlayCircleOutlined,
   DeleteFilled,
+  FireOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import { khachHangApi, authApi, kenhTiepThiApi, zaloContactApi, callRecordingApi } from '../api';
 import dayjs from 'dayjs';
@@ -270,6 +272,12 @@ export default function KhachHang() {
   const msgPollerRef = useRef(null);
   const [newMsgCount, setNewMsgCount] = useState(0);
 
+  const [khoSoNoiData, setKhoSoNoiData] = useState([]);
+  const [khoSoNoiLoading, setKhoSoNoiLoading] = useState(false);
+  const [myClaimCount, setMyClaimCount] = useState(0);
+  const [myClaimLimit] = useState(10);
+  const [claimStats, setClaimStats] = useState([]);
+
   useEffect(() => {
     if (Object.keys(colWidths).length) sessionStorage.setItem('kh_colWidths', JSON.stringify(colWidths));
   }, [colWidths]);
@@ -331,6 +339,33 @@ export default function KhachHang() {
       console.error('Không thể tải số khách được phân công:', err);
     }
   }, []);
+
+  const fetchKhoSoNoi = useCallback(async () => {
+    setKhoSoNoiLoading(true);
+    try {
+      const requests = [khachHangApi.getKhoSoNoi(), khachHangApi.getMyClaimCount()];
+      if (!isSaler) requests.push(khachHangApi.getKhoNoiClaimStats());
+      const results = await Promise.all(requests);
+      setKhoSoNoiData(results[0].data || []);
+      setMyClaimCount(results[1].data?.count || 0);
+      if (!isSaler && results[2]) setClaimStats(results[2].data || []);
+    } catch {
+      message.error('Không thể tải kho số nổi');
+    } finally {
+      setKhoSoNoiLoading(false);
+    }
+  }, [isSaler]);
+
+  const handleClaimKhoSoNoi = useCallback(async (id) => {
+    try {
+      await khachHangApi.claimKhoSoNoi(id);
+      message.success('Đã nhận số thành công! Khách đã chuyển vào data của bạn.');
+      fetchKhoSoNoi();
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Lỗi khi nhận số';
+      message.error(msg);
+    }
+  }, [fetchKhoSoNoi]);
 
   const fetchPinnedRows = useCallback(async (extra = {}) => {
     const currentDateRange = extra.dateRange !== undefined ? extra.dateRange : dateRange;
@@ -470,7 +505,11 @@ export default function KhachHang() {
 
   const handleTabChange = (key) => {
     setActiveTab(key);
-    fetchData(1, pagination.pageSize, { tab: key });
+    if (key === 'kho_so_noi') {
+      fetchKhoSoNoi();
+    } else {
+      fetchData(1, pagination.pageSize, { tab: key });
+    }
   };
 
   const handleLoaiMessChange = async (id, loaiMess) => {
@@ -795,7 +834,16 @@ export default function KhachHang() {
 
   const baseColumns = [
     { title: 'Ngày', dataIndex: 'ngayThang', _defaultWidth: 95, render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '' },
-    { title: 'Khách hàng', dataIndex: 'khachHang', _defaultWidth: 140, ellipsis: true, render: (v) => <span className="no-select" style={{ fontWeight: 600 }} onContextMenu={(e) => e.preventDefault()}>{v}</span> },
+    { title: 'Khách hàng', dataIndex: 'khachHang', _defaultWidth: 140, ellipsis: true, render: (v, record) => (
+      <span className="no-select" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }} onContextMenu={(e) => e.preventDefault()}>
+        {record.fromKhoNoi && (
+          <Tooltip title="Data từ Kho Số Nổi">
+            <FireOutlined style={{ color: '#F97316', fontSize: 12, flexShrink: 0 }} />
+          </Tooltip>
+        )}
+        {v}
+      </span>
+    ) },
     { title: 'SĐT', dataIndex: 'sdt', _defaultWidth: 100, render: (v) => <PhoneDisplay phone={v} masked={false} /> },
     { title: 'Zalo', dataIndex: 'zalo', _defaultWidth: 145, render: (_, record) => {
       const normStr = s => (s || '').replace(/\s+/g, ' ').trim();
@@ -1104,69 +1152,205 @@ export default function KhachHang() {
               key: 'assigned',
               label: <span><InboxOutlined style={{ marginRight: 6, color: '#06B6D4' }} />Khách Được Phân Công{assignedCount > 0 ? <Badge count={assignedCount} style={{ marginLeft: 8, backgroundColor: '#06B6D4', boxShadow: 'none' }} /> : null}</span>,
             },
+            {
+              key: 'kho_so_noi',
+              label: (
+                <span>
+                  <FireOutlined style={{ marginRight: 6, color: '#F97316' }} />
+                  Kho Số Nổi
+                  {khoSoNoiData.length > 0 && activeTab !== 'kho_so_noi'
+                    ? <Badge count={khoSoNoiData.length} style={{ marginLeft: 8, backgroundColor: '#F97316', boxShadow: 'none' }} />
+                    : null}
+                </span>
+              ),
+            },
           ]}
           style={{ marginBottom: 0 }}
         />
-        {selectedRowKeys.length > 0 && (
-          <div style={{
-            background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)',
-            border: '1px solid #C7D2FE',
-            borderRadius: 10,
-            padding: '10px 18px',
-            marginBottom: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            animation: 'fadeIn 0.3s ease'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Badge count={selectedRowKeys.length} style={{ backgroundColor: '#4F46E5', boxShadow: 'none', fontWeight: 700 }} />
-              <span style={{ fontWeight: 600, color: '#3730A3', fontSize: 14 }}>khách hàng đã chọn</span>
+        {activeTab === 'kho_so_noi' ? (
+          <>
+            <div style={{
+              background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)',
+              border: '1px solid #FED7AA',
+              borderRadius: 10, padding: '10px 18px', marginBottom: 12,
+            }}>
+              {/* Row 1: title + count + quota */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FireOutlined style={{ color: '#F97316', fontSize: 18 }} />
+                  <span style={{ fontWeight: 700, color: '#9A3412', fontSize: 14 }}>Kho Số Nổi</span>
+                  <Tag color="orange" style={{ fontWeight: 700, fontSize: 13 }}>{khoSoNoiData.length} số chưa nhận</Tag>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12, color: '#6B7280' }}>Quota của bạn:</span>
+                  <span style={{ fontWeight: 700, color: myClaimCount >= myClaimLimit ? '#EF4444' : '#10B981', fontSize: 14 }}>
+                    {myClaimCount}/{myClaimLimit}
+                  </span>
+                  <Progress
+                    percent={Math.round((myClaimCount / myClaimLimit) * 100)}
+                    size="small"
+                    style={{ width: 80, margin: 0 }}
+                    strokeColor={myClaimCount >= myClaimLimit ? '#EF4444' : '#F97316'}
+                    showInfo={false}
+                  />
+                  <Button icon={<ReloadOutlined />} size="small" onClick={fetchKhoSoNoi} loading={khoSoNoiLoading}>
+                    Làm mới
+                  </Button>
+                </div>
+              </div>
+              {/* Row 2: admin-only — sales chưa nhận */}
+              {!isSaler && (() => {
+                const claimedSet = new Set((claimStats || []).map(s => s.sale));
+                const notClaimed = allSaleUsers.filter(s => !claimedSet.has(s));
+                const claimed = (claimStats || []);
+                if (!allSaleUsers.length) return null;
+                return (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #FED7AA' }}>
+                    {notClaimed.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, color: '#EF4444', fontWeight: 700, whiteSpace: 'nowrap', paddingTop: 2 }}>
+                          ⏳ Chưa nhận ({notClaimed.length} sale):
+                        </span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {notClaimed.map(s => (
+                            <Tag key={s} style={{ background: '#FEE2E2', color: '#991B1B', border: 'none', fontWeight: 600, borderRadius: 6, margin: 0 }}>{s}</Tag>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {claimed.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap', marginTop: notClaimed.length ? 6 : 0 }}>
+                        <span style={{ fontSize: 12, color: '#10B981', fontWeight: 700, whiteSpace: 'nowrap', paddingTop: 2 }}>
+                          ✅ Đã nhận ({claimed.length} sale):
+                        </span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {claimed.map(s => (
+                            <Tag key={s.sale} style={{ background: '#DCFCE7', color: '#15803D', border: 'none', fontWeight: 600, borderRadius: 6, margin: 0 }}>
+                              {s.sale} <span style={{ opacity: 0.75 }}>({s.claimed}/10)</span>
+                            </Tag>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {canManage && (
-                <Button
-                  type="primary"
-                  icon={<SwapOutlined />}
-                  onClick={() => setBulkTransferModal({ open: true, sale: null })}
-                  style={{ background: '#06B6D4', borderColor: '#06B6D4', fontWeight: 600, borderRadius: 8 }}
-                >
-                  Chuyển Sale ({selectedRowKeys.length})
-                </Button>
-              )}
-              <Button
-                onClick={() => setSelectedRowKeys([])}
-                style={{ borderRadius: 8, fontWeight: 500 }}
-              >
-                Bỏ chọn
-              </Button>
-            </div>
-          </div>
+            <Table
+              dataSource={khoSoNoiData}
+              rowKey="id"
+              loading={khoSoNoiLoading}
+              pagination={false}
+              scroll={{ x: 900 }}
+              size="small"
+              columns={[
+                {
+                  title: 'Khách hàng', dataIndex: 'khachHang', key: 'khachHang', width: 160,
+                  render: (v) => <span style={{ fontWeight: 600 }}>{v || '—'}</span>,
+                },
+                {
+                  title: 'SĐT', dataIndex: 'sdt', key: 'sdt', width: 130,
+                  render: (v) => {
+                    if (!v) return '—';
+                    const d = v.replace(/\D/g, '');
+                    const masked = d.length >= 8 ? d.slice(0, 3) + '****' + d.slice(-3) : v;
+                    return <span style={{ fontFamily: 'monospace', color: '#0891B2', fontWeight: 600 }}>{masked}</span>;
+                  },
+                },
+                {
+                  title: 'Nhận', key: 'action', width: 100, fixed: 'right',
+                  render: (_, record) => (
+                    <Popconfirm
+                      title="Nhận số này về data của bạn?"
+                      description="Số này sẽ chuyển vào data của bạn và không được tính vào số mess."
+                      onConfirm={() => handleClaimKhoSoNoi(record.id)}
+                      okText="Nhận"
+                      cancelText="Hủy"
+                      disabled={myClaimCount >= myClaimLimit}
+                    >
+                      <Button
+                        type="primary"
+                        size="small"
+                        icon={<DownloadOutlined />}
+                        disabled={myClaimCount >= myClaimLimit}
+                        style={{
+                          background: myClaimCount >= myClaimLimit ? undefined : '#F97316',
+                          borderColor: myClaimCount >= myClaimLimit ? undefined : '#F97316',
+                          borderRadius: 6, fontWeight: 600,
+                        }}
+                      >
+                        Nhận
+                      </Button>
+                    </Popconfirm>
+                  ),
+                },
+              ]}
+            />
+          </>
+        ) : (
+          <>
+            {selectedRowKeys.length > 0 && (
+              <div style={{
+                background: 'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)',
+                border: '1px solid #C7D2FE',
+                borderRadius: 10,
+                padding: '10px 18px',
+                marginBottom: 12,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                animation: 'fadeIn 0.3s ease'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Badge count={selectedRowKeys.length} style={{ backgroundColor: '#4F46E5', boxShadow: 'none', fontWeight: 700 }} />
+                  <span style={{ fontWeight: 600, color: '#3730A3', fontSize: 14 }}>khách hàng đã chọn</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {canManage && (
+                    <Button
+                      type="primary"
+                      icon={<SwapOutlined />}
+                      onClick={() => setBulkTransferModal({ open: true, sale: null })}
+                      style={{ background: '#06B6D4', borderColor: '#06B6D4', fontWeight: 600, borderRadius: 8 }}
+                    >
+                      Chuyển Sale ({selectedRowKeys.length})
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => setSelectedRowKeys([])}
+                    style={{ borderRadius: 8, fontWeight: 500 }}
+                  >
+                    Bỏ chọn
+                  </Button>
+                </div>
+              </div>
+            )}
+            <Table
+              dataSource={(() => {
+                if (filters.status === 'uu_tien') return data;
+                const pinnedIds = new Set(pinnedRows.map(r => r.id));
+                const regular = data.filter(r => !pinnedIds.has(r.id));
+                return pagination.current === 1 ? [...pinnedRows, ...regular] : regular;
+              })()}
+              columns={columns}
+              rowKey="id"
+              loading={loading}
+              rowClassName={(record) => record.status === 'uu_tien' ? 'row-uu-tien' : ''}
+              rowSelection={{
+                selectedRowKeys,
+                onChange: (keys) => setSelectedRowKeys(keys),
+                columnWidth: 42,
+                fixed: true,
+                getCheckboxProps: () => ({ style: { transform: 'scale(1.15)' } }),
+              }}
+              pagination={{ ...pagination, showSizeChanger: true, pageSizeOptions: ['30', '50', '100'], showTotal: (t) => `Tổng ${t} khách hàng` }}
+              onChange={handleTableChange}
+              scroll={{ x: 1200 }}
+              size="small"
+              expandable={{ expandedRowRender, expandRowByClick: false }}
+            />
+          </>
         )}
-        <Table
-          dataSource={(() => {
-            if (filters.status === 'uu_tien') return data;
-            const pinnedIds = new Set(pinnedRows.map(r => r.id));
-            const regular = data.filter(r => !pinnedIds.has(r.id));
-            return pagination.current === 1 ? [...pinnedRows, ...regular] : regular;
-          })()}
-          columns={columns}
-          rowKey="id"
-          loading={loading}
-          rowClassName={(record) => record.status === 'uu_tien' ? 'row-uu-tien' : ''}
-          rowSelection={{
-            selectedRowKeys,
-            onChange: (keys) => setSelectedRowKeys(keys),
-            columnWidth: 42,
-            fixed: true,
-            getCheckboxProps: () => ({ style: { transform: 'scale(1.15)' } }),
-          }}
-          pagination={{ ...pagination, showSizeChanger: true, pageSizeOptions: ['30', '50', '100'], showTotal: (t) => `Tổng ${t} khách hàng` }}
-          onChange={handleTableChange}
-          scroll={{ x: 1200 }}
-          size="small"
-          expandable={{ expandedRowRender, expandRowByClick: false }}
-        />
       </AnimatedDiv>
 
       <Modal

@@ -48,10 +48,14 @@ export function AuthProvider({ children }) {
   const isAdmin = user?.role === 'ADMIN';
   const isKeToan = user?.role === 'KE_TOAN';
   const isSaler = user?.role === 'SALER';
+  const isLaiXe = user?.role === 'LAI_XE';
+  const isNhanVien = user?.role === 'NHAN_VIEN';
+  // isEmployeeView: tài khoản nhân viên chỉ xem chấm công/bảng lương của mình
+  const isEmployeeView = isLaiXe || isNhanVien || isSaler;
   const canViewOrders = isAdmin || isKeToan;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, isAdmin, isKeToan, isSaler, canViewOrders }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, isAdmin, isKeToan, isSaler, isLaiXe, isNhanVien, isEmployeeView, canViewOrders }}>
       {children}
     </AuthContext.Provider>
   );

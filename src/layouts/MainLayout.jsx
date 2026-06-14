@@ -1,6 +1,7 @@
-﻿import { useState } from 'react';
+﻿import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Tooltip, Dropdown, Badge } from 'antd';
+import { Tooltip, Dropdown, Badge, Modal, Form, Input, message } from 'antd';
 import {
   ShoppingCartOutlined,
   TeamOutlined,
@@ -13,9 +14,13 @@ import {
   FundOutlined,
   AppstoreOutlined,
   InboxOutlined,
+  CalendarOutlined,
+  DollarOutlined,
+  LockOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import { authApi } from '../api';
 
 const VNC_URL = import.meta.env.VITE_VNC_URL || null;
 
@@ -29,25 +34,29 @@ function ZaloIcon() {
 }
 
 const allSidebarItems = [
-  { key: '/tong-quat', icon: <FundOutlined />, label: 'Phân tích tổng quan', roles: ['ADMIN'] },
-  { key: '/tin-nhan-tong-hop', icon: <InboxOutlined />, label: 'Tin nhắn tổng hợp', roles: ['ADMIN'] },
-  { key: '/doanh-so', icon: <BarChartOutlined />, label: 'Doanh số & Mess', roles: ['ADMIN', 'SALER'] },
-  { key: '/don-hang', icon: <ShoppingCartOutlined />, label: 'Đơn hàng', roles: ['ADMIN', 'KE_TOAN', 'SALER'] },
-  { key: '/zalo', icon: <ZaloIcon />, label: 'Zalo', roles: ['ADMIN', 'SALER'] },
-  { key: '/khach-hang', icon: <TeamOutlined />, label: 'Khách hàng', roles: ['ADMIN', 'SALER'] },
-  { key: '/nhap-lieu', icon: <TableOutlined />, label: 'Nhập liệu kế toán', roles: ['ADMIN', 'KE_TOAN'] },
-  { key: '/kenh-tiep-thi', icon: <AppstoreOutlined />, label: 'Kênh tiếp thị', roles: ['ADMIN'] },
-  { key: '/users', icon: <UserOutlined />, label: 'Quản lý tài khoản', roles: ['ADMIN'] },
+  { key: '/tong-quat',       icon: <FundOutlined />,         label: 'Phân tích tổng quan',   shortLabel: 'Tổng Quan',  roles: ['ADMIN'] },
+  { key: '/tin-nhan-tong-hop', icon: <InboxOutlined />,      label: 'Tin nhắn tổng hợp',     shortLabel: 'Tin Nhắn',   roles: ['ADMIN'] },
+  { key: '/doanh-so',        icon: <BarChartOutlined />,     label: 'Doanh số & Mess',       shortLabel: 'DS & Mess',  roles: ['ADMIN', 'SALER'] },
+  { key: '/don-hang',        icon: <ShoppingCartOutlined />, label: 'Doanh Số Tháng',        shortLabel: 'Đơn Hàng',   roles: ['ADMIN', 'KE_TOAN', 'SALER'] },
+  { key: '/zalo',            icon: <ZaloIcon />,             label: 'Zalo',                  shortLabel: 'Zalo',       roles: ['ADMIN', 'SALER'] },
+  { key: '/khach-hang',      icon: <TeamOutlined />,         label: 'Khách hàng',            shortLabel: 'Khách Hàng', roles: ['ADMIN', 'SALER'] },
+  { key: '/nhap-lieu',       icon: <TableOutlined />,        label: 'Nhập liệu kế toán',     shortLabel: 'Nhập Liệu', roles: ['ADMIN', 'KE_TOAN'] },
+  { key: '/cham-cong',       icon: <CalendarOutlined />,     label: 'Bảng Chấm Công',        shortLabel: 'Chấm Công',  roles: ['ADMIN', 'KE_TOAN', 'SALER', 'LAI_XE', 'NHAN_VIEN'] },
+  { key: '/bang-luong',      icon: <DollarOutlined />,       label: 'Bảng Lương',            shortLabel: 'Bảng Lương', roles: ['ADMIN', 'KE_TOAN', 'SALER', 'LAI_XE', 'NHAN_VIEN'] },
+  { key: '/kenh-tiep-thi',   icon: <AppstoreOutlined />,     label: 'Kênh tiếp thị',         shortLabel: 'Kênh TT',    roles: ['ADMIN'] },
+  { key: '/users',           icon: <UserOutlined />,         label: 'Quản lý tài khoản',     shortLabel: 'Tài Khoản',  roles: ['ADMIN'] },
 ];
 
 const pageTitles = {
   '/tin-nhan-tong-hop': 'Tin nhắn tổng hợp',
   '/doanh-so': 'Doanh số & Mess',
-  '/don-hang': 'Quản lý Đơn hàng',
+  '/don-hang': 'Doanh Số Tháng',
   '/zalo': 'Zalo',
   '/khach-hang': 'Quản lý Khách hàng',
   '/nhap-lieu': 'Nhập liệu kế toán',
   '/tong-quat': 'Phân tích tổng quan',
+  '/cham-cong': 'Bảng Chấm Công',
+  '/bang-luong': 'Bảng Lương',
   '/kenh-tiep-thi': 'Quản lý Kênh tiếp thị',
   '/users': 'Quản lý Tài khoản',
 };
@@ -57,8 +66,27 @@ export default function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const [pwModal, setPwModal] = useState(false);
+  const [pwForm] = Form.useForm();
+  const [pwLoading, setPwLoading] = useState(false);
 
-  const roleLabel = user?.role === 'ADMIN' ? 'Quản trị viên' : user?.role === 'KE_TOAN' ? 'Kế toán' : 'Nhân viên Sale';
+  const handleChangePassword = async () => {
+    try {
+      const values = await pwForm.validateFields();
+      setPwLoading(true);
+      await authApi.changePassword(values.currentPassword, values.newPassword);
+      message.success('Đổi mật khẩu thành công!');
+      setPwModal(false);
+      pwForm.resetFields();
+    } catch (err) {
+      const errMsg = err?.response?.data?.error;
+      if (errMsg) message.error(errMsg);
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const roleLabel = user?.role === 'ADMIN' ? 'Quản trị viên' : user?.role === 'KE_TOAN' ? 'Kế toán' : user?.role === 'LAI_XE' ? 'Lái xe' : user?.role === 'NHAN_VIEN' ? 'Nhân viên' : 'Nhân viên Sale';
 
   const userMenuItems = [
     { key: 'role', label: `Vai trò: ${roleLabel}`, disabled: true },
@@ -78,9 +106,10 @@ export default function MainLayout() {
     return item.roles.includes(user?.role);
   });
 
-  const defaultPath = user?.role === 'ADMIN' ? '/tong-quat' : user?.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
+  const defaultPath = user?.role === 'ADMIN' ? '/tong-quat' : user?.role === 'KE_TOAN' ? '/don-hang' : (user?.role === 'LAI_XE' || user?.role === 'NHAN_VIEN') ? '/cham-cong' : '/doanh-so';
 
   return (
+    <>
     <div className="sg-layout">
       {/* Icon Sidebar */}
       <aside className="sg-sidebar">
@@ -91,11 +120,8 @@ export default function MainLayout() {
             whileTap={{ scale: 0.95 }}
             onClick={() => navigate(defaultPath)}
           >
-            <div className="sg-logo-icon">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M8 12h8M12 8v8" />
-              </svg>
+            <div className="sg-logo-icon" style={{ fontSize: 13, fontWeight: 800, letterSpacing: 0.5, color: '#fff' }}>
+              KA
             </div>
           </motion.div>
 
@@ -163,6 +189,12 @@ export default function MainLayout() {
             </div>
             <div className="sg-lang-badge">VN Tiếng Việt</div>
 
+            <Tooltip title="Đổi mật khẩu" placement="bottom">
+              <div className="sg-header-icon" onClick={() => setPwModal(true)} style={{ cursor: 'pointer' }}>
+                <LockOutlined />
+              </div>
+            </Tooltip>
+
             <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenu }} placement="bottomRight" trigger={['click']}>
               <div className="sg-user-badge">
                 <div className="sg-user-avatar">
@@ -183,6 +215,69 @@ export default function MainLayout() {
         </main>
       </div>
 
+      {/* Bottom Navigation — always in DOM via Portal, CSS controls visibility */}
+      {createPortal(
+        <nav
+          className="sg-bottom-nav"
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 9999,
+          }}
+        >
+          {sidebarItems.map((item) => (
+            <div
+              key={item.key}
+              className={`sg-bottom-nav-item ${location.pathname === item.key ? 'active' : ''}`}
+              onClick={() => navigate(item.key)}
+            >
+              <span className="sg-bottom-nav-icon">{item.icon}</span>
+              <span className="sg-bottom-nav-label">{item.shortLabel}</span>
+            </div>
+          ))}
+        </nav>,
+        document.body
+      )}
+
     </div>
+
+    <Modal
+      title={<span><LockOutlined style={{ color: '#7C3AED', marginRight: 8 }} />Đổi mật khẩu</span>}
+      open={pwModal}
+      onCancel={() => { setPwModal(false); pwForm.resetFields(); }}
+      onOk={handleChangePassword}
+      okText="Đổi mật khẩu"
+      cancelText="Hủy"
+      confirmLoading={pwLoading}
+      width={400}
+      destroyOnClose
+    >
+      <Form form={pwForm} layout="vertical" style={{ marginTop: 8 }}>
+        <Form.Item label="Mật khẩu hiện tại" name="currentPassword"
+          rules={[{ required: true, message: 'Nhập mật khẩu hiện tại' }]}>
+          <Input.Password placeholder="Nhập mật khẩu hiện tại" />
+        </Form.Item>
+        <Form.Item label="Mật khẩu mới" name="newPassword"
+          rules={[{ required: true, message: 'Nhập mật khẩu mới' }, { min: 6, message: 'Ít nhất 6 ký tự' }]}>
+          <Input.Password placeholder="Ít nhất 6 ký tự" />
+        </Form.Item>
+        <Form.Item label="Xác nhận mật khẩu mới" name="confirmPassword"
+          dependencies={['newPassword']}
+          rules={[
+            { required: true, message: 'Xác nhận mật khẩu mới' },
+            ({ getFieldValue }) => ({
+              validator(_, value) {
+                if (!value || getFieldValue('newPassword') === value) return Promise.resolve();
+                return Promise.reject('Mật khẩu xác nhận không khớp');
+              },
+            }),
+          ]}>
+          <Input.Password placeholder="Nhập lại mật khẩu mới" />
+        </Form.Item>
+      </Form>
+    </Modal>
+    </>
   );
 }

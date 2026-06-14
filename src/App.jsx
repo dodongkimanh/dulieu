@@ -15,6 +15,8 @@ const TongQuat = lazy(() => import('./pages/TongQuat'));
 const KenhTiepThi = lazy(() => import('./pages/KenhTiepThi'));
 const Zalo = lazy(() => import('./pages/Zalo'));
 const TinNhanTongHop = lazy(() => import('./pages/TinNhanTongHop'));
+const ChamCong = lazy(() => import('./pages/ChamCong'));
+const BangLuong = lazy(() => import('./pages/BangLuong'));
 
 const PageLoader = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
@@ -29,13 +31,17 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" state={{ from: location }} replace />;
 }
 
+function getDefaultPath(role) {
+  if (role === 'ADMIN') return '/tong-quat';
+  if (role === 'KE_TOAN') return '/don-hang';
+  if (role === 'LAI_XE' || role === 'NHAN_VIEN') return '/cham-cong';
+  return '/doanh-so';
+}
+
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user) {
-    const target = user.role === 'ADMIN' ? '/tong-quat' : user.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
-    return <Navigate to={target} replace />;
-  }
+  if (user) return <Navigate to={getDefaultPath(user.role)} replace />;
   return children;
 }
 
@@ -44,17 +50,13 @@ function RoleRoute({ children, roles }) {
   const location = useLocation();
   if (loading) return null;
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
-  if (!roles.includes(user.role)) {
-    const fallback = user.role === 'ADMIN' ? '/tong-quat' : user.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
-    return <Navigate to={fallback} replace />;
-  }
+  if (!roles.includes(user.role)) return <Navigate to={getDefaultPath(user.role)} replace />;
   return children;
 }
 
 function DefaultRedirect() {
   const { user } = useAuth();
-  const target = user?.role === 'ADMIN' ? '/tong-quat' : user?.role === 'KE_TOAN' ? '/don-hang' : '/doanh-so';
-  return <Navigate to={target} replace />;
+  return <Navigate to={getDefaultPath(user?.role)} replace />;
 }
 
 function App() {
@@ -74,6 +76,8 @@ function App() {
             <Route path="tong-quat" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><TongQuat /></Suspense></RoleRoute>} />
             <Route path="tin-nhan-tong-hop" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><TinNhanTongHop /></Suspense></RoleRoute>} />
             <Route path="kenh-tiep-thi" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><KenhTiepThi /></Suspense></RoleRoute>} />
+            <Route path="cham-cong" element={<RoleRoute roles={['ADMIN', 'KE_TOAN', 'SALER', 'LAI_XE', 'NHAN_VIEN']}><Suspense fallback={<PageLoader />}><ChamCong /></Suspense></RoleRoute>} />
+            <Route path="bang-luong" element={<RoleRoute roles={['ADMIN', 'KE_TOAN', 'SALER', 'LAI_XE', 'NHAN_VIEN']}><Suspense fallback={<PageLoader />}><BangLuong /></Suspense></RoleRoute>} />
           </Route>
         </Routes>
       </AuthProvider>

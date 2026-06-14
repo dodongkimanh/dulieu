@@ -9,6 +9,7 @@ const SESSIONS_LABELS = {
   'kydodong@kimanh.com':          'Kỳ Đúc Đồng',
   'quynhdodong@kimanh.com':       'Quỳnh Đồ Đồng',
   'kieuducdongnamdinh@kimanh.com':'Kiều Đúc Đồng',
+  'tranbaoyen@kimanh.com':        'Trần Bảo Yến',
 };
 
 function Avatar({ name, avatar, size = 40 }) {

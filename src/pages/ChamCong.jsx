@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   LeftOutlined, RightOutlined, SaveOutlined, CheckCircleOutlined,
-  PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined,
+  PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, EyeInvisibleOutlined, EyeOutlined,
   DownloadOutlined, SyncOutlined, WarningOutlined, ClockCircleOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
@@ -109,7 +109,7 @@ const STATUS_DOT = {
   chua_cham: '#E2E8F0',
 };
 
-function TimeField({ label, hint, value, onChange }) {
+function TimeField({ label, hint, value, onChange, disabled }) {
   return (
     <div>
       <div style={{ fontSize: 11, color: '#64748B', marginBottom: 3, fontWeight: 600 }}>
@@ -118,15 +118,16 @@ function TimeField({ label, hint, value, onChange }) {
       <TimePicker
         format="HH:mm" minuteStep={1}
         value={value ? dayjs(value, 'HH:mm') : null}
-        onChange={(_, s) => onChange(s || '')}
+        onChange={(_, s) => onChange && onChange(s || '')}
         style={{ width: '100%' }}
         placeholder="--:--"
+        disabled={disabled}
       />
     </div>
   );
 }
 
-function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet }) {
+function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, readOnly }) {
   const [open, setOpen]           = useState(false);
   const [gioVaoSang,  setGVS]     = useState('');
   const [gioRaSang,   setGRS]     = useState('');
@@ -169,6 +170,17 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet })
   const isMissingCCOld = isMissingCC && daysSince > 7;
   const hasPenalty     = isLate || isMissingCC;
   const hasTangCa      = (record?.tangCaSang || 0) + (record?.tangCaChieu || 0) > 0;
+
+  const handleSaveGhiChu = async () => {
+    if (!record?.id) { setOpen(false); return; }
+    setSaving(true);
+    try {
+      await chamCongApi.saveGhiChuNv(record.id, ghiChuNv);
+      message.success('Đã lưu ghi chú');
+      setOpen(false);
+    } catch { message.error('Lỗi khi lưu ghi chú'); }
+    finally { setSaving(false); }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -216,8 +228,8 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet })
   return (
     <>
       <div
-        onClick={date.day() === 0 || duocDuyet ? undefined : openModal}
-        style={{ cursor: date.day() === 0 || duocDuyet ? 'default' : 'pointer',
+        onClick={date.day() === 0 ? undefined : openModal}
+        style={{ cursor: date.day() === 0 ? 'default' : 'pointer',
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, padding: '3px 1px' }}
       >
         {date.day() === 0 ? (
@@ -251,20 +263,21 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet })
       <Modal
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ClockCircleOutlined style={{ color: '#4F46E5' }} />
+            <ClockCircleOutlined style={{ color: readOnly ? '#94A3B8' : '#4F46E5' }} />
             <span style={{ fontSize: 14 }}>
               {nv.hoTen}
               <Tag color={isLaiXe ? 'purple' : 'blue'} style={{ marginLeft: 8, fontSize: 10 }}>
                 {CHUC_VU_LABELS[nv.chucVu] || nv.chucVu}
               </Tag>
               — {date.format('DD/MM')} ({['CN','T2','T3','T4','T5','T6','T7'][date.day()]})
+              {readOnly && <Tag color="default" style={{ marginLeft: 8, fontSize: 10 }}>Chỉ xem</Tag>}
             </span>
           </div>
         }
         open={open}
         onCancel={() => setOpen(false)}
-        onOk={handleSave}
-        okText="Lưu"
+        onOk={readOnly ? handleSaveGhiChu : handleSave}
+        okText={readOnly ? 'Lưu ghi chú' : 'Lưu'}
         cancelText="Đóng"
         confirmLoading={saving}
         width={isLaiXe ? 400 : 520}
@@ -277,8 +290,8 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet })
               Lái xe chỉ cần chấm <b>vào sáng</b> + <b>ra chiều</b>. Tăng ca tự động tính.
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-              <TimeField label="Vào Sáng" hint="08:33" value={gioVaoSang} onChange={setGVS} />
-              <TimeField label="Ra Chiều" hint="17:00" value={gioRaChieu} onChange={setGRC} />
+              <TimeField label="Vào Sáng" hint="08:33" value={gioVaoSang} onChange={readOnly ? undefined : setGVS} disabled={readOnly} />
+              <TimeField label="Ra Chiều" hint="17:00" value={gioRaChieu} onChange={readOnly ? undefined : setGRC} disabled={readOnly} />
             </div>
             <div style={{ background: '#F0FDF4', borderRadius: 8, padding: '10px 12px', border: '1px solid #BBF7D0' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', marginBottom: 10 }}>Phụ Cấp Lái Xe</div>
@@ -361,10 +374,10 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet })
         ) : (
           /* NVVP / VNSale: 4 mốc */
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <TimeField label="Vào Sáng"   hint="08:33" value={gioVaoSang}  onChange={setGVS} />
-            <TimeField label="Ra Sáng"    hint="11:45" value={gioRaSang}   onChange={setGRS} />
-            <TimeField label="Vào Chiều"  hint="13:30" value={gioVaoChieu} onChange={setGVC} />
-            <TimeField label="Ra Chiều"   hint="17:00" value={gioRaChieu}  onChange={setGRC} />
+            <TimeField label="Vào Sáng"   hint="08:33" value={gioVaoSang}  onChange={readOnly ? undefined : setGVS} disabled={readOnly} />
+            <TimeField label="Ra Sáng"    hint="11:45" value={gioRaSang}   onChange={readOnly ? undefined : setGRS} disabled={readOnly} />
+            <TimeField label="Vào Chiều"  hint="13:30" value={gioVaoChieu} onChange={readOnly ? undefined : setGVC} disabled={readOnly} />
+            <TimeField label="Ra Chiều"   hint="17:00" value={gioRaChieu}  onChange={readOnly ? undefined : setGRC} disabled={readOnly} />
           </div>
         )}
 
@@ -473,7 +486,7 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet })
 }
 
 export default function ChamCong() {
-  const { isAdmin, isLaiXe, isEmployeeView, user } = useAuth();
+  const { isAdmin, isKeToan, isLaiXe, isEmployeeView, user } = useAuth();
   const [month, setMonth] = useState(dayjs());
   const [nhanVienList, setNhanVienList] = useState([]);
   const [chamCongMap, setChamCongMap] = useState({}); // { nvId: { dateStr: record } }
@@ -602,6 +615,17 @@ export default function ChamCong() {
     try { await nhanVienApi.delete(id); message.success('Đã xóa'); fetchData(); }
     catch { message.error('Lỗi khi xóa'); }
   };
+
+  const handleToggleAn = async (nv) => {
+    try {
+      await nhanVienApi.toggleAnTrongBang(nv.id);
+      setNhanVienList(prev => prev.map(n => n.id === nv.id ? { ...n, anTrongBang: !n.anTrongBang } : n));
+      message.success(nv.anTrongBang ? `Đã hiện lại ${nv.hoTen}` : `Đã ẩn ${nv.hoTen}`);
+    } catch { message.error('Lỗi khi thay đổi trạng thái'); }
+  };
+
+  const nvHienThi  = nhanVienList.filter(nv => !nv.anTrongBang);
+  const nvAnDi     = nhanVienList.filter(nv => nv.anTrongBang);
 
   // Tổng thống kê tháng
   const totalWarnings = Object.values(statsMap).filter(s => (s.phutBiPhat || 0) > GRACE_MINUTES).length;
@@ -797,7 +821,7 @@ export default function ChamCong() {
                 Chưa có nhân viên. Bấm "Thêm NV" để bắt đầu.
               </td></tr>
             )}
-            {nhanVienList.map((nv, idx) => (
+            {nvHienThi.map((nv, idx) => (
               <tr key={nv.id} style={{ background: idx % 2 === 0 ? '#fff' : '#FAFAFA' }}>
                 <td style={{
                   padding: '6px 12px', fontWeight: 600, fontSize: 12,
@@ -810,13 +834,20 @@ export default function ChamCong() {
                       style={{ fontSize: 9, padding: '0 5px', margin: 0, lineHeight: '16px' }}>
                       {CHUC_VU_LABELS[nv.chucVu] || nv.chucVu}
                     </Tag>
-                    <Button type="text" size="small" icon={<EditOutlined />}
-                      style={{ color: '#94A3B8', padding: 0, minWidth: 18, height: 18 }}
-                      onClick={() => handleOpenNv(nv)} />
-                    <Popconfirm title="Xóa nhân viên?" onConfirm={() => handleDeleteNv(nv.id)}>
-                      <Button type="text" size="small" icon={<DeleteOutlined />}
-                        style={{ color: '#FCA5A5', padding: 0, minWidth: 18, height: 18 }} danger />
-                    </Popconfirm>
+                    {(isAdmin || isKeToan) && <>
+                      <Button type="text" size="small" icon={<EditOutlined />}
+                        style={{ color: '#94A3B8', padding: 0, minWidth: 18, height: 18 }}
+                        onClick={() => handleOpenNv(nv)} />
+                      <Popconfirm title="Xóa nhân viên?" onConfirm={() => handleDeleteNv(nv.id)}>
+                        <Button type="text" size="small" icon={<DeleteOutlined />}
+                          style={{ color: '#FCA5A5', padding: 0, minWidth: 18, height: 18 }} danger />
+                      </Popconfirm>
+                      <Tooltip title="Ẩn nhân viên (nghỉ)">
+                        <Button type="text" size="small" icon={<EyeInvisibleOutlined />}
+                          style={{ color: '#94A3B8', padding: 0, minWidth: 18, height: 18 }}
+                          onClick={() => handleToggleAn(nv)} />
+                      </Tooltip>
+                    </>}
                   </div>
                 </td>
                 {days.map(d => {
@@ -835,13 +866,57 @@ export default function ChamCong() {
                         onSave={isEmployeeView ? null : handleSaveCell}
                         onDuyet={isEmployeeView ? null : handleDuyetRecord}
                         isAdmin={isAdmin}
-                        duocDuyet={duocDuyet || isEmployeeView}
+                        duocDuyet={duocDuyet}
+                        readOnly={isEmployeeView}
                       />
                     </td>
                   );
                 })}
               </tr>
             ))}
+
+            {/* Section nhân viên đang nghỉ */}
+            {nvAnDi.length > 0 && (
+              <>
+                <tr>
+                  <td colSpan={days.length + 1} style={{
+                    padding: '6px 12px', background: '#FEF3C7',
+                    borderTop: '2px solid #F59E0B', borderBottom: '1px solid #FDE68A',
+                    fontSize: 11, fontWeight: 700, color: '#92400E',
+                    position: 'sticky', left: 0,
+                  }}>
+                    Nhân viên đang nghỉ ({nvAnDi.length}) — Không tính vào bảng lương
+                  </td>
+                </tr>
+                {nvAnDi.map((nv, idx) => (
+                  <tr key={nv.id} style={{ background: idx % 2 === 0 ? '#FFFBEB' : '#FEF9E7', opacity: 0.75 }}>
+                    <td style={{
+                      padding: '6px 12px', fontSize: 12,
+                      borderBottom: '1px solid #FDE68A', borderRight: '1px solid #FDE68A',
+                      position: 'sticky', left: 0, background: idx % 2 === 0 ? '#FFFBEB' : '#FEF9E7', zIndex: 1,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, color: '#92400E' }}>{nv.hoTen}</span>
+                        <Tag color="warning" style={{ fontSize: 9, padding: '0 5px', margin: 0, lineHeight: '16px' }}>Nghỉ</Tag>
+                        {(isAdmin || isKeToan) && (
+                          <Tooltip title="Hiện lại nhân viên">
+                            <Button type="text" size="small" icon={<EyeOutlined />}
+                              style={{ color: '#D97706', padding: 0, minWidth: 18, height: 18 }}
+                              onClick={() => handleToggleAn(nv)} />
+                          </Tooltip>
+                        )}
+                      </div>
+                    </td>
+                    {days.map(d => (
+                      <td key={d.format('YYYY-MM-DD')} style={{
+                        borderBottom: '1px solid #FDE68A', borderRight: '1px solid #FDE68A',
+                        background: d.day() === 0 ? '#FEF3C7' : undefined,
+                      }} />
+                    ))}
+                  </tr>
+                ))}
+              </>
+            )}
           </tbody>
         </table>
       </div>

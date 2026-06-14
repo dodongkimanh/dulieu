@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { Button, Input, Select, DatePicker, InputNumber, message, Popconfirm, Space, Tooltip, Badge, Tag, Modal, Form, Row, Col, Popover, Checkbox } from 'antd';
 import {
   PlusOutlined,
@@ -8,15 +8,22 @@ import {
   FileExcelOutlined,
   SearchOutlined,
   FilterOutlined,
-  LeftOutlined,
-  RightOutlined,
   EditOutlined,
+  SendOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { donHangApi, authApi, kenhTiepThiApi } from '../api';
 import dayjs from 'dayjs';
 
 const { Option, OptGroup } = Select;
+
+const HUONG_DS_OPTIONS = ['100%', '75%', '60%', '50%', '30%', 'CK 1%'];
+
+const parseHuongDoanhSo = (h) => {
+  const map = { '100%': 1, '75%': 0.75, '60%': 0.60, '50%': 0.50, '30%': 0.30, 'CK 1%': 0.01 };
+  return map[h] ?? 0;
+};
 
 const STATUS_OPTIONS = [
   'Đã Giao Thành Công', 'Đang Chờ', 'KH Showroom', 'Hoàn hàng',
@@ -53,13 +60,14 @@ const COLUMNS_DEFAULT = [
   { key: 'tyLeCk', label: 'Tỷ Lệ CK %', width: 80, type: 'computed-pct' },
   { key: 'loiNhuanUocTinh', label: 'LN Ước Tính', width: 110, type: 'computed' },
   { key: 'tinhTrang', label: 'Tình Trạng', width: 145, type: 'select-status' },
-  { key: 'maVanDon', label: 'Mã Vận Đơn', width: 120, type: 'text' },
+  { key: 'huongDoanhSo', label: 'Hưởng DS %', width: 110, type: 'select-huong' },
   { key: 'chiPhiVanChuyen', label: 'CP Vận Chuyển', width: 100, type: 'number' },
   { key: 'dsVanChuyen', label: 'ĐS Vận Chuyển', width: 100, type: 'number' },
   { key: 'datCoc', label: 'Đặt Cọc/CK', width: 95, type: 'number' },
   { key: 'thuBanTrucTiep', label: 'Thu Bán TT', width: 100, type: 'number' },
   { key: 'tongThuKhach', label: 'Tổng Thu Khách', width: 110, type: 'computed' },
   { key: 'loiNhuanSauTru', label: 'Lợi Nhuận Thực', width: 120, type: 'computed' },
+  { key: 'hoaHong', label: 'Hoa Hồng', width: 110, type: 'number' },
   { key: 'page', label: 'Tùy Chọn', width: 180, type: 'select-page' },
   { key: 'maIdQuangCao', label: 'Mã ID QC', width: 120, type: 'text' },
   { key: 'ghiChu', label: 'Ghi Chú', width: 160, type: 'text' },
@@ -68,11 +76,12 @@ const COLUMNS_DEFAULT = [
 export default function NhapLieu() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 50, total: 0 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 9999, total: 0 });
   const [backendTotals, setBackendTotals] = useState(null);
   const [salesList, setSalesList] = useState([]);
   const [editedRows, setEditedRows] = useState({});
   const [keyword, setKeyword] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [dateRange, setDateRange] = useState([dayjs().startOf('month'), dayjs().endOf('month')]);
   const [saving, setSaving] = useState(false);
   const [editModal, setEditModal] = useState({ open: false, record: null });
@@ -104,6 +113,16 @@ export default function NhapLieu() {
   const [colFilters, setColFilters] = useState({ sale: null, tinhTrang: null, page: null });
   const [openFilterCol, setOpenFilterCol] = useState(null);
   const [tempFilter, setTempFilter] = useState([]);
+
+  const [pushModal, setPushModal] = useState({ open: false, record: null });
+  const [pushMonth, setPushMonth] = useState(null);
+  const [pushing, setPushing] = useState(false);
+
+  // localEdits: { [rowId]: { field: value, ... } } — tách khỏi data để tránh re-render toàn bộ
+  const [localEdits, setLocalEdits] = useState({});
+  // dataRef để handleCellChange không cần data trong dependency array
+  const dataRef = useRef(data);
+  useEffect(() => { dataRef.current = data; }, [data]);
 
   const [colWidths, setColWidths] = useState(() => {
     try {
@@ -148,19 +167,25 @@ export default function NhapLieu() {
     return [];
   };
 
-  const filteredData = data.filter(row => {
+  // filteredData: useMemo để không recompute mỗi render
+  const filteredData = useMemo(() => data.filter(row => {
     if (colFilters.sale && !colFilters.sale.includes(row.sale)) return false;
     if (colFilters.tinhTrang && !colFilters.tinhTrang.includes(row.tinhTrang)) return false;
     if (colFilters.page && !colFilters.page.includes(row.page)) return false;
     return true;
-  });
+  }), [data, colFilters]);
 
-  const fetchData = useCallback(async (pg = 1, size = 50) => {
+  // mergedFilteredData: merge localEdits vào để tính summary chính xác
+  const mergedFilteredData = useMemo(() =>
+    filteredData.map(row => ({ ...row, ...(localEdits[row.id] || {}) })),
+  [filteredData, localEdits]);
+
+  const fetchData = useCallback(async (pg = 1, size = 9999, kw = keyword) => {
     setLoading(true);
     try {
       const params = {
         pageNum: pg - 1, size,
-        keyword: keyword || undefined,
+        keyword: kw || undefined,
         fromDate: dateRange[0]?.format('YYYY-MM-DD') || undefined,
         toDate: dateRange[1]?.format('YYYY-MM-DD') || undefined,
       };
@@ -169,6 +194,7 @@ export default function NhapLieu() {
       setPagination({ current: pg, pageSize: size, total: res.data.totalElements });
       setBackendTotals(res.data.totals || null);
       setEditedRows({});
+      setLocalEdits({});
     } catch { message.error('Không thể tải dữ liệu'); }
     finally { setLoading(false); }
   }, [keyword, dateRange]);
@@ -183,66 +209,54 @@ export default function NhapLieu() {
     try { const res = await kenhTiepThiApi.getGrouped(); setPageChannels(res.data || {}); } catch {}
   };
 
-  const handleCellChange = (rowId, field, value) => {
-    setData(prev => prev.map(row => {
-      if (row.id !== rowId) return row;
-      const updated = { ...row, [field]: value };
-      
-      // Extract values
-      const ban = Number(updated.giaBanLenDon || 0);
-      const phu = Number(updated.cuocPhuTroi || 0);
-      const von = Number(updated.giaVon || 0);
-      const niem = Number(updated.tongTienNiemYet || 0);
-      const coc = Number(updated.datCoc || 0);
-      const truc = Number(updated.thuBanTrucTiep || 0);
-      const dsvc = Number(updated.dsVanChuyen || 0);
-      const cpvc = Number(updated.chiPhiVanChuyen || 0);
-      
-      // CÔNG THỨC 1: Giá Thu Thực Tế = Giá Bán Lên Đơn - Cước Phụ Trội
-      updated.giaThuThucTe = ban - phu;
-      
-      // CÔNG THỨC 2: Tỷ Lệ CK % = ((Niêm Yết - Giá Thu Thực Tế) / Niêm Yết) × 100
-      updated.tyLeCk = niem > 0 ? ((niem - updated.giaThuThucTe) / niem) * 100 : 0;
-      
-      // CÔNG THỨC 3: Lợi Nhuận Ước Tính = Giá Thu Thực Tế - Giá Vốn
-      updated.loiNhuanUocTinh = updated.giaThuThucTe - von;
-      
-      // CÔNG THỨC 4: Tổng Thu Khách
-      // Case A: Đặt cọc > 0, chưa bán trực tiếp → chỉ tính đặt cọc
-      // Case B: Có thu bán → Đặt cọc + Thu bán + ĐS VC
-      updated.tongThuKhach = (coc > 0 && truc === 0)
-        ? coc
-        : coc + truc + dsvc;
+  // useCallback + dataRef: handleCellChange stable, không recreate khi data thay đổi
+  const handleCellChange = useCallback((rowId, field, value) => {
+    setLocalEdits(prev => {
+      const existing = prev[rowId] || {};
+      const baseRow = dataRef.current.find(r => r.id === rowId) || {};
+      const merged = { ...baseRow, ...existing, [field]: value };
 
-      // CÔNG THỨC 5: Lợi Nhuận Thực
-      // Case A: Đặt cọc > 0, chưa bán → LN Thực = Đặt Cọc (không trừ vốn/VC)
-      // Case B: Có thu bán → Tổng Thu - Giá Vốn - CP Vận Chuyển
-      // Case C: Chưa thu tiền → 0
-      if (coc > 0 && truc === 0) {
-        updated.loiNhuanSauTru = coc;
-      } else if (updated.tongThuKhach > 0) {
-        updated.loiNhuanSauTru = updated.tongThuKhach - von - cpvc;
-      } else {
-        updated.loiNhuanSauTru = 0;
-      }
-      
-      return updated;
-    }));
+      const ban  = Number(merged.giaBanLenDon || 0);
+      const phu  = Number(merged.cuocPhuTroi || 0);
+      const von  = Number(merged.giaVon || 0);
+      const niem = Number(merged.tongTienNiemYet || 0);
+      const coc  = Number(merged.datCoc || 0);
+      const truc = Number(merged.thuBanTrucTiep || 0);
+      const dsvc = Number(merged.dsVanChuyen || 0);
+      const cpvc = Number(merged.chiPhiVanChuyen || 0);
+
+      const giaThuThucTe    = ban - phu;
+      const tyLeCk          = niem > 0 ? ((niem - giaThuThucTe) / niem) * 100 : 0;
+      const loiNhuanUocTinh = giaThuThucTe - von;
+      const tongThuKhach    = (coc > 0 && truc === 0) ? coc : coc + truc + dsvc;
+      let loiNhuanSauTru;
+      if (coc > 0 && truc === 0) loiNhuanSauTru = coc;
+      else if (tongThuKhach > 0) loiNhuanSauTru = tongThuKhach - von - cpvc;
+      else loiNhuanSauTru = 0;
+      const dsHuong = Math.round(giaThuThucTe * parseHuongDoanhSo(merged.huongDoanhSo));
+
+      return {
+        ...prev,
+        [rowId]: {
+          ...existing, [field]: value,
+          giaThuThucTe, tyLeCk, loiNhuanUocTinh,
+          tongThuKhach, loiNhuanSauTru, dsHuong,
+        },
+      };
+    });
     setEditedRows(prev => ({ ...prev, [rowId]: true }));
-  };
+  }, []); // stable — dùng dataRef thay vì data
 
   const handleSaveRow = async (record) => {
     try {
       setSaving(true);
-      const payload = { ...record };
-      if (payload.ngay && typeof payload.ngay === 'string') {
-        // already string
-      } else if (payload.ngay && payload.ngay.format) {
-        payload.ngay = payload.ngay.format('YYYY-MM-DD');
-      }
+      const edit = localEdits[record.id] || {};
+      const payload = { ...record, ...edit };
+      if (payload.ngay && payload.ngay.format) payload.ngay = payload.ngay.format('YYYY-MM-DD');
       await donHangApi.update(record.id, payload);
       message.success(`Đã lưu đơn ${record.maHoaDon || record.id}`);
       setEditedRows(prev => { const n = { ...prev }; delete n[record.id]; return n; });
+      setLocalEdits(prev => { const n = { ...prev }; delete n[record.id]; return n; });
     } catch { message.error('Lỗi khi lưu'); }
     finally { setSaving(false); }
   };
@@ -256,7 +270,8 @@ export default function NhapLieu() {
       const row = data.find(r => r.id === Number(id));
       if (!row) continue;
       try {
-        const payload = { ...row };
+        const edit = localEdits[Number(id)] || {};
+        const payload = { ...row, ...edit };
         if (payload.ngay && payload.ngay.format) payload.ngay = payload.ngay.format('YYYY-MM-DD');
         await donHangApi.update(row.id, payload);
         success++;
@@ -264,6 +279,7 @@ export default function NhapLieu() {
     }
     message.success(`Đã lưu ${success}/${editedIds.length} đơn hàng`);
     setEditedRows({});
+    setLocalEdits({});
     setSaving(false);
   };
 
@@ -293,6 +309,31 @@ export default function NhapLieu() {
     } catch { message.error('Lỗi khi xuất Excel'); }
   };
 
+  const handleOpenPush = (record) => {
+    const existing = record.ngayTinhDoanhSo ? dayjs(record.ngayTinhDoanhSo) : null;
+    setPushMonth(existing);
+    setPushModal({ open: true, record });
+  };
+
+  const handleConfirmPush = async () => {
+    if (!pushModal.record) return;
+    setPushing(true);
+    try {
+      // Dùng ngày 15 để nằm chắc trong range 11→10 của tháng đó
+      const dateStr = pushMonth ? pushMonth.date(15).format('YYYY-MM-DD') : null;
+      const res = await donHangApi.dayDoanhSo(pushModal.record.id, dateStr);
+      setData(prev => prev.map(r => r.id === pushModal.record.id ? { ...r, ngayTinhDoanhSo: res.data.ngayTinhDoanhSo } : r));
+      message.success(dateStr
+        ? `Đã đẩy sang tháng ${pushMonth.format('MM/YYYY')}`
+        : 'Đã gỡ đẩy doanh số — đơn trở về tháng gốc');
+      setPushModal({ open: false, record: null });
+    } catch {
+      message.error('Lỗi khi đẩy doanh số');
+    } finally {
+      setPushing(false);
+    }
+  };
+
   const handleAddRow = async () => {
     try {
       const newOrder = { ngay: dayjs().format('YYYY-MM-DD'), tinhTrang: 'Đang Chờ' };
@@ -303,10 +344,11 @@ export default function NhapLieu() {
   };
 
   const handleOpenEdit = (record) => {
-    setEditModal({ open: true, record });
+    const merged = { ...record, ...(localEdits[record.id] || {}) };
+    setEditModal({ open: true, record: merged });
     editForm.setFieldsValue({
-      ...record,
-      ngay: record.ngay ? dayjs(record.ngay) : null,
+      ...merged,
+      ngay: merged.ngay ? dayjs(merged.ngay) : null,
     });
   };
 
@@ -364,7 +406,7 @@ export default function NhapLieu() {
         tongThuKhach: Number(backendTotals.tongThuKhach || 0),
         loiNhuanSauTru: Number(backendTotals.loiNhuanSauTru || 0),
       }
-    : filteredData.reduce((acc, row) => {
+    : mergedFilteredData.reduce((acc, row) => {
         acc.giaVon += Number(row.giaVon || 0);
         acc.tongTienNiemYet += Number(row.tongTienNiemYet || 0);
         acc.giaBanLenDon += Number(row.giaBanLenDon || 0);
@@ -380,23 +422,30 @@ export default function NhapLieu() {
         return acc;
       }, { giaVon: 0, tongTienNiemYet: 0, giaBanLenDon: 0, cuocPhuTroi: 0, giaThuThucTe: 0, loiNhuanUocTinh: 0, chiPhiVanChuyen: 0, dsVanChuyen: 0, datCoc: 0, thuBanTrucTiep: 0, tongThuKhach: 0, loiNhuanSauTru: 0 });
 
+  // Lấy giá trị hiển thị: ưu tiên localEdits trước
+  const getVal = useCallback((record, field) => {
+    const le = localEdits[record.id];
+    return (le && le[field] !== undefined) ? le[field] : record[field];
+  }, [localEdits]);
+
   const renderCell = (col, record, index) => {
     const rowEdited = editedRows[record.id];
     if (col.type === 'index') {
       return <span className="nl-stt">{(pagination.current - 1) * pagination.pageSize + index + 1}</span>;
     }
     if (col.type === 'computed') {
-      const val = Number(record[col.key] || 0);
+      const val = Number(getVal(record, col.key) || 0);
       const isProfit = col.key.includes('loiNhuan');
       return <span className={`nl-computed ${isProfit ? (val >= 0 ? 'profit' : 'loss') : ''}`}>{vnd(val)}</span>;
     }
     if (col.type === 'computed-pct') {
-      return <span className="nl-computed">{Number(record[col.key] || 0).toFixed(2)}%</span>;
+      return <span className="nl-computed">{Number(getVal(record, col.key) || 0).toFixed(2)}%</span>;
     }
     if (col.type === 'date') {
+      const ngayVal = getVal(record, 'ngay');
       return (
         <DatePicker
-          value={record.ngay ? dayjs(record.ngay) : null}
+          value={ngayVal ? dayjs(ngayVal) : null}
           onChange={(d) => handleCellChange(record.id, 'ngay', d ? d.format('YYYY-MM-DD') : null)}
           format="DD/MM/YYYY"
           size="small"
@@ -407,10 +456,11 @@ export default function NhapLieu() {
       );
     }
     if (col.type === 'select-status') {
-      const sc = statusColors[record.tinhTrang] || { color: '#64748B', bg: '#F1F5F9' };
+      const tinhTrangVal = getVal(record, 'tinhTrang');
+      const sc = statusColors[tinhTrangVal] || { color: '#64748B', bg: '#F1F5F9' };
       return (
         <Select
-          value={record.tinhTrang}
+          value={tinhTrangVal}
           onChange={(v) => handleCellChange(record.id, 'tinhTrang', v)}
           size="small"
           variant="borderless"
@@ -428,7 +478,7 @@ export default function NhapLieu() {
     if (col.type === 'select-sale') {
       return (
         <Select
-          value={record.sale}
+          value={getVal(record, 'sale')}
           onChange={(v) => handleCellChange(record.id, 'sale', v)}
           size="small"
           variant="borderless"
@@ -446,7 +496,7 @@ export default function NhapLieu() {
     if (col.type === 'number') {
       return (
         <InputNumber
-          value={record[col.key]}
+          value={getVal(record, col.key)}
           onChange={(v) => handleCellChange(record.id, col.key, v)}
           size="small"
           variant="borderless"
@@ -459,10 +509,26 @@ export default function NhapLieu() {
         />
       );
     }
+    if (col.type === 'select-huong') {
+      return (
+        <Select
+          value={getVal(record, col.key)}
+          onChange={(v) => handleCellChange(record.id, col.key, v)}
+          size="small"
+          variant="borderless"
+          className="nl-select"
+          allowClear
+          popupMatchSelectWidth={false}
+          style={{ width: '100%' }}
+        >
+          {HUONG_DS_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
+        </Select>
+      );
+    }
     if (col.type === 'select-page') {
       return (
         <Select
-          value={record[col.key]}
+          value={getVal(record, col.key)}
           onChange={(v) => handleCellChange(record.id, col.key, v)}
           size="small"
           variant="borderless"
@@ -487,7 +553,7 @@ export default function NhapLieu() {
     // text
     return (
       <Input
-        value={record[col.key]}
+        value={getVal(record, col.key)}
         onChange={(e) => handleCellChange(record.id, col.key, e.target.value)}
         size="small"
         variant="borderless"
@@ -498,7 +564,7 @@ export default function NhapLieu() {
 
   const renderSummaryCell = (col) => {
     if (col.type === 'index') return <span className="nl-summary-label">Σ</span>;
-    if (col.key === 'ngay' || col.key === 'maHoaDon' || col.key === 'maDatHang' || col.key === 'khachHang' || col.key === 'sdt' || col.key === 'sale' || col.key === 'tinhTrang' || col.key === 'maVanDon' || col.key === 'page' || col.key === 'maIdQuangCao' || col.key === 'ghiChu') return null;
+    if (col.key === 'ngay' || col.key === 'maHoaDon' || col.key === 'maDatHang' || col.key === 'khachHang' || col.key === 'sdt' || col.key === 'sale' || col.key === 'tinhTrang' || col.key === 'huongDoanhSo' || col.key === 'page' || col.key === 'maIdQuangCao' || col.key === 'ghiChu') return null;
     if (col.type === 'computed-pct') return null;
     const val = summary[col.key];
     if (val === undefined) return null;
@@ -530,12 +596,13 @@ export default function NhapLieu() {
           <Input
             placeholder="Tìm kiếm..."
             prefix={<SearchOutlined style={{ color: '#94A3B8' }} />}
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            onPressEnter={() => fetchData(1, pagination.pageSize)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onPressEnter={() => { setKeyword(searchInput); fetchData(1, pagination.pageSize, searchInput); }}
             style={{ width: 200 }}
             size="middle"
             allowClear
+            onClear={() => { setSearchInput(''); setKeyword(''); fetchData(1, pagination.pageSize, ''); }}
           />
           <DatePicker.RangePicker
             value={dateRange}
@@ -545,13 +612,8 @@ export default function NhapLieu() {
             style={{ width: 240 }}
             placeholder={['Từ ngày', 'Đến ngày']}
           />
-          <Button type="primary" icon={<SearchOutlined />} onClick={() => fetchData(1, pagination.pageSize)} size="middle">Lọc</Button>
-          <div className="nl-pagination-info">
-            <span>{pagination.total} đơn</span>
-            <Button size="small" icon={<LeftOutlined />} disabled={pagination.current <= 1} onClick={() => fetchData(pagination.current - 1, pagination.pageSize)} />
-            <span className="nl-page-num">Trang {pagination.current}/{Math.ceil(pagination.total / pagination.pageSize) || 1}</span>
-            <Button size="small" icon={<RightOutlined />} disabled={pagination.current >= Math.ceil(pagination.total / pagination.pageSize)} onClick={() => fetchData(pagination.current + 1, pagination.pageSize)} />
-          </div>
+          <Button type="primary" icon={<SearchOutlined />} onClick={() => { setKeyword(searchInput); fetchData(1, pagination.pageSize, searchInput); }} loading={loading} size="middle">Lọc</Button>
+          <span className="nl-pagination-info" style={{ fontSize: 13, color: '#64748B' }}>{pagination.total} đơn</span>
         </div>
       </div>
 
@@ -607,10 +669,15 @@ export default function NhapLieu() {
                               ))}
                             </div>
                             <div className="nl-filter-actions">
-                              <Button size="small" onClick={() => { setColFilters(p => ({ ...p, [col.key]: null })); setOpenFilterCol(null); }}>Xóa lọc</Button>
-                              <Button size="small" type="primary" onClick={() => {
+                              <Button size="small" onClick={(e) => {
+                                e.stopPropagation();
+                                setTempFilter([]);
+                                setColFilters(p => ({ ...p, [col.key]: null }));
+                              }}>Xóa lọc</Button>
+                              <Button size="small" type="primary" onClick={(e) => {
+                                e.stopPropagation();
                                 const isAll = tempFilter.length === filterOptions.length;
-                                setColFilters(p => ({ ...p, [col.key]: isAll ? null : tempFilter }));
+                                setColFilters(p => ({ ...p, [col.key]: isAll ? null : (tempFilter.length === 0 ? null : tempFilter) }));
                                 setOpenFilterCol(null);
                               }}>Áp dụng</Button>
                             </div>
@@ -632,7 +699,7 @@ export default function NhapLieu() {
                 </div>
               );
             })}
-            <div className="nl-header-cell nl-action-col" style={{ width: 90 }}>Thao tác</div>
+            <div className="nl-header-cell nl-action-col" style={{ width: 100 }}>Thao tác</div>
           </div>
 
           {/* Summary Row */}
@@ -642,7 +709,7 @@ export default function NhapLieu() {
                 {renderSummaryCell(col)}
               </div>
             ))}
-            <div className="nl-summary-cell" style={{ width: 90 }}></div>
+            <div className="nl-summary-cell" style={{ width: 100 }}></div>
           </div>
 
           {/* Data Rows */}
@@ -651,7 +718,7 @@ export default function NhapLieu() {
           ) : filteredData.length === 0 ? (
             <div className="nl-empty">{data.length > 0 ? 'Không có dữ liệu khớp với bộ lọc' : 'Không có dữ liệu'}</div>
           ) : filteredData.map((record, index) => (
-            <div key={record.id} className={`nl-data-row ${editedRows[record.id] ? 'edited' : ''} ${selectedRowId === record.id ? 'selected' : index % 2 === 0 ? 'even' : 'odd'}`} onClick={() => setSelectedRowId(record.id)}>
+            <div key={record.id} className={`nl-data-row ${(editedRows[record.id] || localEdits[record.id]) ? 'edited' : ''} ${selectedRowId === record.id ? 'selected' : index % 2 === 0 ? 'even' : 'odd'}`} onClick={() => setSelectedRowId(record.id)}>
               {COLUMNS.map(col => (
                 <div key={col.key} className={`nl-data-cell ${col.type === 'computed' || col.type === 'computed-pct' ? 'computed' : ''}`} style={{ width: col.width, minWidth: col.width }}>
                   {renderCell(col, record, index)}
@@ -663,15 +730,80 @@ export default function NhapLieu() {
                   {editedRows[record.id] && (
                     <Tooltip title="Lưu"><Button type="text" size="small" icon={<SaveOutlined />} onClick={() => handleSaveRow(record)} style={{ color: '#10B981' }} /></Tooltip>
                   )}
+                  <Tooltip title={record.ngayTinhDoanhSo ? `Đang đẩy → T${dayjs(record.ngayTinhDoanhSo).format('MM/YY')} — Bấm để thay đổi` : 'Đẩy Doanh Số sang tháng khác'}>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<SendOutlined />}
+                      onClick={() => handleOpenPush(record)}
+                      style={{ color: record.ngayTinhDoanhSo ? '#F59E0B' : '#94A3B8' }}
+                    />
+                  </Tooltip>
                   <Popconfirm title="Xác nhận xóa?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
                     <Tooltip title="Xóa"><Button type="text" size="small" icon={<DeleteOutlined />} danger /></Tooltip>
                   </Popconfirm>
                 </Space>
+                {record.ngayTinhDoanhSo && (
+                  <div style={{ fontSize: 10, color: '#F59E0B', fontWeight: 700, textAlign: 'center', marginTop: 2, lineHeight: 1 }}>
+                    →T{dayjs(record.ngayTinhDoanhSo).format('MM/YY')}
+                  </div>
+                )}
               </div>
             </div>
           ))}
         </div>
       </div>
+
+      {/* Push Sales Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SendOutlined style={{ color: '#F59E0B', fontSize: 16 }} />
+            <span style={{ fontWeight: 700 }}>Đẩy Doanh Số</span>
+            {pushModal.record && (
+              <span style={{ fontWeight: 400, fontSize: 13, color: '#64748B' }}>
+                — {pushModal.record.khachHang || pushModal.record.maHoaDon}
+              </span>
+            )}
+          </div>
+        }
+        open={pushModal.open}
+        onCancel={() => setPushModal({ open: false, record: null })}
+        footer={[
+          pushModal.record?.ngayTinhDoanhSo && (
+            <Button key="clear" icon={<CloseCircleOutlined />} danger onClick={() => { setPushMonth(null); setTimeout(handleConfirmPush, 0); }}>
+              Gỡ đẩy (về tháng gốc)
+            </Button>
+          ),
+          <Button key="cancel" onClick={() => setPushModal({ open: false, record: null })}>Hủy</Button>,
+          <Button key="ok" type="primary" icon={<SendOutlined />} loading={pushing} onClick={handleConfirmPush} style={{ background: '#F59E0B', borderColor: '#F59E0B' }}>
+            Đẩy sang tháng này
+          </Button>,
+        ].filter(Boolean)}
+        width={400}
+        destroyOnClose
+      >
+        <div style={{ padding: '8px 0 16px' }}>
+          {pushModal.record?.ngayTinhDoanhSo && (
+            <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 13, color: '#92400E' }}>
+              Hiện đang đẩy vào: <b>tháng {dayjs(pushModal.record.ngayTinhDoanhSo).format('MM/YYYY')}</b>
+            </div>
+          )}
+          <div style={{ marginBottom: 8, fontWeight: 600, color: '#374151' }}>Chọn tháng muốn đẩy vào Doanh Số:</div>
+          <DatePicker
+            picker="month"
+            value={pushMonth}
+            onChange={(m) => setPushMonth(m)}
+            format="MM/YYYY"
+            style={{ width: '100%' }}
+            placeholder="Chọn tháng..."
+            allowClear={false}
+          />
+          <div style={{ marginTop: 10, fontSize: 12, color: '#94A3B8' }}>
+            Đơn này sẽ xuất hiện trong Doanh Số Tháng của tháng được chọn thay vì tháng gốc của đơn.
+          </div>
+        </div>
+      </Modal>
 
       {/* Edit Modal */}
       <Modal
@@ -753,8 +885,10 @@ export default function NhapLieu() {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item label="Mã Vận Đơn" name="maVanDon">
-                <Input />
+              <Form.Item label="Hưởng Doanh Số" name="huongDoanhSo">
+                <Select allowClear placeholder="Chọn %">
+                  {HUONG_DS_OPTIONS.map(s => <Option key={s} value={s}>{s}</Option>)}
+                </Select>
               </Form.Item>
             </Col>
           </Row>

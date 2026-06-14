@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Row, Col, DatePicker, Checkbox, Spin, Tag, message } from 'antd';
+import { Row, Col, DatePicker, Checkbox, Spin, Tag, message, Button } from 'antd';
 import {
+  FilterOutlined,
   DollarOutlined,
   BarChartOutlined,
   FundOutlined,
@@ -105,6 +106,7 @@ export default function TongQuat() {
   const [selectedStatuses, setSelectedStatuses] = useState(
     saved?.selectedStatuses || [...DEFAULT_SELECTED_STATUSES]
   );
+  const [filterOpen, setFilterOpen] = useState(window.innerWidth > 768);
 
   const fetchSales = useCallback(async () => {
     try {
@@ -260,75 +262,96 @@ export default function TongQuat() {
   return (
     <AnimatedDiv initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="tongquat-page">
       {/* Filter Bar */}
-      <div className="tq-filter-bar">
-        <div className="tq-filter-left">
-          <div className="tq-filter-group">
-            <div className="tq-filter-label">Sale</div>
-            <div className="tq-sale-chips">
-              {salesList.map(s => (
-                <div key={s} className={`tq-sale-chip ${selectedSales.includes(s) ? 'active' : ''}`}
-                  onClick={() => setSelectedSales(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}>{s}</div>
-              ))}
-              {selectedSales.length > 0 && (
-                <div className="tq-sale-chip clear" onClick={() => setSelectedSales([])}>Tất cả</div>
-              )}
+      <div className="tq-filter-bar" style={{ padding: '12px 16px' }}>
+        {/* Mobile toggle */}
+        <div className="tq-filter-mobile-header">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div className="tq-filter-group" style={{ flex: 1 }}>
+              <div className="tq-filter-label">Khoảng thời gian</div>
+              <RangePicker value={dateRange} onChange={handleDateChange} format="DD/MM/YYYY" size="small" placeholder={['Từ ngày', 'Đến ngày']} style={{ width: '100%', maxWidth: 260 }} />
             </div>
-          </div>
-          <div className="tq-filter-group">
-            <div className="tq-filter-label">Tình trạng</div>
-            <div className="tq-status-checks">
-              <Checkbox
-                checked={selectedStatuses.length === STATUS_OPTIONS.length}
-                indeterminate={selectedStatuses.length > 0 && selectedStatuses.length < STATUS_OPTIONS.length}
-                onChange={(e) => handleSelectAllStatuses(e.target.checked)}
-              ><span style={{ fontWeight: 600 }}>Chọn tất cả</span></Checkbox>
-              {STATUS_OPTIONS.map(s => (
-                <Checkbox key={s} checked={selectedStatuses.includes(s)} onChange={() => handleStatusToggle(s)}>
-                  <span style={{ fontSize: 12 }}>{s}</span>
-                </Checkbox>
-              ))}
-            </div>
-            <div style={{ marginTop: 6, fontSize: 12, color: '#64748B' }}>
-              Mặc định đã bỏ chọn <Tag color="red" style={{ marginInlineEnd: 4 }}>Hoàn hàng</Tag>
-              và <Tag color="volcano">HỦY ĐƠN</Tag> để phản ánh doanh số thực tế.
-            </div>
+            <Button
+              size="small"
+              icon={<FilterOutlined />}
+              onClick={() => setFilterOpen(v => !v)}
+              className="tq-filter-toggle-btn"
+              style={{ marginLeft: 8, flexShrink: 0 }}
+            >{filterOpen ? 'Ẩn' : 'Bộ lọc'}</Button>
           </div>
         </div>
-        <div className="tq-filter-right">
-          <div className="tq-filter-group">
-            <div className="tq-filter-label">Khoảng thời gian</div>
-            <RangePicker value={dateRange} onChange={handleDateChange} format="DD/MM/YYYY" size="middle" placeholder={['Từ ngày', 'Đến ngày']} style={{ width: 260 }} />
+
+        {filterOpen && (
+          <div className="tq-filter-expand">
+            <div className="tq-filter-left">
+              <div className="tq-filter-group">
+                <div className="tq-filter-label">Sale</div>
+                <div className="tq-sale-chips">
+                  {salesList.map(s => (
+                    <div key={s} className={`tq-sale-chip ${selectedSales.includes(s) ? 'active' : ''}`}
+                      onClick={() => setSelectedSales(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}>{s}</div>
+                  ))}
+                  {selectedSales.length > 0 && (
+                    <div className="tq-sale-chip clear" onClick={() => setSelectedSales([])}>Tất cả</div>
+                  )}
+                </div>
+              </div>
+              <div className="tq-filter-group">
+                <div className="tq-filter-label">Tình trạng</div>
+                <div className="tq-status-checks">
+                  <Checkbox
+                    checked={selectedStatuses.length === STATUS_OPTIONS.length}
+                    indeterminate={selectedStatuses.length > 0 && selectedStatuses.length < STATUS_OPTIONS.length}
+                    onChange={(e) => handleSelectAllStatuses(e.target.checked)}
+                  ><span style={{ fontWeight: 600 }}>Chọn tất cả</span></Checkbox>
+                  {STATUS_OPTIONS.map(s => (
+                    <Checkbox key={s} checked={selectedStatuses.includes(s)} onChange={() => handleStatusToggle(s)}>
+                      <span style={{ fontSize: 12 }}>{s}</span>
+                    </Checkbox>
+                  ))}
+                </div>
+                <div style={{ marginTop: 6, fontSize: 12, color: '#64748B' }}>
+                  Mặc định đã bỏ chọn <Tag color="red" style={{ marginInlineEnd: 4 }}>Hoàn hàng</Tag>
+                  và <Tag color="volcano">HỦY ĐƠN</Tag> để phản ánh doanh số thực tế.
+                </div>
+              </div>
+            </div>
+            <div className="tq-filter-right tq-filter-right-desktop">
+              <div className="tq-filter-group">
+                <div className="tq-filter-label">Khoảng thời gian</div>
+                <RangePicker value={dateRange} onChange={handleDateChange} format="DD/MM/YYYY" size="middle" placeholder={['Từ ngày', 'Đến ngày']} style={{ width: 260 }} />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* KPI Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={5}>
+        <Col xs={12} sm={12} md={5}>
           <AnimatedDiv className="tq-kpi-card kpi-pink" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaBan)} đ</div>
             <div className="tq-kpi-label">Giá Bán Lên Đơn</div>
           </AnimatedDiv>
         </Col>
-        <Col xs={24} sm={12} md={5}>
+        <Col xs={12} sm={12} md={5}>
           <AnimatedDiv className="tq-kpi-card kpi-blue" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaThu)} đ</div>
             <div className="tq-kpi-label">Giá Thu Thực Tế</div>
           </AnimatedDiv>
         </Col>
-        <Col xs={24} sm={12} md={5}>
+        <Col xs={12} sm={12} md={5}>
           <AnimatedDiv className="tq-kpi-card kpi-purple" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(filteredTotal.sumLoiNhuan)} đ</div>
             <div className="tq-kpi-label">Lợi Nhuận Ước Tính</div>
           </AnimatedDiv>
         </Col>
-        <Col xs={24} sm={12} md={5}>
+        <Col xs={12} sm={12} md={5}>
           <AnimatedDiv className="tq-kpi-card kpi-teal" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{vnd(lnSauTruDisplay)} đ</div>
             <div className="tq-kpi-label">Lợi Nhuận Đã Nhận</div>
           </AnimatedDiv>
         </Col>
-        <Col xs={24} sm={12} md={4}>
+        <Col xs={12} sm={12} md={4}>
           <AnimatedDiv className="tq-kpi-card kpi-green" whileHover={{ y: -3 }}>
             <div className="tq-kpi-value">{filteredTotal.count}</div>
             <div className="tq-kpi-label">Tổng đơn hàng</div>
