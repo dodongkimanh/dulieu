@@ -97,16 +97,15 @@ function EditableCell({ value, rowId, field, onSave }) {
 // Shared computation helper used in both normal view and compare view
 function computeTongLuong(emp) {
   const tongCong = Number(emp.soCongChinhThuc || 0);
-  const luongCT = Math.round((emp.luongCung || 0) * Number(emp.soCongChinhThuc || 0) / 26);
-  const tienCongPhep = Math.round((emp.luongCung || 0) / 26 * Number(emp.soCongNghiLe || 0));
+  const luongCT = Math.round((emp.luongCung || 0) * (Number(emp.soCongChinhThuc || 0) + Number(emp.soCongNghiLe || 0)) / 26);
   const chuyenCan = tongCong >= 26 ? 500_000 : 0;
-  const tongLuong = luongCT + tienCongPhep
+  const tongLuong = luongCT
     + Number(emp.hoaHongDS || 0) + Number(emp.thuongThem || 0)
     + Number(emp.phuCap || 0) + Number(emp.tienTangCa || 0) + Number(emp.phuCapLaiXe || 0)
     + Number(emp.simDt || 0) + Number(emp.chiVt || 0) + Number(emp.hoaHong || 0) + chuyenCan
     - Number(emp.ungLuong || 0) - Number(emp.phat || 0)
     - 150_000 - Number(emp.phatTuChamCong || 0);
-  return { tongCong, luongCT, tienCongPhep, chuyenCan, tongLuong };
+  return { tongCong, luongCT, chuyenCan, tongLuong };
 }
 
 export default function BangLuong() {
@@ -278,15 +277,14 @@ export default function BangLuong() {
     const hoaHong      = adj.hoaHong      ?? row.hoaHong      ?? 0;
 
     const tongCong     = Number(row.soCongChinhThuc || 0);
-    const luongCT      = Math.round((row.luongCung || 0) * Number(row.soCongChinhThuc || 0) / 26);
-    const tienCongPhep = Math.round((row.luongCung || 0) / 26 * Number(soCongNghiLe));
+    const luongCT      = Math.round((row.luongCung || 0) * (Number(row.soCongChinhThuc || 0) + Number(soCongNghiLe)) / 26);
     const chuyenCan    = tongCong >= 26 ? 500_000 : 0;
-    const tongLuong    = luongCT + tienCongPhep + Number(row.hoaHongDS || 0) + Number(row.thuongThem || 0)
+    const tongLuong    = luongCT + Number(row.hoaHongDS || 0) + Number(row.thuongThem || 0)
                        + Number(phuCap) + Number(row.tienTangCa || 0) + Number(row.phuCapLaiXe || 0)
                        + simDt + Number(chiVt) + Number(hoaHong) + chuyenCan
                        - Number(ungLuong) - Number(phat)
                        - 150_000 - Number(row.phatTuChamCong || 0);
-    return { ...row, phuCap, ungLuong, phat, soCongNghiLe, soCongPhep, tongCong, luongCT, tienCongPhep, simDt, chiVt, hoaHong, chuyenCan, tongLuong };
+    return { ...row, phuCap, ungLuong, phat, soCongNghiLe, soCongPhep, tongCong, luongCT, simDt, chiVt, hoaHong, chuyenCan, tongLuong };
   });
 
   // Apply employee filter
@@ -332,7 +330,7 @@ export default function BangLuong() {
         ? monthData[0]
         : (selectedNV ? monthData.find(r => r.nhanVienId === selectedNV) : null);
       if (!emp) return { key, month: m.format('[T]MM/YYYY'), _empty: true };
-      const { tongCong, luongCT, tienCongPhep, chuyenCan, tongLuong } = computeTongLuong(emp);
+      const { tongCong, luongCT, chuyenCan, tongLuong } = computeTongLuong(emp);
       return {
         key,
         month: m.format('[T]MM/YYYY'),
@@ -340,7 +338,6 @@ export default function BangLuong() {
         dsThucTe: emp.dsThucTe || 0,
         luongCung: emp.luongCung || 0,
         luongCT,
-        tienCongPhep,
         hoaHongDS: emp.hoaHongDS || 0,
         thuongThem: emp.thuongThem || 0,
         chuyenCan,
@@ -485,8 +482,8 @@ export default function BangLuong() {
       render: wr((v, r) => (
         <div>
           <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="soCongNghiLe" onSave={handleCellEdit} />
-          <div style={{ fontSize: 10, color: Number(v || 0) > 0 ? '#10B981' : '#CBD5E1', marginTop: 2 }}>
-            {Number(v || 0) > 0 ? `+${vnd(r.tienCongPhep)}đ` : `${vnd(Math.round((r.luongCung || 0) / 26))}/ngày`}
+          <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>
+            {`${vnd(Math.round((r.luongCung || 0) / 26))}/ngày → Lương CT`}
           </div>
         </div>
       )),
