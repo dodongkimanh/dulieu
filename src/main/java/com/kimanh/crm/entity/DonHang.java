@@ -189,10 +189,15 @@ public class DonHang {
             loiNhuanSauTru = BigDecimal.ZERO;
         }
 
-        // CÔNG THỨC 6: DS Hưởng = Giá Thu Thực Tế × % Hưởng Doanh Số
-        dsHuong = giaThuThucTe.multiply(parseHuongDoanhSo(huongDoanhSo)).setScale(0, RoundingMode.HALF_UP);
-
-        // Hoa Hồng: nhập thủ công — không tính tự động
+        // CÔNG THỨC 6: DS Hưởng & Hoa Hồng
+        // CK 1%: doanh số hưởng = 0, hoa hồng tự động = giá thu thực tế × 1%
+        // Các mức khác: ds hưởng = giá thu thực tế × %, hoa hồng nhập thủ công
+        if ("CK 1%".equals(huongDoanhSo)) {
+            dsHuong = BigDecimal.ZERO;
+            hoaHong = giaThuThucTe.multiply(new BigDecimal("0.01")).setScale(0, RoundingMode.HALF_UP);
+        } else {
+            dsHuong = giaThuThucTe.multiply(parseHuongDoanhSo(huongDoanhSo)).setScale(0, RoundingMode.HALF_UP);
+        }
     }
 
     private BigDecimal parseHuongDoanhSo(String h) {
@@ -203,7 +208,7 @@ public class DonHang {
             case "60%"  -> new BigDecimal("0.60");
             case "50%"  -> new BigDecimal("0.50");
             case "30%"  -> new BigDecimal("0.30");
-            case "CK 1%" -> new BigDecimal("0.01");
+            case "CK 1%" -> BigDecimal.ZERO;
             default -> BigDecimal.ZERO;
         };
     }
