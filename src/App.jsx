@@ -1,10 +1,33 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, Component } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Spin } from 'antd';
+import { Spin, Result, Button } from 'antd';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import MainLayout from './layouts/MainLayout';
 import Login from './pages/Login';
 import './App.css';
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Result
+          status="error"
+          title="Đã xảy ra lỗi"
+          subTitle="Trang này gặp sự cố. Vui lòng thử tải lại."
+          extra={<Button type="primary" onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}>Tải lại</Button>}
+        />
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const DonHang = lazy(() => import('./pages/DonHang'));
 const KhachHang = lazy(() => import('./pages/KhachHang'));
@@ -17,6 +40,9 @@ const Zalo = lazy(() => import('./pages/Zalo'));
 const TinNhanTongHop = lazy(() => import('./pages/TinNhanTongHop'));
 const ChamCong = lazy(() => import('./pages/ChamCong'));
 const BangLuong = lazy(() => import('./pages/BangLuong'));
+const HikvisionConfig = lazy(() => import('./pages/HikvisionConfig'));
+const Audio = lazy(() => import('./pages/Audio'));
+const DinhVi = lazy(() => import('./pages/DinhVi'));
 
 const PageLoader = () => (
   <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
@@ -65,7 +91,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-          <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+          <Route path="/" element={<ProtectedRoute><ErrorBoundary><MainLayout /></ErrorBoundary></ProtectedRoute>}>
             <Route index element={<DefaultRedirect />} />
             <Route path="don-hang" element={<Suspense fallback={<PageLoader />}><DonHang /></Suspense>} />
             <Route path="zalo" element={<RoleRoute roles={['ADMIN', 'SALER']}><Suspense fallback={<PageLoader />}><Zalo /></Suspense></RoleRoute>} />
@@ -78,6 +104,9 @@ function App() {
             <Route path="kenh-tiep-thi" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><KenhTiepThi /></Suspense></RoleRoute>} />
             <Route path="cham-cong" element={<RoleRoute roles={['ADMIN', 'KE_TOAN', 'SALER', 'LAI_XE', 'NHAN_VIEN']}><Suspense fallback={<PageLoader />}><ChamCong /></Suspense></RoleRoute>} />
             <Route path="bang-luong" element={<RoleRoute roles={['ADMIN', 'KE_TOAN', 'SALER', 'LAI_XE', 'NHAN_VIEN']}><Suspense fallback={<PageLoader />}><BangLuong /></Suspense></RoleRoute>} />
+            <Route path="hikvision" element={<RoleRoute roles={['ADMIN', 'KE_TOAN']}><Suspense fallback={<PageLoader />}><HikvisionConfig /></Suspense></RoleRoute>} />
+            <Route path="audio" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><Audio /></Suspense></RoleRoute>} />
+            <Route path="dinh-vi" element={<RoleRoute roles={['ADMIN']}><Suspense fallback={<PageLoader />}><DinhVi /></Suspense></RoleRoute>} />
           </Route>
         </Routes>
       </AuthProvider>

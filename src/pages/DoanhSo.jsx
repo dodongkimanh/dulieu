@@ -389,7 +389,6 @@ export default function DoanhSo() {
             )}
           </div>
           <div className="ds-filter-right" style={{ gap: 8, display: 'flex', alignItems: 'center' }}>
-            <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={!data} style={{ background: '#10B981', borderColor: '#10B981', color: '#fff' }}>Tải xuống</Button>
             {isAdmin && (
               <Button icon={<SettingOutlined />} onClick={handleOpenConfig} style={{ color: '#4F46E5' }}>Cấu hình Mess</Button>
             )}

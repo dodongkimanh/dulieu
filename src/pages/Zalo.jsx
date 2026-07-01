@@ -31,6 +31,18 @@ function formatTime(ts) {
   return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 }
 
+function formatMsgTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts > 1e12 ? ts : ts * 1000);
+  const now = new Date();
+  const time = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return `${time} Hôm qua`;
+  return `${time} ${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+}
+
 function isPhoneQuery(s) {
   return (s || '').replace(/\D/g, '').length >= 6;
 }
@@ -50,7 +62,9 @@ function parseCallSticker(content) {
     if (d.title === 'sendBubbleMessage' || String(d.action || '').includes('call')) {
       let p = {};
       try { p = typeof d.params === 'string' ? JSON.parse(d.params) : (d.params || {}); } catch {}
-      return { _type: 'call', isVideo: p.calltype === 1, isCaller: !!p.isCaller, duration: p.duration || 0, hasCallback: !!p.isEnableCallback };
+      const duration = p.duration || 0;
+      const isCaller = !!p.isCaller;
+      return { _type: 'call', isVideo: p.calltype === 1, isCaller, duration, hasCallback: !!p.isEnableCallback, missed: !isCaller && duration === 0 };
     }
     // Sticker Zalo (type 7)
     if (d.type === 7 && d.catId != null) {
@@ -102,15 +116,17 @@ function SpecialMsgContent({ content }) {
     return <StickerImg url={parsed.url} label="GIF" />;
   }
   if (parsed._type === 'call') {
-    const iconColor = '#22c55e';
+    const iconColor = parsed.missed ? '#ef4444' : parsed.isCaller ? '#3b82f6' : '#22c55e';
+    const bgColor = parsed.missed ? '#fef2f2' : parsed.isCaller ? '#eff6ff' : '#f0fdf4';
+    const dirLabel = parsed.missed ? 'nhỡ' : parsed.isCaller ? 'đi' : 'đến';
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180, padding: '2px 0' }}>
-        <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#f0fdf4', border: `1.5px solid ${iconColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ width: 38, height: 38, borderRadius: '50%', background: bgColor, border: `1.5px solid ${iconColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {parsed.isVideo ? <VideoCameraFilled style={{ color: iconColor, fontSize: 17 }} /> : <PhoneFilled style={{ color: iconColor, fontSize: 17 }} />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, color: '#1f2937', lineHeight: 1.3 }}>
-            {parsed.isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} {parsed.isCaller ? 'đi' : 'đến'}
+          <div style={{ fontWeight: 600, fontSize: 13, color: parsed.missed ? '#ef4444' : '#1f2937', lineHeight: 1.3 }}>
+            {parsed.isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} {dirLabel}
           </div>
           {parsed.duration > 0 && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>▶ {parseDuration(parsed.duration)}</div>}
           {parsed.hasCallback && <div style={{ marginTop: 5, display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#0068ff', border: '1px solid #0068ff', borderRadius: 12, padding: '2px 10px' }}>GỌI LẠI</div>}
@@ -1314,11 +1330,17 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
     setTimeout(() => setReloadingSession((prev) => ({ ...prev, [username]: false })), 4000);
   };
 
-  if (merged.length === 0) return null;
+  const sorted = [...merged].sort((a, b) => {
+    const aOn = a.status === 'logged_in' || a.status === 'waiting_qr' || a.status === 'loading' ? 0 : 1;
+    const bOn = b.status === 'logged_in' || b.status === 'waiting_qr' || b.status === 'loading' ? 0 : 1;
+    return aOn - bOn;
+  });
+
+  if (sorted.length === 0) return null;
 
   return (
     <div className="zadmin-strip">
-      {merged.map((u) => {
+      {sorted.map((u) => {
         const isActive = selectedSession === u.username;
         const sc = statusClass(u);
         const crmCount = (crmGroups[u.username] || []).length;
@@ -1333,11 +1355,11 @@ function AdminZaloTabs({ selectedSession, onSelect, crmGroups = {}, onSync }) {
             <span className="zadmin-pill-dot" />
             <span className="zadmin-pill-name">
               {u.label}
+              {u.phonebookCount > 0 && (
+                <span className="zadmin-pill-badge">{u.phonebookCount}</span>
+              )}
               {u.phone && <span className="zadmin-pill-phone">{u.phone}</span>}
             </span>
-            {u.phonebookCount > 0 && (
-              <span className="zadmin-pill-badge">{u.phonebookCount}</span>
-            )}
             {crmCount > 0 && (
               <span className="zadmin-pill-crm">{crmCount} CRM</span>
             )}
@@ -1500,6 +1522,25 @@ export default function Zalo() {
   const searchTimer = useRef(null);
   const loadingTimerRef = useRef(null);
 
+  // Load proxy từ server khi chuyển session
+  useEffect(() => {
+    if (!effectiveSessionId) return;
+    const qpLocal = `?session=${encodeURIComponent(effectiveSessionId)}`;
+    fetch(`${SERVICE_BASE}/get-proxy${qpLocal}`).then(r => r.json()).then(d => {
+      setSessionProxy(d.proxyDisplay || null);
+      if (d.proxy) {
+        setProxyInput(d.proxy);
+        try { localStorage.setItem(`zalo_proxy_${effectiveSessionId}`, d.proxy); } catch {}
+      } else {
+        const saved = localStorage.getItem(`zalo_proxy_${effectiveSessionId}`) || '';
+        setProxyInput(saved);
+      }
+    }).catch(() => {
+      const saved = localStorage.getItem(`zalo_proxy_${effectiveSessionId}`) || '';
+      setProxyInput(saved);
+    });
+  }, [effectiveSessionId]);
+
   // Load danh bạ từ Supabase (nhanh, không cần quét DOM)
   useEffect(() => {
     if (!effectiveSessionId) return;
@@ -1572,17 +1613,12 @@ export default function Zalo() {
           setStatus(msg.status);
           if (msg.status === 'logged_in') {
             setZcaDisconnected(false);
-            // Load proxy đang dùng — nếu localStorage trống thì pre-fill từ server
+            // Luôn load proxy từ server để đồng bộ
             fetch(`${SERVICE_BASE}/get-proxy${qp}`).then(r => r.json()).then(d => {
               setSessionProxy(d.proxyDisplay || null);
               if (d.proxy) {
-                setProxyInput(prev => {
-                  if (!prev) {
-                    try { localStorage.setItem(`zalo_proxy_${effectiveSessionId}`, d.proxy); } catch {}
-                    return d.proxy;
-                  }
-                  return prev;
-                });
+                setProxyInput(d.proxy);
+                try { localStorage.setItem(`zalo_proxy_${effectiveSessionId}`, d.proxy); } catch {}
               }
             }).catch(() => {});
           }
@@ -1717,10 +1753,15 @@ export default function Zalo() {
     };
   }, [connectWS]);
 
-  // Xin quyền browser notification khi lần đầu vào trang
+  // Xin quyền browser notification khi user tương tác lần đầu
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+      const requestOnInteraction = () => {
+        Notification.requestPermission();
+        document.removeEventListener('click', requestOnInteraction);
+      };
+      document.addEventListener('click', requestOnInteraction);
+      return () => document.removeEventListener('click', requestOnInteraction);
     }
   }, []);
 
@@ -1843,13 +1884,21 @@ export default function Zalo() {
     setStatus('waiting_qr');
     setQrData(null);
     setQrCanvas(null);
-    // Lưu proxy vào localStorage
+    const trimmedProxy = proxyInput.trim() || null;
+    // Lưu proxy vào cả localStorage + server
     try { localStorage.setItem(`zalo_proxy_${effectiveSessionId}`, proxyInput); } catch {}
+    if (trimmedProxy) {
+      fetch(`${SERVICE_BASE}/set-proxy${qp}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proxy: trimmedProxy }),
+      }).catch(() => {});
+    }
     try {
       await fetch(`${SERVICE_BASE}/zca-qr-login${qp}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proxy: proxyInput.trim() || null }),
+        body: JSON.stringify({ proxy: trimmedProxy }),
       });
     } catch { /* ignore */ }
   };
@@ -2875,8 +2924,16 @@ export default function Zalo() {
                                     if (mediaUrl.startsWith('data:')) {
                                       const win = window.open('about:blank', '_blank');
                                       if (win) {
-                                        win.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="${mediaUrl}" style="max-width:100%;max-height:100vh;object-fit:contain"></body></html>`);
-                                        win.document.close();
+                                        const doc = win.document;
+                                        doc.head.innerHTML = '';
+                                        const body = doc.body;
+                                        body.style.cssText = 'margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh';
+                                        const img = doc.createElement('img');
+                                        img.src = mediaUrl;
+                                        img.style.cssText = 'max-width:100%;max-height:100vh;object-fit:contain';
+                                        body.innerHTML = '';
+                                        body.appendChild(img);
+                                        doc.close();
                                       }
                                     } else {
                                       window.open(mediaUrl, '_blank', 'noopener,noreferrer');
@@ -2894,7 +2951,7 @@ export default function Zalo() {
                               const txt = typeof m.content === 'string' ? m.content : null;
                               return txt ? <div className="zalo-msg-content">{txt}</div> : null;
                             })()}
-                            <span className="zalo-msg-time">{formatTime(m.time)}</span>
+                            <span className="zalo-msg-time">{formatMsgTime(m.time || m.timestamp)}</span>
                           </div>
                           </MsgErrorBoundary>
                         </div>

@@ -97,6 +97,15 @@ function NoteCell({ value, recordId, onSave }) {
   );
 }
 
+function calcHoaHong(record) {
+  const thuTT = Number(record.giaThuThucTe || 0);
+  const niemYet = Number(record.tongTienNiemYet || 0);
+  const ds = (record.huongDoanhSo || '').trim();
+  if (ds === 'CK 1%' && thuTT > 0) return Math.round(thuTT * 0.01);
+  if (niemYet > 0 && thuTT > niemYet) return Math.round((thuTT - niemYet) / 2);
+  return Number(record.hoaHong || 0);
+}
+
 function HoaHongCell({ value, recordId, onSave, canEdit }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value || 0);
@@ -175,7 +184,7 @@ export default function DonHang() {
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 9999, total: 0 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 200, total: 0 });
   const [totals, setTotals] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(dayjs());
   const [keyword, setKeyword] = useState('');
@@ -191,7 +200,7 @@ export default function DonHang() {
   const getMonthRangeLabel = (m) =>
     `${m.startOf('month').format('DD/MM')} – ${m.endOf('month').format('DD/MM/YYYY')}`;
 
-  const fetchData = useCallback(async (pg = 1, size = 9999, overrides = {}) => {
+  const fetchData = useCallback(async (pg = 1, size = 200, overrides = {}) => {
     setLoading(true);
     try {
       const { fromDate, toDate } = getMonthRange(overrides.month ?? selectedMonth);
@@ -327,6 +336,13 @@ export default function DonHang() {
       width: 125,
     },
     {
+      title: 'Giá Niêm Yết',
+      dataIndex: 'tongTienNiemYet',
+      width: 125,
+      align: 'right',
+      render: (v) => <span style={{ fontWeight: 500, color: '#7C3AED' }}>{vnd(v)}</span>,
+    },
+    {
       title: 'Giá Bán',
       dataIndex: 'giaBanLenDon',
       width: 125,
@@ -372,9 +388,20 @@ export default function DonHang() {
       dataIndex: 'hoaHong',
       width: 145,
       align: 'right',
-      render: (v, record) => (
-        <HoaHongCell value={v} recordId={record.id} onSave={handleSaveHoaHong} canEdit={canEdit} />
-      ),
+      render: (v, record) => {
+        const thuTT = Number(record.giaThuThucTe || 0);
+        const niemYet = Number(record.tongTienNiemYet || 0);
+        const ds = (record.huongDoanhSo || '').trim();
+        if (ds === 'CK 1%' && thuTT > 0) {
+          const auto = Math.round(thuTT * 0.01);
+          return <b style={{ color: '#059669' }}>{vnd(auto)}</b>;
+        }
+        if (niemYet > 0 && thuTT > niemYet) {
+          const auto = Math.round((thuTT - niemYet) / 2);
+          return <b style={{ color: '#059669' }}>{vnd(auto)}</b>;
+        }
+        return <HoaHongCell value={v} recordId={record.id} onSave={handleSaveHoaHong} canEdit={canEdit} />;
+      },
     },
     {
       title: 'Tình Trạng',
@@ -400,7 +427,6 @@ export default function DonHang() {
     ...(canEdit ? [{
       title: '',
       width: 50,
-      fixed: 'right',
       render: (_, record) => (
         <Popconfirm title="Xác nhận xóa?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy">
           <Tooltip title="Xóa">
@@ -416,10 +442,11 @@ export default function DonHang() {
     if (isSaler) {
       const t = data.reduce((acc, r) => ({
         giaBanLenDon: acc.giaBanLenDon + Number(r.giaBanLenDon || 0),
+        tongTienNiemYet: acc.tongTienNiemYet + Number(r.tongTienNiemYet || 0),
         giaThuThucTe: acc.giaThuThucTe + Number(r.giaThuThucTe || 0),
         dsHuong:      acc.dsHuong      + Number(r.dsHuong      || 0),
-        hoaHong:      acc.hoaHong      + Number(r.hoaHong      || 0),
-      }), { giaBanLenDon: 0, giaThuThucTe: 0, dsHuong: 0, hoaHong: 0 });
+        hoaHong:      acc.hoaHong      + calcHoaHong(r),
+      }), { giaBanLenDon: 0, tongTienNiemYet: 0, giaThuThucTe: 0, dsHuong: 0, hoaHong: 0 });
       return (
         <Table.Summary fixed>
           <Table.Summary.Row style={{ background: '#F0F9FF', fontWeight: 700 }}>
@@ -427,20 +454,23 @@ export default function DonHang() {
               <span style={{ color: '#4F46E5', fontSize: 13 }}>Tổng cộng ({data.length} đơn)</span>
             </Table.Summary.Cell>
             <Table.Summary.Cell index={5} align="right">
-              <span style={{ color: '#374151' }}>{vnd(t.giaBanLenDon)}</span>
+              <span style={{ color: '#7C3AED' }}>{vnd(t.tongTienNiemYet)}</span>
             </Table.Summary.Cell>
             <Table.Summary.Cell index={6} align="right">
+              <span style={{ color: '#374151' }}>{vnd(t.giaBanLenDon)}</span>
+            </Table.Summary.Cell>
+            <Table.Summary.Cell index={7} align="right">
               <b style={{ color: '#059669' }}>{vnd(t.giaThuThucTe)}</b>
             </Table.Summary.Cell>
-            <Table.Summary.Cell index={7} />
             <Table.Summary.Cell index={8} />
-            <Table.Summary.Cell index={9} align="right">
+            <Table.Summary.Cell index={9} />
+            <Table.Summary.Cell index={10} align="right">
               <b style={{ color: '#2563EB' }}>{vnd(t.dsHuong)}</b>
             </Table.Summary.Cell>
-            <Table.Summary.Cell index={10} align="right">
+            <Table.Summary.Cell index={11} align="right">
               <b style={{ color: '#059669' }}>{vnd(t.hoaHong)}</b>
             </Table.Summary.Cell>
-            <Table.Summary.Cell index={11} colSpan={2} />
+            <Table.Summary.Cell index={12} colSpan={2} />
           </Table.Summary.Row>
         </Table.Summary>
       );
@@ -453,20 +483,23 @@ export default function DonHang() {
             <span style={{ color: '#4F46E5', fontSize: 13 }}>Tổng cộng ({pagination.total} đơn)</span>
           </Table.Summary.Cell>
           <Table.Summary.Cell index={5} align="right">
-            <span style={{ color: '#374151' }}>{vnd(totals.giaBanLenDon)}</span>
+            <span style={{ color: '#7C3AED' }}>{vnd(totals.tongTienNiemYet)}</span>
           </Table.Summary.Cell>
           <Table.Summary.Cell index={6} align="right">
+            <span style={{ color: '#374151' }}>{vnd(totals.giaBanLenDon)}</span>
+          </Table.Summary.Cell>
+          <Table.Summary.Cell index={7} align="right">
             <span style={{ color: '#059669' }}>{vnd(totals.giaThuThucTe)}</span>
           </Table.Summary.Cell>
-          <Table.Summary.Cell index={7} />
           <Table.Summary.Cell index={8} />
-          <Table.Summary.Cell index={9} align="right">
+          <Table.Summary.Cell index={9} />
+          <Table.Summary.Cell index={10} align="right">
             <span style={{ color: '#2563EB' }}>{vnd(totals.dsHuong)}</span>
           </Table.Summary.Cell>
-          <Table.Summary.Cell index={10} align="right">
+          <Table.Summary.Cell index={11} align="right">
             <span style={{ color: '#059669' }}>{vnd(totals.hoaHong)}</span>
           </Table.Summary.Cell>
-          <Table.Summary.Cell index={11} colSpan={colCount} />
+          <Table.Summary.Cell index={12} colSpan={colCount} />
         </Table.Summary.Row>
       </Table.Summary>
     );
@@ -494,7 +527,7 @@ export default function DonHang() {
               style={{ width: 130 }}
             />
           </Tooltip>
-          <span style={{ fontSize: 12, color: '#94A3B8', whiteSpace: 'nowrap' }}>
+          <span className="page-header-range-label" style={{ fontSize: 12, color: '#94A3B8', whiteSpace: 'nowrap' }}>
             {getMonthRangeLabel(selectedMonth)}
           </span>
           <Input
@@ -520,7 +553,7 @@ export default function DonHang() {
           )}
           {canEdit && (
             <Tooltip title="Xuất Excel">
-              <Button icon={<FileExcelOutlined />} onClick={handleExport} style={{ color: '#10B981' }}>Excel</Button>
+              <Button className="btn-excel-export" icon={<FileExcelOutlined />} onClick={handleExport} style={{ color: '#10B981' }}>Excel</Button>
             </Tooltip>
           )}
         </div>
@@ -560,7 +593,7 @@ export default function DonHang() {
           giaBanLenDon: acc.giaBanLenDon + Number(r.giaBanLenDon || 0),
           giaThuThucTe: acc.giaThuThucTe + Number(r.giaThuThucTe || 0),
           dsHuong:      acc.dsHuong      + Number(r.dsHuong      || 0),
-          hoaHong:      acc.hoaHong      + Number(r.hoaHong      || 0),
+          hoaHong:      acc.hoaHong      + calcHoaHong(r),
         }), { giaBanLenDon: 0, giaThuThucTe: 0, dsHuong: 0, hoaHong: 0 });
         return (
           <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>

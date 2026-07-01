@@ -9,7 +9,7 @@ const api = axios.create({
 
 // Attach JWT token to every request
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('crm_token');
+  const token = localStorage.getItem('crm_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -21,8 +21,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 || error.response?.status === 403) {
-      sessionStorage.removeItem('crm_token');
-      sessionStorage.removeItem('crm_user');
+      localStorage.removeItem('crm_token');
+      localStorage.removeItem('crm_user');
       // Dùng event thay vì window.location để tránh reload toàn trang
       window.dispatchEvent(new Event('auth:logout'));
     }
@@ -113,6 +113,12 @@ export const zaloContactApi = {
   syncBatch: (data) => api.post('/zalo-contacts/sync', data),
 };
 
+// Transfer History APIs
+export const transferHistoryApi = {
+  getByKhachHang: (khachHangId) => api.get('/transfer-history', { params: { khachHangId } }),
+  getByKhachHangIds: (ids) => api.get('/transfer-history/batch', { params: { ids: ids.join(',') } }),
+};
+
 // Call Recording APIs
 export const callRecordingApi = {
   getByKhachHang: (khachHangId) => api.get('/call-recordings', { params: { khachHangId } }),
@@ -124,6 +130,30 @@ export const callRecordingApi = {
   delete: (id) => api.delete(`/call-recordings/${id}`),
 };
 
+// Audio Management APIs (admin - mobile recordings)
+export const audioApi = {
+  getFolders: () => api.get('/audio/folders'),
+  getRecordings: (employeeId) => api.get('/audio/recordings', { params: { employeeId } }),
+  getByCustomer: (khachHangId) => api.get('/audio/by-customer', { params: { khachHangId } }),
+  syncToCustomer: (khachHangId) => api.post(`/audio/sync/${khachHangId}`),
+  deleteEmployee: (employeeId) => api.delete(`/audio/employee/${encodeURIComponent(employeeId)}`),
+  deleteRecording: (id) => api.delete(`/audio/recording/${id}`),
+  search: (params) => api.get('/audio/search', { params }),
+  getUnlinked: () => api.get('/audio/unlinked'),
+  linkToCustomer: (recordingId, khachHangId) => api.post('/audio/link', { recordingId, khachHangId }),
+  syncBulk: (ids) => api.post('/audio/sync-bulk', { ids }),
+  getAppStatus: () => api.get('/audio/app-status'),
+  pingDevice: (employeeId) => api.post(`/audio/ping/${encodeURIComponent(employeeId)}`),
+  getConnectionHistory: (employeeId) => api.get('/audio/connection-history', { params: { employeeId } }),
+};
+
+// Location Tracking APIs (admin)
+export const locationApi = {
+  getLatest: () => api.get('/locations/latest'),
+  getHistory: (employeeId, fromDate, toDate) => api.get('/locations/history', { params: { employeeId, fromDate, toDate } }),
+  deleteEmployee: (employeeId) => api.delete(`/locations/${employeeId}`),
+};
+
 // Nhân Viên APIs
 export const nhanVienApi = {
   getAll: () => api.get('/nhan-vien'),
@@ -132,7 +162,9 @@ export const nhanVienApi = {
   update: (id, data) => api.put(`/nhan-vien/${id}`, data),
   delete: (id) => api.delete(`/nhan-vien/${id}`),
   updateLuongCoBan: (id, luongCoBan) => api.patch(`/nhan-vien/${id}/luong-co-ban`, { luongCoBan }),
+  updateBaoHiem: (id, baoHiem) => api.patch(`/nhan-vien/${id}/bao-hiem`, { baoHiem }),
   toggleAnTrongBang: (id) => api.patch(`/nhan-vien/${id}/an-trong-bang`),
+  updateMaHikvision: (id, maHikvision) => api.patch(`/nhan-vien/${id}/ma-hikvision`, { maHikvision }),
 };
 
 // Chấm Công APIs
@@ -143,8 +175,8 @@ export const chamCongApi = {
   saveGhiChuNv: (id, ghiChuNv) => api.patch(`/cham-cong/${id}/ghi-chu-nv`, { ghiChuNv }),
   saveBulk: (records) => api.post('/cham-cong/bulk', records),
   duyet: (thang, nam) => api.post('/cham-cong/duyet', null, { params: { thang, nam } }),
-  duyetRecord: (id, duyetKhongPhat, duyetNote, duyetCong) =>
-    api.post(`/cham-cong/${id}/duyet`, null, { params: { duyetKhongPhat, duyetNote: duyetNote || '', ...(duyetCong != null ? { duyetCong } : {}) } }),
+  duyetRecord: (id, duyetKhongPhat, duyetNote, duyetCong, huyTangCa) =>
+    api.post(`/cham-cong/${id}/duyet`, null, { params: { duyetKhongPhat, duyetNote: duyetNote || '', ...(duyetCong != null ? { duyetCong } : {}), huyTangCa: huyTangCa || false } }),
   importExcel: (file, thang, nam) => {
     const form = new FormData(); form.append('file', file);
     return api.post('/cham-cong/import', form, {
@@ -183,6 +215,16 @@ export const messConfigApi = {
   getConfig: () => api.get('/mess-config'),
   updateCostPerMess: (costPerMess) => api.put('/mess-config/cost-per-mess', { costPerMess }),
   updateTiers: (tiers) => api.put('/mess-config/tiers', { tiers }),
+};
+
+// HIKVISION APIs
+export const hikvisionApi = {
+  getDevices: () => api.get('/hikvision/device'),
+  saveDevice: (data) => api.post('/hikvision/device', data),
+  deleteDevice: (id) => api.delete(`/hikvision/device/${id}`),
+  testConnection: (data) => api.post('/hikvision/test', data),
+  sync: (date) => api.post('/hikvision/sync', null, { params: { date } }),
+  getLogs: (page = 0, size = 20) => api.get('/hikvision/logs', { params: { page, size } }),
 };
 
 // Zalo Service API — gọi thẳng VPS, không qua backend, không cần JWT

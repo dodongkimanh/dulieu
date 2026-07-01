@@ -17,12 +17,19 @@ import {
   CalendarOutlined,
   DollarOutlined,
   LockOutlined,
+  ScanOutlined,
+  AudioOutlined,
+  EnvironmentOutlined,
+  DownloadOutlined,
+  MenuOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api';
 
 const VNC_URL = import.meta.env.VITE_VNC_URL || null;
+
 
 function ZaloIcon() {
   return (
@@ -43,8 +50,11 @@ const allSidebarItems = [
   { key: '/nhap-lieu',       icon: <TableOutlined />,        label: 'Nhập liệu kế toán',     shortLabel: 'Nhập Liệu', roles: ['ADMIN', 'KE_TOAN'] },
   { key: '/cham-cong',       icon: <CalendarOutlined />,     label: 'Bảng Chấm Công',        shortLabel: 'Chấm Công',  roles: ['ADMIN', 'KE_TOAN', 'SALER', 'LAI_XE', 'NHAN_VIEN'] },
   { key: '/bang-luong',      icon: <DollarOutlined />,       label: 'Bảng Lương',            shortLabel: 'Bảng Lương', roles: ['ADMIN', 'KE_TOAN', 'SALER', 'LAI_XE', 'NHAN_VIEN'] },
-  { key: '/kenh-tiep-thi',   icon: <AppstoreOutlined />,     label: 'Kênh tiếp thị',         shortLabel: 'Kênh TT',    roles: ['ADMIN'] },
+  { key: '/hikvision',       icon: <ScanOutlined />,         label: 'Máy chấm công',          shortLabel: 'HIKVISION',  roles: ['ADMIN', 'KE_TOAN'] },
+  { key: '/audio',           icon: <AudioOutlined />,        label: 'Quản lý Ghi âm',        shortLabel: 'Ghi Âm',    roles: ['ADMIN'] },
+  { key: '/dinh-vi',         icon: <EnvironmentOutlined />,  label: 'Định vị nhân viên',      shortLabel: 'Định Vị',   roles: ['ADMIN'] },
   { key: '/users',           icon: <UserOutlined />,         label: 'Quản lý tài khoản',     shortLabel: 'Tài Khoản',  roles: ['ADMIN'] },
+  { key: '/kenh-tiep-thi',   icon: <AppstoreOutlined />,     label: 'Kênh tiếp thị',         shortLabel: 'Kênh TT',    roles: ['ADMIN'] },
 ];
 
 const pageTitles = {
@@ -59,6 +69,9 @@ const pageTitles = {
   '/bang-luong': 'Bảng Lương',
   '/kenh-tiep-thi': 'Quản lý Kênh tiếp thị',
   '/users': 'Quản lý Tài khoản',
+  '/hikvision': 'Máy chấm công HIKVISION',
+  '/audio': 'Quản lý Ghi âm',
+  '/dinh-vi': 'Định vị Nhân viên',
 };
 
 
@@ -69,15 +82,20 @@ export default function MainLayout() {
   const [pwModal, setPwModal] = useState(false);
   const [pwForm] = Form.useForm();
   const [pwLoading, setPwLoading] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleChangePassword = async () => {
     try {
       const values = await pwForm.validateFields();
       setPwLoading(true);
       await authApi.changePassword(values.currentPassword, values.newPassword);
-      message.success('Đổi mật khẩu thành công!');
+      message.success('Đổi mật khẩu thành công! Vui lòng đăng nhập lại.');
       setPwModal(false);
       pwForm.resetFields();
+      setTimeout(() => {
+        logout();
+        navigate('/login');
+      }, 1000);
     } catch (err) {
       const errMsg = err?.response?.data?.error;
       if (errMsg) message.error(errMsg);
@@ -91,13 +109,48 @@ export default function MainLayout() {
   const userMenuItems = [
     { key: 'role', label: `Vai trò: ${roleLabel}`, disabled: true },
     { type: 'divider' },
+    { key: 'install', icon: <DownloadOutlined />, label: 'Tải App về máy' },
+    { type: 'divider' },
     { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true },
   ];
+
+  const handleInstallApp = () => {
+    if (/iPhone|iPad/i.test(navigator.userAgent)) {
+      Modal.info({
+        title: 'Cài App trên iPhone/iPad',
+        content: (
+          <div style={{ fontSize: 14, lineHeight: 2 }}>
+            <p>1. Nhấn nút <b>Chia sẻ</b> (icon mũi tên lên) ở thanh Safari</p>
+            <p>2. Kéo xuống chọn <b>"Thêm vào Màn hình chính"</b></p>
+            <p>3. Nhấn <b>"Thêm"</b> góc trên phải</p>
+          </div>
+        ),
+        okText: 'Đã hiểu',
+        width: 400,
+      });
+    } else {
+      Modal.info({
+        title: 'Cài App trên Android / Chrome',
+        content: (
+          <div style={{ fontSize: 14, lineHeight: 2 }}>
+            <p>1. Nhấn nút <b>⋮</b> (3 chấm) góc trên phải trình duyệt</p>
+            <p>2. Chọn <b>"Thêm vào màn hình chính"</b> hoặc <b>"Cài đặt ứng dụng"</b></p>
+            <p>3. Nhấn <b>"Cài đặt"</b></p>
+          </div>
+        ),
+        okText: 'Đã hiểu',
+        width: 400,
+      });
+    }
+  };
 
   const handleUserMenu = ({ key }) => {
     if (key === 'logout') {
       logout();
       navigate('/login');
+    }
+    if (key === 'install') {
+      handleInstallApp();
     }
   };
 
@@ -150,7 +203,15 @@ export default function MainLayout() {
       <div className="sg-main">
         {/* Header */}
         <header className="sg-header">
-          <h1 className="sg-header-title">{pageTitles[location.pathname] || 'CRM'}</h1>
+          <div className="sg-header-left">
+            <button
+              className="sg-header-hamburger"
+              onClick={() => setMobileMenuOpen(v => !v)}
+            >
+              {mobileMenuOpen ? <CloseOutlined /> : <MenuOutlined />}
+            </button>
+            <h1 className="sg-header-title">{pageTitles[location.pathname] || 'CRM'}</h1>
+          </div>
 
           <div className="sg-header-right">
             {user?.role === 'ADMIN' && (
@@ -162,6 +223,7 @@ export default function MainLayout() {
                   }
                   whileHover={{ scale: 1.07 }}
                   whileTap={{ scale: 0.95 }}
+                  className="btn-zalo-vps"
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     background: '#0068ff',
@@ -190,7 +252,7 @@ export default function MainLayout() {
             <div className="sg-lang-badge">VN Tiếng Việt</div>
 
             <Tooltip title="Đổi mật khẩu" placement="bottom">
-              <div className="sg-header-icon" onClick={() => setPwModal(true)} style={{ cursor: 'pointer' }}>
+              <div className="sg-header-icon sg-header-icon-password" onClick={() => setPwModal(true)} style={{ cursor: 'pointer' }}>
                 <LockOutlined />
               </div>
             </Tooltip>
@@ -215,33 +277,43 @@ export default function MainLayout() {
         </main>
       </div>
 
-      {/* Bottom Navigation — always in DOM via Portal, CSS controls visibility */}
+      {/* Mobile Drawer Menu */}
       {createPortal(
-        <nav
-          className="sg-bottom-nav"
-          style={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 9999,
-          }}
-        >
-          {sidebarItems.map((item) => (
-            <div
-              key={item.key}
-              className={`sg-bottom-nav-item ${location.pathname === item.key ? 'active' : ''}`}
-              onClick={() => navigate(item.key)}
-            >
-              <span className="sg-bottom-nav-icon">{item.icon}</span>
-              <span className="sg-bottom-nav-label">{item.shortLabel}</span>
+        <>
+          {mobileMenuOpen && (
+            <div className="sg-mobile-overlay" onClick={() => setMobileMenuOpen(false)} />
+          )}
+
+          <div className={`sg-mobile-drawer ${mobileMenuOpen ? 'open' : ''}`}>
+            <div className="sg-mobile-drawer-header">
+              <div className="sg-logo-icon" style={{ fontSize: 11, fontWeight: 800, color: '#fff', width: 28, height: 28, borderRadius: 6, background: '#4F46E5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>KA</div>
+              <span style={{ fontWeight: 700, fontSize: 14, color: '#1F2937' }}>CRM Kim Ánh</span>
             </div>
-          ))}
-        </nav>,
+            <nav className="sg-mobile-drawer-nav">
+              {sidebarItems.map((item) => (
+                <div
+                  key={item.key}
+                  className={`sg-mobile-drawer-item ${location.pathname === item.key ? 'active' : ''}`}
+                  onClick={() => { navigate(item.key); setMobileMenuOpen(false); }}
+                >
+                  <span className="sg-mobile-drawer-icon">{item.icon}</span>
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </nav>
+          </div>
+        </>,
         document.body
       )}
 
     </div>
+
+    <style>{`
+      @keyframes pulse-green {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.7); }
+        50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+      }
+    `}</style>
 
     <Modal
       title={<span><LockOutlined style={{ color: '#7C3AED', marginRight: 8 }} />Đổi mật khẩu</span>}

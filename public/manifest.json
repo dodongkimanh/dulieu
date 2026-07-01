@@ -1,0 +1,26 @@
+{
+  "name": "CRM Đồ Đồng Kim Ánh",
+  "short_name": "CRM Kim Ánh",
+  "description": "Hệ thống quản lý khách hàng - Đồ Đồng Kim Ánh",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#7C3AED",
+  "theme_color": "#7C3AED",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "vi"
+}

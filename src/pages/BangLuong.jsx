@@ -57,7 +57,7 @@ const getGroupKey = (chucVu) => {
   return 'vanphong';
 };
 
-const TOTAL_COLS = 21;
+const NON_FIXED_COLS = 19; // columns 0-18: Nhân Viên → Chi VT (before fixed-right)
 
 function EditableCell({ value, rowId, field, onSave, readOnly }) {
   const [editing, setEditing] = useState(false);
@@ -146,23 +146,52 @@ export default function BangLuong() {
   const { isEmployeeView, isAdmin, isKeToan, user } = useAuth();
   const canEdit = isAdmin || isKeToan;
 
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 1024);
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 1024);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const [month, setMonth] = useState(dayjs());
   const [data, setData] = useState([]);
 
-  // Xác nhận lương: hiện từ ngày 15 của tháng được chọn trở đi
+  // Xác nhận lương: mở từ ngày 15 của tháng kế tiếp sau tháng lương
+  // Ví dụ: lương tháng 5 → xác nhận từ ngày 15/6 trở đi
   const canXacNhan = useMemo(() => {
     const today = dayjs();
-    const isCurrentOrPastMonth = month.isBefore(today, 'month') || month.isSame(today, 'month');
-    return isCurrentOrPastMonth && today.date() >= 15;
+    const unlockDate = month.add(1, 'month').date(15).startOf('day');
+    return !today.isBefore(unlockDate, 'day');
   }, [month]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pendingAdj, setPendingAdj] = useState({});
+  const [daThanhToanMap, setDaThanhToanMap] = useState({});
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`bl_tt_${month.format('YYYY-MM')}`) || '{}');
+      setDaThanhToanMap(saved);
+    } catch {}
+  }, [month]);
+
+  const handleToggleThanhToan = (nhanVienId) => {
+    setDaThanhToanMap(prev => {
+      const next = { ...prev, [nhanVienId]: !prev[nhanVienId] };
+      localStorage.setItem(`bl_tt_${month.format('YYYY-MM')}`, JSON.stringify(next));
+      return next;
+    });
+  };
 
   // Cơ cấu lương Sale — load từ DB, admin có thể sửa
   const [saleTiersDb, setSaleTiersDb] = useState([]);
   const [saleDraft, setSaleDraft] = useState({});   // { id: { luongCung, hoaHongBp, thuongBp } }
   const [saleSaving, setSaleSaving] = useState(false);
+
+  // Bảo hiểm nhân viên
+  const [baoHiemDraft, setBaoHiemDraft] = useState({}); // { nvId: amount }
+  const [baoHiemSaving, setBaoHiemSaving] = useState(false);
+  const [allNhanVien, setAllNhanVien] = useState([]);
 
   useEffect(() => {
     luongCoCauSaleApi.getAll()
@@ -172,6 +201,16 @@ export default function BangLuong() {
         const draft = {};
         list.forEach(t => { draft[t.id] = { luongCung: t.luongCung, hoaHongBp: t.hoaHongBp, thuongBp: t.thuongBp }; });
         setSaleDraft(draft);
+      })
+      .catch(() => {});
+    // Load danh sách nhân viên để quản lý bảo hiểm
+    nhanVienApi.getActive()
+      .then(res => {
+        const list = (res.data || []).filter(nv => !nv.anTrongBang);
+        setAllNhanVien(list);
+        const draft = {};
+        list.forEach(nv => { draft[nv.id] = nv.baoHiem || 0; });
+        setBaoHiemDraft(draft);
       })
       .catch(() => {});
   }, []);
@@ -186,6 +225,18 @@ export default function BangLuong() {
       fetchData();
     } catch { message.error('Lỗi khi lưu'); }
     finally { setSaleSaving(false); }
+  };
+
+  const handleSaveBaoHiem = async () => {
+    setBaoHiemSaving(true);
+    try {
+      await Promise.all(
+        allNhanVien.map(nv => nhanVienApi.updateBaoHiem(nv.id, baoHiemDraft[nv.id] || 0))
+      );
+      message.success('Đã lưu thông tin bảo hiểm');
+      fetchData();
+    } catch { message.error('Lỗi khi lưu bảo hiểm'); }
+    finally { setBaoHiemSaving(false); }
   };
 
   // Lương cứng nhân viên non-sale (chỉ admin/ketoan)
@@ -283,9 +334,9 @@ export default function BangLuong() {
     setSaving(true);
     try {
       const rows = data.filter(r => pendingAdj[r.nhanVienId]);
-      for (const row of rows) {
+      await Promise.all(rows.map(row => {
         const adj = pendingAdj[row.nhanVienId];
-        await bangLuongApi.upsertAdjust({
+        return bangLuongApi.upsertAdjust({
           id:           row.bangLuongId || undefined,
           nhanVienId:   row.nhanVienId,
           thang:        month.month() + 1,
@@ -299,7 +350,7 @@ export default function BangLuong() {
           chiVt:        adj.chiVt ?? row.chiVt ?? 0,
           ghiChu:       adj.ghiChu !== undefined ? adj.ghiChu : (row.ghiChu || ''),
         });
-      }
+      }));
       message.success(`Đã lưu ${rows.length} điều chỉnh`);
       fetchData();
     } catch { message.error('Lỗi khi lưu'); }
@@ -366,6 +417,15 @@ export default function BangLuong() {
     tongLuong:  acc.tongLuong  + (r.tongLuong  || 0),
   }), { dsThucTe: 0, luongCT: 0, hoaHongDS: 0, thuongThem: 0, tongLuong: 0 });
 
+  const groupTotals = useMemo(() =>
+    GROUPS.map(g => ({
+      ...g,
+      tongLuong: filteredDisplayData
+        .filter(r => getGroupKey(r.chucVu) === g.key)
+        .reduce((s, r) => s + (r.tongLuong || 0), 0),
+    })).filter(g => g.tongLuong > 0)
+  , [filteredDisplayData]);
+
   // Employee options for Select (sorted by name)
   const nvOptions = useMemo(() =>
     [...data]
@@ -411,7 +471,7 @@ export default function BangLuong() {
 
   const compareColumns = [
     {
-      title: 'Tháng', dataIndex: 'month', width: 100, fixed: 'left',
+      title: 'Tháng', dataIndex: 'month', width: 100, fixed: isMobile ? undefined : 'left',
       render: (v, r) => (
         <b style={{ color: r._empty ? '#94A3B8' : '#4F46E5', fontSize: 14 }}>{v}</b>
       ),
@@ -475,7 +535,7 @@ export default function BangLuong() {
         : <span style={{ color: '#E2E8F0' }}>–</span>,
     },
     {
-      title: 'Tổng Lương', dataIndex: 'tongLuong', width: 140, align: 'right', fixed: 'right',
+      title: 'Tổng Lương', dataIndex: 'tongLuong', width: 140, align: 'right', fixed: isMobile ? undefined : 'right',
       render: (v, r) => r._empty
         ? <span style={{ color: '#94A3B8', fontSize: 12 }}>Không có dữ liệu</span>
         : (
@@ -489,28 +549,39 @@ export default function BangLuong() {
     },
   ];
 
-  // Wrap every column's render: group header rows span all columns
+  // Wrap non-fixed columns: group header spans columns 0-18
   const wr = (fn, isFirst = false) => (v, r) => {
     if (r._isHeader) {
       if (isFirst) return {
-        children: (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <b style={{ color: r._group.color, fontSize: 13 }}>{r._group.label}</b>
-            <span style={{ fontSize: 15, color: '#374151', fontWeight: 700 }}>
-              Tổng lương: <b style={{ color: r._group.color, fontSize: 17 }}>{vnd(r._subtotal)}</b>
-            </span>
-          </div>
-        ),
-        props: { colSpan: TOTAL_COLS, style: { background: r._group.bg, padding: '8px 16px' } },
+        children: <b style={{ color: r._group.color, fontSize: 13 }}>{r._group.label}</b>,
+        props: { colSpan: NON_FIXED_COLS, style: { background: r._group.bg, padding: '8px 16px' } },
       };
       return { children: null, props: { colSpan: 0, style: { background: r._group.bg } } };
     }
     return fn(v, r);
   };
 
+  // Tổng Lương column: empty for header rows (subtotal shown only in summary)
+  const wrTL = (fn) => (v, r) => {
+    if (r._isHeader) return {
+      children: null,
+      props: { style: { background: r._group.bg } },
+    };
+    return fn(v, r);
+  };
+
+  // Fixed-right columns (Đã TT, Ghi Chú, Xác Nhận): empty with group bg for header rows
+  const wrR = (fn) => (v, r) => {
+    if (r._isHeader) return {
+      children: null,
+      props: { style: { background: r._group.bg } },
+    };
+    return fn(v, r);
+  };
+
   const columns = [
     {
-      title: 'Nhân Viên', dataIndex: 'hoTen', width: 160, fixed: 'left',
+      title: 'Nhân Viên', dataIndex: 'hoTen', width: isMobile ? 120 : 160, fixed: 'left',
       render: wr((v, r) => (
         <div>
           <div style={{ fontWeight: 700, fontSize: 13 }}>{v}</div>
@@ -534,7 +605,7 @@ export default function BangLuong() {
       title: 'Công Phép', dataIndex: 'soCongNghiLe', width: 100, align: 'center',
       render: wr((v, r) => (
         <div>
-          <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="soCongNghiLe" onSave={handleCellEdit} readOnly={!canEdit} />
+          <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="soCongNghiLe" onSave={handleCellEdit} readOnly={!canEdit || !!r.daXacNhan} />
           <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 2 }}>
             {`${vnd(Math.round((r.luongCung || 0) / 26))}/ngày → Lương CT`}
           </div>
@@ -603,19 +674,19 @@ export default function BangLuong() {
           <b style={{ color: '#15803D' }}>{vnd(r.phuCapLaiXe || 0)}</b>
           <div style={{ fontSize: 10, color: '#94A3B8' }}>từ chấm công</div>
           <div style={{ fontSize: 10, color: '#64748B', marginTop: 2 }}>+thêm:</div>
-          <EditableCell value={v} rowId={r.nhanVienId} field="phuCap" onSave={handleCellEdit} readOnly={!canEdit} />
+          <EditableCell value={v} rowId={r.nhanVienId} field="phuCap" onSave={handleCellEdit} readOnly={!canEdit || !!r.daXacNhan} />
         </div>
       ) : (
-        <EditableCell value={v} rowId={r.nhanVienId} field="phuCap" onSave={handleCellEdit} readOnly={!canEdit} />
+        <EditableCell value={v} rowId={r.nhanVienId} field="phuCap" onSave={handleCellEdit} readOnly={!canEdit || !!r.daXacNhan} />
       )),
     },
     {
       title: 'Ứng Lương', dataIndex: 'ungLuong', width: 110, align: 'right',
-      render: wr((v, r) => <EditableCell value={v} rowId={r.nhanVienId} field="ungLuong" onSave={handleCellEdit} readOnly={!canEdit} />),
+      render: wr((v, r) => <EditableCell value={v} rowId={r.nhanVienId} field="ungLuong" onSave={handleCellEdit} readOnly={!canEdit || !!r.daXacNhan} />),
     },
     {
       title: 'Phạt', dataIndex: 'phat', width: 100, align: 'right',
-      render: wr((v, r) => <EditableCell value={v} rowId={r.nhanVienId} field="phat" onSave={handleCellEdit} readOnly={!canEdit} />),
+      render: wr((v, r) => <EditableCell value={v} rowId={r.nhanVienId} field="phat" onSave={handleCellEdit} readOnly={!canEdit || !!r.daXacNhan} />),
     },
     {
       title: 'Phạt Đi Muộn', dataIndex: 'phatTuChamCong', width: 110, align: 'right',
@@ -629,33 +700,63 @@ export default function BangLuong() {
       render: wr(() => <span style={{ color: '#DC2626', fontSize: 12 }}>150,000</span>),
     },
     {
+      title: 'Trừ BH', dataIndex: 'baoHiem', width: 90, align: 'right',
+      render: wr(v => Number(v || 0) > 0
+        ? <span style={{ color: '#DC2626', fontWeight: 600, fontSize: 12 }}>{vnd(v)}</span>
+        : <span style={{ color: '#E2E8F0' }}>–</span>
+      ),
+    },
+    {
       title: 'Sim ĐT', dataIndex: 'simDt', width: 105, align: 'right',
       render: wr((v, r) => (
         <div>
-          <EditableCell value={v} rowId={r.nhanVienId} field="simDt" onSave={handleCellEdit} readOnly={!canEdit} />
+          <EditableCell value={v} rowId={r.nhanVienId} field="simDt" onSave={handleCellEdit} readOnly={!canEdit || !!r.daXacNhan} />
           {v > 0 && <span style={{ fontSize: 10, color: '#059669' }}> +</span>}
         </div>
       )),
     },
     {
       title: 'Chi VT', dataIndex: 'chiVt', width: 105, align: 'right',
-      render: wr((v, r) => <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="chiVt" onSave={handleCellEdit} readOnly={!canEdit} />),
+      render: wr((v, r) => <EditableCell value={Number(v || 0)} rowId={r.nhanVienId} field="chiVt" onSave={handleCellEdit} readOnly={!canEdit || !!r.daXacNhan} />),
     },
     {
-      title: 'Tổng Lương', dataIndex: 'tongLuong', width: 130, align: 'right', fixed: 'right',
-      render: wr(v => (
-        <b style={{ color: v >= 0 ? '#059669' : '#DC2626', fontSize: 14 }}>{vnd(v)}</b>
+      title: 'Tổng Lương', dataIndex: 'tongLuong', width: 130, align: 'right', fixed: isMobile ? undefined : 'right',
+      render: wrTL((v, r) => (
+        <div>
+          <b style={{ color: v >= 0 ? '#059669' : '#DC2626', fontSize: 14 }}>{vnd(v)}</b>
+          {r.daXacNhan && (
+            <div style={{ fontSize: 9, color: '#059669', fontWeight: 700, marginTop: 1 }}>🔒 Đã chốt</div>
+          )}
+        </div>
       )),
     },
     {
-      title: 'Ghi Chú', dataIndex: 'ghiChu', width: 170, align: 'left', fixed: 'right',
-      render: wr((v, r) => (
-        <GhiChuCell value={v} rowId={r.nhanVienId} onSave={handleCellEdit} readOnly={!canEdit} />
+      title: 'Đã TT', width: 60, align: 'center', fixed: isMobile ? undefined : 'right',
+      render: wrR((_, r) => {
+        if (!isAdmin) return <span style={{ color: '#CBD5E1' }}>–</span>;
+        const paid = !!daThanhToanMap[r.nhanVienId];
+        return (
+          <CheckCircleOutlined
+            onClick={() => handleToggleThanhToan(r.nhanVienId)}
+            style={{
+              fontSize: 22,
+              cursor: 'pointer',
+              color: paid ? '#059669' : '#D1D5DB',
+              transition: 'color 0.2s',
+            }}
+          />
+        );
+      }),
+    },
+    {
+      title: 'Ghi Chú', dataIndex: 'ghiChu', width: 170, align: 'left', fixed: isMobile ? undefined : 'right',
+      render: wrR((v, r) => (
+        <GhiChuCell value={v} rowId={r.nhanVienId} onSave={handleCellEdit} readOnly={!canEdit || !!r.daXacNhan} />
       )),
     },
     {
-      title: 'Xác Nhận', width: 110, align: 'center', fixed: 'right',
-      render: wr((_, r) => {
+      title: 'Xác Nhận', width: 110, align: 'center', fixed: isMobile ? undefined : 'right',
+      render: wrR((_, r) => {
         if (!canXacNhan) return <span style={{ color: '#CBD5E1', fontSize: 11 }}>–</span>;
         if (r.daXacNhan) return (
           <div style={{ textAlign: 'center' }}>
@@ -668,8 +769,9 @@ export default function BangLuong() {
             )}
           </div>
         );
-        // Chỉ nhân viên xác nhận lương của chính mình; admin xem trạng thái
-        if (isEmployeeView) return (
+        // Nhân viên / kế toán xác nhận lương của chính mình
+        const isOwnRow = isEmployeeView || (isKeToan && user?.nhanVienId && r.nhanVienId === user.nhanVienId);
+        if (isOwnRow) return (
           <Button
             size="small"
             type="primary"
@@ -685,7 +787,7 @@ export default function BangLuong() {
   ];
 
   const summaryRow = () => (
-    <Table.Summary fixed>
+    <Table.Summary fixed={!isMobile}>
       <Table.Summary.Row style={{ background: '#F0F9FF', fontWeight: 700 }}>
         <Table.Summary.Cell index={0} colSpan={3}>
           <span style={{ color: '#4F46E5' }}>
@@ -715,8 +817,18 @@ export default function BangLuong() {
         <Table.Summary.Cell index={15} />
         <Table.Summary.Cell index={16} />
         <Table.Summary.Cell index={17} />
-        <Table.Summary.Cell index={18} align="right" style={{ background: '#F0F9FF' }}>
-          <b style={{ color: '#DC2626', fontSize: 18, fontWeight: 800 }}>{vnd(totals.tongLuong)}</b>
+        <Table.Summary.Cell index={18} />
+        <Table.Summary.Cell index={19} colSpan={4} align="right" style={{ background: '#EFF6FF' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+            {groupTotals.map(g => (
+              <div key={g.key} style={{ fontSize: 11, whiteSpace: 'nowrap', color: g.color }}>
+                {g.label}: <b>{vnd(g.tongLuong)}</b>
+              </div>
+            ))}
+            <div style={{ borderTop: '1.5px solid #CBD5E1', marginTop: 2, paddingTop: 2, whiteSpace: 'nowrap' }}>
+              <b style={{ color: '#DC2626', fontSize: 15, fontWeight: 800 }}>{vnd(totals.tongLuong)} đ</b>
+            </div>
+          </div>
         </Table.Summary.Cell>
       </Table.Summary.Row>
     </Table.Summary>
@@ -865,7 +977,7 @@ export default function BangLuong() {
               const validRows = compareRows.filter(r => !r._empty);
               const avg = Math.round(validRows.reduce((s, r) => s + (r.tongLuong || 0), 0) / validRows.length);
               return (
-                <Table.Summary fixed>
+                <Table.Summary fixed={!isMobile}>
                   <Table.Summary.Row style={{ background: '#F5F3FF', fontWeight: 700 }}>
                     <Table.Summary.Cell index={0} colSpan={compareColumns.length - 1}>
                       <span style={{ color: '#7C3AED' }}>Trung bình / tháng</span>
@@ -887,7 +999,7 @@ export default function BangLuong() {
           <div style={{ marginBottom: 8, fontSize: 12, color: '#94A3B8' }}>
             Click vào ô <b>Phụ Cấp / Ứng Lương / Phạt / Sim ĐT / Công Phép</b> để chỉnh sửa, sau đó bấm Lưu.
             &nbsp;·&nbsp; Tháng {month.format('MM/YYYY')}
-            &nbsp;·&nbsp; Quỹ CĐ: −150,000đ · Sim ĐT: +120,000đ mặc định cho Sale · Chuyên Cần: +500,000đ (đủ 26 công)
+            &nbsp;·&nbsp; Quỹ CĐ: −150,000đ · Sim ĐT: +90,000đ mặc định cho Sale · Chuyên Cần: +500,000đ (đủ 26 công)
           </div>
           <Table
             className="bang-luong-table"
@@ -904,16 +1016,68 @@ export default function BangLuong() {
         </div>
       )}
 
+      {/* Bảng bảo hiểm nhân viên — chỉ admin/kế toán */}
+      {(isAdmin || isKeToan) && allNhanVien.length > 0 && (
+        <details style={{ marginTop: 16 }}>
+          <summary style={{ cursor: 'pointer', color: '#DC2626', fontSize: 13, fontWeight: 600, userSelect: 'none' }}>
+            Bảo Hiểm Nhân Viên (trừ hàng tháng)
+          </summary>
+          <div style={{ marginTop: 10, maxWidth: 520 }}>
+            <div style={{ fontSize: 12, color: '#64748B', marginBottom: 8 }}>
+              Điền số tiền bảo hiểm phải trừ hàng tháng cho từng nhân viên → bấm Lưu → áp dụng cho tất cả các tháng.
+            </div>
+            <table style={{ borderCollapse: 'collapse', fontSize: 13, width: '100%' }}>
+              <thead>
+                <tr style={{ background: '#DC2626', color: '#fff' }}>
+                  <th style={{ padding: '7px 14px', textAlign: 'left', fontWeight: 600 }}>Nhân Viên</th>
+                  <th style={{ padding: '7px 14px', textAlign: 'center', fontWeight: 600 }}>Chức Vụ</th>
+                  <th style={{ padding: '7px 14px', textAlign: 'right', fontWeight: 600 }}>Trừ BH/tháng (đ)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allNhanVien.map((nv, i) => (
+                  <tr key={nv.id} style={{ background: i % 2 === 0 ? '#fff' : '#FEF2F2', borderBottom: '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '5px 14px', fontWeight: 600 }}>{nv.hoTen}</td>
+                    <td style={{ padding: '5px 14px', textAlign: 'center', color: '#64748B', fontSize: 12 }}>{nv.chucVu}</td>
+                    <td style={{ padding: '4px 14px', textAlign: 'right' }}>
+                      <InputNumber
+                        value={baoHiemDraft[nv.id] || 0}
+                        onChange={v => setBaoHiemDraft(d => ({ ...d, [nv.id]: v ?? 0 }))}
+                        min={0} step={50000}
+                        formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                        parser={v => v.replace(/,/g, '')}
+                        style={{ width: 160 }} size="small" controls={false}
+                        placeholder="0 = không đóng BH"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              onClick={handleSaveBaoHiem}
+              loading={baoHiemSaving}
+              style={{ marginTop: 10, background: '#DC2626', borderColor: '#DC2626' }}
+              size="small"
+            >
+              Lưu bảo hiểm
+            </Button>
+          </div>
+        </details>
+      )}
+
       <details style={{ marginTop: 16 }}>
         <summary style={{ cursor: 'pointer', color: '#4F46E5', fontSize: 13, fontWeight: 600, userSelect: 'none' }}>
-          Bảng cơ cấu lương Sale {isAdmin ? '(click để chỉnh sửa)' : '(xem tham khảo)'}
+          Bảng lương cơ cấu Sale {isAdmin ? '(click để chỉnh sửa)' : '(xem tham khảo)'} — <span style={{ fontWeight: 400, fontSize: 12, color: '#64748B' }}>% thưởng thêm là mức thưởng sẽ thay đổi tùy thuộc vào từng thời điểm công ty sẽ thông báo</span>
         </summary>
-        <div style={{ overflowX: 'auto', marginTop: 8 }}>
-          <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
+        <div className="bang-luong-co-cau-scroll" style={{ overflowX: 'auto', marginTop: 8 }}>
+          <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: 700 }}>
             <thead>
               <tr style={{ background: '#374151', color: '#fff' }}>
                 {['DS Thực Tế', 'DS Tối Thiểu', 'DS Tối Đa', 'Lương Cứng', '% Hoa Hồng DS', '% Thưởng Thêm'].map(h => (
-                  <th key={h} style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600 }}>{h}</th>
+                  <th key={h} style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -925,14 +1089,14 @@ export default function BangLuong() {
                                : (t.minDs / 1_000_000) + ' – ' + (t.maxDs / 1_000_000) + ' triệu';
                 return (
                   <tr key={t.id} style={{ background: i % 2 === 0 ? '#fff' : '#F8FAFC', borderBottom: '1px solid #F1F5F9' }}>
-                    <td style={{ padding: '5px 12px', fontWeight: 600, color: '#4F46E5' }}>{minLabel}</td>
-                    <td style={{ padding: '5px 12px', textAlign: 'right', color: '#64748B' }}>
+                    <td style={{ padding: '5px 12px', fontWeight: 600, color: '#4F46E5', whiteSpace: 'nowrap' }}>{minLabel}</td>
+                    <td style={{ padding: '5px 12px', textAlign: 'right', color: '#64748B', whiteSpace: 'nowrap' }}>
                       {t.minDs === 0 ? '0' : t.minDs.toLocaleString('vi-VN')}
                     </td>
-                    <td style={{ padding: '5px 12px', textAlign: 'right', color: '#64748B' }}>
+                    <td style={{ padding: '5px 12px', textAlign: 'right', color: '#64748B', whiteSpace: 'nowrap' }}>
                       {t.maxDs == null ? '—' : (t.maxDs - 1).toLocaleString('vi-VN')}
                     </td>
-                    <td style={{ padding: '4px 12px', textAlign: 'right', fontWeight: 600 }}>
+                    <td style={{ padding: '4px 12px', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {isAdmin ? (
                         <InputNumber
                           value={draft.luongCung}
@@ -940,11 +1104,11 @@ export default function BangLuong() {
                           min={0} step={500000}
                           formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                           parser={v => v.replace(/,/g, '')}
-                          style={{ width: 130 }} size="small" controls={false}
+                          style={{ width: 160 }} size="small" controls={false}
                         />
                       ) : draft.luongCung.toLocaleString('vi-VN')}
                     </td>
-                    <td style={{ padding: '4px 12px', textAlign: 'right', color: '#0891B2', fontWeight: 600 }}>
+                    <td style={{ padding: '4px 12px', textAlign: 'right', color: '#0891B2', fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {isAdmin ? (
                         <InputNumber
                           value={draft.hoaHongBp}
@@ -952,21 +1116,21 @@ export default function BangLuong() {
                           min={0} max={500} step={10}
                           formatter={v => (Number(v) / 100).toFixed(2) + '%'}
                           parser={v => Math.round(parseFloat(v.replace('%', '')) * 100)}
-                          style={{ width: 90 }} size="small" controls={false}
+                          style={{ width: 110 }} size="small" controls={false}
                         />
                       ) : (draft.hoaHongBp / 100).toFixed(2) + '%'}
                     </td>
-                    <td style={{ padding: '4px 12px', textAlign: 'right', color: '#D97706', fontWeight: 600 }}>
+                    <td style={{ padding: '4px 12px', textAlign: 'right', color: '#D97706', fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {isAdmin ? (
                         <InputNumber
                           value={draft.thuongBp}
                           onChange={v => setSaleDraft(d => ({ ...d, [t.id]: { ...draft, thuongBp: v ?? 0 } }))}
-                          min={0} max={500} step={100}
-                          formatter={v => v === 0 ? '—' : '+' + (Number(v) / 100).toFixed(0) + '%'}
+                          min={0} max={1000} step={50}
+                          formatter={v => v == 0 ? '—' : '+' + (Number(v) / 100) + '%'}
                           parser={v => v === '—' ? 0 : Math.round(parseFloat(v.replace('+', '').replace('%', '')) * 100)}
-                          style={{ width: 80 }} size="small" controls={false}
+                          style={{ width: 110 }} size="small" controls={false}
                         />
-                      ) : (draft.thuongBp === 0 ? '—' : '+' + (draft.thuongBp / 100).toFixed(0) + '%')}
+                      ) : (draft.thuongBp === 0 ? '—' : '+' + (draft.thuongBp / 100) + '%')}
                     </td>
                   </tr>
                 );

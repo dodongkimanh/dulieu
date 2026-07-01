@@ -127,7 +127,7 @@ function TimeField({ label, hint, value, onChange, disabled }) {
   );
 }
 
-function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, readOnly }) {
+function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, isKeToan, duocDuyet, readOnly }) {
   const [open, setOpen]           = useState(false);
   const [gioVaoSang,  setGVS]     = useState('');
   const [gioRaSang,   setGRS]     = useState('');
@@ -142,6 +142,7 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, r
   const [soLapDatTranh,setSoLapDatTranh] = useState(0);
   const [chiMuaVatTu,  setChiMuaVatTu]  = useState(0);
   const [tienAn,       setTienAn]        = useState(0);
+  const [huyTangCa,    setHuyTangCa]     = useState(false);
 
   const isLaiXe = nv.chucVu === 'LAI_XE';
 
@@ -158,6 +159,7 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, r
     setSoLapDatTranh(record?.soLapDatTranh != null ? Number(record.soLapDatTranh) : 0);
     setChiMuaVatTu(record?.chiMuaVatTu != null ? Number(record.chiMuaVatTu) : 0);
     setTienAn(record?.tienAn != null ? Number(record.tienAn) : 0);
+    setHuyTangCa(record?.huyTangCa || false);
     setOpen(true);
   };
 
@@ -203,12 +205,14 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, r
         chiMuaVatTu:   isLaiXe ? chiMuaVatTu   : 0,
         tienAn:        isLaiXe ? tienAn        : 0,
       });
-      const duyetChanged = isAdmin && record?.id && (
+      const canApprove = isAdmin || isKeToan;
+      const duyetChanged = canApprove && record?.id && (
         duyetKP !== (record?.duyetKhongPhat || false) ||
-        duyetCong !== (record?.duyetCong ?? null)
+        duyetCong !== (record?.duyetCong ?? null) ||
+        huyTangCa !== (record?.huyTangCa || false)
       );
       if (duyetChanged) {
-        await onDuyet(record.id, duyetKP, duyetNote, duyetCong);
+        await onDuyet(record.id, duyetKP, duyetNote, duyetCong, huyTangCa);
       }
       setOpen(false);
     } catch { message.error('Lỗi khi lưu'); }
@@ -216,7 +220,8 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, r
   };
 
   const hasTime    = record?.gioVaoSang || record?.gioRaSang || record?.gioVaoChieu || record?.gioRaChieu;
-  const dotColor   = !hasTime
+  const laiXeHasTime = isLaiXe ? (record?.gioVaoSang || record?.gioRaChieu) : hasTime;
+  const dotColor   = !laiXeHasTime
     ? STATUS_DOT[record?.caSang || 'chua_cham']
     : isApprovedFlag ? '#10B981'
     : isMissingCCOld ? '#DC2626'
@@ -306,6 +311,7 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, r
                     onChange={v => setSoGiaoHang(v || 0)}
                     style={{ width: '100%' }}
                     placeholder="Số đơn"
+                    disabled={readOnly}
                   />
                   {soGiaoHang > 0 && (
                     <div style={{ fontSize: 11, color: '#16A34A', marginTop: 2 }}>
@@ -323,6 +329,7 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, r
                     onChange={v => setSoLapDatTranh(v || 0)}
                     style={{ width: '100%' }}
                     placeholder="Số tranh (0.5 = 1/2)"
+                    disabled={readOnly}
                   />
                   {soLapDatTranh > 0 && (
                     <div style={{ fontSize: 11, color: '#16A34A', marginTop: 2 }}>
@@ -342,6 +349,7 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, r
                     formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                     parser={v => v.replace(/,/g, '')}
                     placeholder="Số tiền đã chi"
+                    disabled={readOnly}
                   />
                 </div>
                 <div>
@@ -356,6 +364,7 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, r
                     formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                     parser={v => v.replace(/,/g, '')}
                     placeholder="Nhập số tiền"
+                    disabled={readOnly}
                   />
                 </div>
               </div>
@@ -477,6 +486,37 @@ function ChamCongCell({ nv, date, record, onSave, onDuyet, isAdmin, duocDuyet, r
           );
         })()}
 
+        {/* Admin / Kế toán hủy tăng ca lái xe */}
+        {(isAdmin || isKeToan) && isLaiXe && record?.id && ((record?.tangCaSang || 0) + (record?.tangCaChieu || 0) > 0 || huyTangCa) && (
+          <div style={{ background: '#F5F3FF', borderRadius: 8, padding: 12, marginTop: 12, border: '1px solid #DDD6FE' }}>
+            <div style={{ fontSize: 12, color: '#6D28D9', marginBottom: 8, fontWeight: 600 }}>
+              Phê duyệt tăng ca lái xe
+            </div>
+            {!huyTangCa && (
+              <div style={{ fontSize: 12, color: '#7C3AED', marginBottom: 8 }}>
+                {(record?.tangCaSang || 0) > 0 && (
+                  <div>TC sáng: <b>{record.tangCaSang} ph</b> = {Math.round(record.tangCaSang * 50000 / 60).toLocaleString('vi-VN')}đ</div>
+                )}
+                {(record?.tangCaChieu || 0) > 0 && (
+                  <div>TC chiều: <b>{record.tangCaChieu} ph</b> = {Math.round(record.tangCaChieu * 30000 / 60).toLocaleString('vi-VN')}đ</div>
+                )}
+              </div>
+            )}
+            <Checkbox
+              checked={huyTangCa}
+              onChange={e => setHuyTangCa(e.target.checked)}
+              style={{ fontWeight: 600, color: '#DC2626' }}
+            >
+              Hủy tăng ca (không tính tiền tăng ca)
+            </Checkbox>
+            {huyTangCa && (
+              <div style={{ marginTop: 6, fontSize: 12, color: '#DC2626', fontStyle: 'italic' }}>
+                Tăng ca sẽ không được tính vào lương tháng này.
+              </div>
+            )}
+          </div>
+        )}
+
         {record?.ghiChuNv && (
           <Alert type="info" message={`NV ghi chú: ${record.ghiChuNv}`} style={{ marginTop: 10, fontSize: 12 }} />
         )}
@@ -534,13 +574,25 @@ export default function ChamCong() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const applyChamCongRecord = useCallback((r) => {
+    setChamCongMap(prev => {
+      const next = { ...prev };
+      if (!next[r.nhanVienId]) next[r.nhanVienId] = {};
+      next[r.nhanVienId][r.ngay] = r;
+      return next;
+    });
+  }, []);
+
   const handleSaveCell = async (data) => {
-    await chamCongApi.saveOne(data);
-    await fetchData();
+    const res = await chamCongApi.saveOne(data);
+    applyChamCongRecord(res.data);
+    fetchData(); // refresh stats in background (không await)
   };
 
-  const handleDuyetRecord = async (id, duyetKhongPhat, duyetNote, duyetCong) => {
-    await chamCongApi.duyetRecord(id, duyetKhongPhat, duyetNote, duyetCong);
+  const handleDuyetRecord = async (id, duyetKhongPhat, duyetNote, duyetCong, huyTangCa) => {
+    const res = await chamCongApi.duyetRecord(id, duyetKhongPhat, duyetNote, duyetCong, huyTangCa);
+    applyChamCongRecord(res.data);
+    fetchData(); // refresh stats in background
   };
 
   const handleDuyetThang = async () => {
@@ -634,7 +686,7 @@ export default function ChamCong() {
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
       {/* Header */}
       <div className="page-header-premium">
-        <div className="page-header-left">
+        <div className="page-header-left" style={{ flex: 1 }}>
           <div className="page-header-info" style={{ gap: 8 }}>
             <span style={{ fontWeight: 700, fontSize: 18, color: '#1F2937' }}>Bảng Chấm Công</span>
             {duocDuyet && <Badge color="green" text="Đã chốt" />}
@@ -643,14 +695,15 @@ export default function ChamCong() {
                 style={{ backgroundColor: '#EF4444' }} />
             )}
           </div>
+          <div className="chamcong-month-nav" style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+            <Button icon={<LeftOutlined />} size="small" onClick={() => setMonth(m => m.subtract(1, 'month'))} />
+            <span style={{ fontWeight: 600, fontSize: 13, minWidth: 100, textAlign: 'center', whiteSpace: 'nowrap' }}>
+              Tháng {month.format('MM/YYYY')}
+            </span>
+            <Button icon={<RightOutlined />} size="small" onClick={() => setMonth(m => m.add(1, 'month'))} />
+          </div>
         </div>
-        <div className="page-header-right" style={{ gap: 6, flexWrap: 'wrap' }}>
-          <Button icon={<LeftOutlined />} onClick={() => setMonth(m => m.subtract(1, 'month'))} />
-          <span style={{ fontWeight: 600, fontSize: 14, minWidth: 110, textAlign: 'center' }}>
-            Tháng {month.format('MM/YYYY')}
-          </span>
-          <Button icon={<RightOutlined />} onClick={() => setMonth(m => m.add(1, 'month'))} />
-
+        <div className="page-header-right chamcong-admin-actions" style={{ gap: 6, flexWrap: 'wrap' }}>
           {!isEmployeeView && <>
             <Button icon={<PlusOutlined />} onClick={() => handleOpenNv()} size="middle">Thêm NV</Button>
 
@@ -709,6 +762,8 @@ export default function ChamCong() {
             const phiLapDatTranh = s.phiLapDatTranh || 0;
             const chiMuaVatTu    = s.chiMuaVatTu    || 0;
             const tienAn         = s.tienAn         || 0;
+            const soGiaoHang     = s.soGiaoHang     || 0;
+            const soLapDatTranh  = s.soLapDatTranh  || 0;
             const tongPhuCap     = phuCapGiaoHang + phiLapDatTranh + chiMuaVatTu + tienAn;
             const hasTangCa = isLaiXeNv && (tangCaSang + tangCaChieu) > 0;
             const hasPhuCap = isLaiXeNv && tongPhuCap > 0;
@@ -750,8 +805,8 @@ export default function ChamCong() {
                     {hasPhuCap && (
                       <div style={{ marginTop: 4, borderTop: '1px solid #DDD6FE', paddingTop: 4 }}>
                         {tienAn         > 0 && <div style={{ color: '#15803D' }}>Tiền ăn: <b>{tienAn.toLocaleString('vi-VN')}đ</b></div>}
-                        {phuCapGiaoHang > 0 && <div style={{ color: '#15803D' }}>Giao hàng: <b>{phuCapGiaoHang.toLocaleString('vi-VN')}đ</b></div>}
-                        {phiLapDatTranh > 0 && <div style={{ color: '#15803D' }}>Lắp tranh: <b>{phiLapDatTranh.toLocaleString('vi-VN')}đ</b></div>}
+                        {phuCapGiaoHang > 0 && <div style={{ color: '#15803D' }}>Giao hàng: <b>{Number(soGiaoHang)} đơn</b> ({phuCapGiaoHang.toLocaleString('vi-VN')}đ)</div>}
+                        {phiLapDatTranh > 0 && <div style={{ color: '#15803D' }}>Lắp tranh: <b>{Number(soLapDatTranh)} tranh</b> ({phiLapDatTranh.toLocaleString('vi-VN')}đ)</div>}
                         {chiMuaVatTu    > 0 && <div style={{ color: '#B45309' }}>Vật tư chi: <b>{chiMuaVatTu.toLocaleString('vi-VN')}đ</b></div>}
                         <div style={{ color: '#166534', fontWeight: 700 }}>Tổng PC: {tongPhuCap.toLocaleString('vi-VN')}đ</div>
                       </div>
@@ -784,16 +839,16 @@ export default function ChamCong() {
       )}
 
       {/* Grid chấm công */}
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
+      <div className="chamcong-table-wrapper" style={{ background: '#fff', borderRadius: 12, border: '1px solid #E2E8F0', overflowX: 'auto' }}>
+        <table style={{ borderCollapse: 'collapse', tableLayout: 'fixed', minWidth: 150 + days.length * 46 }}>
           <colgroup>
-            <col style={{ width: 170 }} />
-            {days.map(d => <col key={d.date()} />)}
+            <col style={{ width: 150, minWidth: 130 }} />
+            {days.map(d => <col key={d.date()} style={{ width: 46, minWidth: 46 }} />)}
           </colgroup>
           <thead>
             <tr style={{ background: '#F8FAFC' }}>
               <th style={{
-                width: 170, minWidth: 170, padding: '8px 12px', textAlign: 'left',
+                width: 150, minWidth: 130, padding: '8px 12px', textAlign: 'left',
                 fontWeight: 700, fontSize: 13, borderBottom: '2px solid #E2E8F0',
                 borderRight: '1px solid #E2E8F0', position: 'sticky', left: 0, background: '#F8FAFC', zIndex: 2,
               }}>Nhân Viên</th>
@@ -802,7 +857,7 @@ export default function ChamCong() {
                 const isToday = d.isSame(dayjs(), 'day');
                 return (
                   <th key={d.date()} style={{
-                    padding: '4px 2px', textAlign: 'center',
+                    padding: '4px 1px', textAlign: 'center',
                     fontSize: 11, fontWeight: 600, borderBottom: '2px solid #E2E8F0',
                     borderRight: '1px solid #F1F5F9',
                     background: isSun ? '#FEF2F2' : isToday ? '#EFF6FF' : '#F8FAFC',
@@ -866,6 +921,7 @@ export default function ChamCong() {
                         onSave={isEmployeeView ? null : handleSaveCell}
                         onDuyet={isEmployeeView ? null : handleDuyetRecord}
                         isAdmin={isAdmin}
+                        isKeToan={isKeToan}
                         duocDuyet={duocDuyet}
                         readOnly={isEmployeeView}
                       />

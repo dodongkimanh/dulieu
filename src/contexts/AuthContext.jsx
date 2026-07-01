@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../api';
 
 const AuthContext = createContext(null);
@@ -8,18 +8,16 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = sessionStorage.getItem('crm_token');
-    const savedUser = sessionStorage.getItem('crm_user');
+    const token = localStorage.getItem('crm_token');
+    const savedUser = localStorage.getItem('crm_user');
     if (token && savedUser) {
       try {
         setUser(JSON.parse(savedUser));
       } catch {
-        sessionStorage.removeItem('crm_token');
-        sessionStorage.removeItem('crm_user');
+        localStorage.removeItem('crm_token');
+        localStorage.removeItem('crm_user');
       }
     }
-    localStorage.removeItem('crm_token');
-    localStorage.removeItem('crm_user');
     setLoading(false);
 
     // Lắng nghe sự kiện 401/403 từ api interceptor — không reload trang
@@ -30,32 +28,34 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('auth:logout', handleLogout);
   }, []);
 
-  const login = async (username, password) => {
+  const login = useCallback(async (username, password) => {
     const res = await api.post('/auth/login', { username, password });
     const { token, ...userData } = res.data;
-    sessionStorage.setItem('crm_token', token);
-    sessionStorage.setItem('crm_user', JSON.stringify(userData));
+    localStorage.setItem('crm_token', token);
+    localStorage.setItem('crm_user', JSON.stringify(userData));
     setUser(userData);
     return userData;
-  };
+  }, []);
 
-  const logout = () => {
-    sessionStorage.removeItem('crm_token');
-    sessionStorage.removeItem('crm_user');
+  const logout = useCallback(() => {
+    localStorage.removeItem('crm_token');
+    localStorage.removeItem('crm_user');
     setUser(null);
-  };
+  }, []);
 
-  const isAdmin = user?.role === 'ADMIN';
-  const isKeToan = user?.role === 'KE_TOAN';
-  const isSaler = user?.role === 'SALER';
-  const isLaiXe = user?.role === 'LAI_XE';
-  const isNhanVien = user?.role === 'NHAN_VIEN';
-  // isEmployeeView: tài khoản nhân viên chỉ xem chấm công/bảng lương của mình
-  const isEmployeeView = isLaiXe || isNhanVien || isSaler;
-  const canViewOrders = isAdmin || isKeToan;
+  const value = useMemo(() => {
+    const isAdmin = user?.role === 'ADMIN';
+    const isKeToan = user?.role === 'KE_TOAN';
+    const isSaler = user?.role === 'SALER';
+    const isLaiXe = user?.role === 'LAI_XE';
+    const isNhanVien = user?.role === 'NHAN_VIEN';
+    const isEmployeeView = isLaiXe || isNhanVien || isSaler;
+    const canViewOrders = isAdmin || isKeToan;
+    return { user, login, logout, loading, isAdmin, isKeToan, isSaler, isLaiXe, isNhanVien, isEmployeeView, canViewOrders };
+  }, [user, loading, login, logout]);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading, isAdmin, isKeToan, isSaler, isLaiXe, isNhanVien, isEmployeeView, canViewOrders }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

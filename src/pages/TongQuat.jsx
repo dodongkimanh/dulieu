@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Row, Col, DatePicker, Checkbox, Spin, Tag, message, Button } from 'antd';
+import { Row, Col, DatePicker, Checkbox, Spin, Tag, message } from 'antd';
 import {
-  FilterOutlined,
   DollarOutlined,
   BarChartOutlined,
   FundOutlined,
@@ -38,6 +37,12 @@ const STATUS_COLORS = {
 
 const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
 const vndFull = (v) => Number(v || 0).toLocaleString('vi-VN') + ' đ';
+const vndMobile = (v) => {
+  const n = Number(v || 0);
+  if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(1).replace('.', ',') + ' tỷ';
+  if (Math.abs(n) >= 1e6) return Math.round(n / 1e6) + 'tr';
+  return n.toLocaleString('vi-VN');
+};
 const vndShort = (v) => {
   const n = Number(v || 0);
   if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(1) + 'B';
@@ -106,7 +111,15 @@ export default function TongQuat() {
   const [selectedStatuses, setSelectedStatuses] = useState(
     saved?.selectedStatuses || [...DEFAULT_SELECTED_STATUSES]
   );
-  const [filterOpen, setFilterOpen] = useState(window.innerWidth > 768);
+  const [dateDropOpen, setDateDropOpen] = useState(false);
+  const [saleDropOpen, setSaleDropOpen] = useState(false);
+  const [statusDropOpen, setStatusDropOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 1024);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth <= 1024);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
 
   const fetchSales = useCallback(async () => {
     try {
@@ -246,9 +259,10 @@ export default function TongQuat() {
     byPageStatus.forEach(item => {
       const page = item.page || 'Không xác định';
       if (!selectedStatuses.includes(item.tinhTrang)) return;
-      if (!pageMap[page]) pageMap[page] = { page, giaThu: 0, loiNhuan: 0 };
+      if (!pageMap[page]) pageMap[page] = { page, giaThu: 0, loiNhuan: 0, loiNhuanThuc: 0 };
       pageMap[page].giaThu += Number(item.sumGiaThu || 0);
       pageMap[page].loiNhuan += Number(item.sumLoiNhuan || 0);
+      pageMap[page].loiNhuanThuc += Number(item.sumLNSauTru || 0);
     });
     return Object.values(pageMap).sort((a, b) => b.giaThu - a.giaThu);
   }, [byPageStatus, selectedStatuses]);
@@ -263,25 +277,89 @@ export default function TongQuat() {
     <AnimatedDiv initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="tongquat-page">
       {/* Filter Bar */}
       <div className="tq-filter-bar" style={{ padding: '12px 16px' }}>
-        {/* Mobile toggle */}
-        <div className="tq-filter-mobile-header">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <div className="tq-filter-group" style={{ flex: 1 }}>
-              <div className="tq-filter-label">Khoảng thời gian</div>
-              <RangePicker value={dateRange} onChange={handleDateChange} format="DD/MM/YYYY" size="small" placeholder={['Từ ngày', 'Đến ngày']} style={{ width: '100%', maxWidth: 260 }} />
+        {isMobile ? (
+          /* Mobile: 3 dropdowns cùng hàng */
+          <div className="tq-dropdown-row">
+            {/* Date dropdown */}
+            <div className="tq-dropdown-filter">
+              <div className="tq-dropdown-trigger" onClick={() => { setDateDropOpen(v => !v); setSaleDropOpen(false); setStatusDropOpen(false); }}>
+                <span className="tq-dropdown-label">Thời gian</span>
+                <span className={`tq-dropdown-arrow ${dateDropOpen ? 'open' : ''}`}>▾</span>
+              </div>
+              {dateDropOpen && (
+                <div className="tq-dropdown-panel" style={{ padding: 10 }}>
+                  <RangePicker value={dateRange} onChange={(dates) => { handleDateChange(dates); setDateDropOpen(false); }} format="DD/MM/YYYY" size="small" placeholder={['Từ', 'Đến']} style={{ width: '100%' }} />
+                </div>
+              )}
             </div>
-            <Button
-              size="small"
-              icon={<FilterOutlined />}
-              onClick={() => setFilterOpen(v => !v)}
-              className="tq-filter-toggle-btn"
-              style={{ marginLeft: 8, flexShrink: 0 }}
-            >{filterOpen ? 'Ẩn' : 'Bộ lọc'}</Button>
-          </div>
-        </div>
 
-        {filterOpen && (
-          <div className="tq-filter-expand">
+            {/* Sale dropdown */}
+            <div className="tq-dropdown-filter">
+              <div className="tq-dropdown-trigger" onClick={() => { setSaleDropOpen(v => !v); setDateDropOpen(false); setStatusDropOpen(false); }}>
+                      <span className="tq-dropdown-label">Sale</span>
+                      <span className="tq-dropdown-summary">
+                        {selectedSales.length === 0 ? 'Tất cả' : selectedSales.length}
+                      </span>
+                      <span className={`tq-dropdown-arrow ${saleDropOpen ? 'open' : ''}`}>▾</span>
+                    </div>
+                    {saleDropOpen && (
+                      <div className="tq-dropdown-panel">
+                        {selectedSales.length > 0 && (
+                          <div className="tq-dropdown-clear" onClick={() => setSelectedSales([])}>Bỏ chọn tất cả</div>
+                        )}
+                        <div className="tq-dropdown-options">
+                          {salesList.map(s => (
+                            <div key={s}
+                              className={`tq-dropdown-option ${selectedSales.includes(s) ? 'active' : ''}`}
+                              onClick={() => setSelectedSales(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}
+                            >
+                              <span className="tq-dropdown-check">{selectedSales.includes(s) ? '✓' : ''}</span>
+                              {s}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status dropdown */}
+                  <div className="tq-dropdown-filter">
+                    <div className="tq-dropdown-trigger" onClick={() => { setStatusDropOpen(v => !v); setDateDropOpen(false); setSaleDropOpen(false); }}>
+                      <span className="tq-dropdown-label">Trạng thái</span>
+                      <span className="tq-dropdown-summary">
+                        {selectedStatuses.length === STATUS_OPTIONS.length ? 'Tất cả' : `${selectedStatuses.length}/${STATUS_OPTIONS.length}`}
+                      </span>
+                      <span className={`tq-dropdown-arrow ${statusDropOpen ? 'open' : ''}`}>▾</span>
+                    </div>
+                    {statusDropOpen && (
+                      <div className="tq-dropdown-panel">
+                        <div
+                          className={`tq-dropdown-option ${selectedStatuses.length === STATUS_OPTIONS.length ? 'active' : ''}`}
+                          onClick={() => handleSelectAllStatuses(selectedStatuses.length !== STATUS_OPTIONS.length)}
+                        >
+                          <span className="tq-dropdown-check">
+                            {selectedStatuses.length === STATUS_OPTIONS.length ? '✓' : selectedStatuses.length > 0 ? '−' : ''}
+                          </span>
+                          <strong>Chọn tất cả</strong>
+                        </div>
+                        <div className="tq-dropdown-options">
+                          {STATUS_OPTIONS.map(s => (
+                            <div key={s}
+                              className={`tq-dropdown-option ${selectedStatuses.includes(s) ? 'active' : ''}`}
+                              onClick={() => handleStatusToggle(s)}
+                            >
+                              <span className="tq-dropdown-check">{selectedStatuses.includes(s) ? '✓' : ''}</span>
+                              {s}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+          </div>
+        ) : (
+          /* Desktop: layout gốc */
+          <>
             <div className="tq-filter-left">
               <div className="tq-filter-group">
                 <div className="tq-filter-label">Sale</div>
@@ -315,49 +393,39 @@ export default function TongQuat() {
                 </div>
               </div>
             </div>
-            <div className="tq-filter-right tq-filter-right-desktop">
+            <div className="tq-filter-right">
               <div className="tq-filter-group">
                 <div className="tq-filter-label">Khoảng thời gian</div>
                 <RangePicker value={dateRange} onChange={handleDateChange} format="DD/MM/YYYY" size="middle" placeholder={['Từ ngày', 'Đến ngày']} style={{ width: 260 }} />
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
 
       {/* KPI Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={12} sm={12} md={5}>
-          <AnimatedDiv className="tq-kpi-card kpi-pink" whileHover={{ y: -3 }}>
-            <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaBan)} đ</div>
-            <div className="tq-kpi-label">Giá Bán Lên Đơn</div>
-          </AnimatedDiv>
-        </Col>
-        <Col xs={12} sm={12} md={5}>
-          <AnimatedDiv className="tq-kpi-card kpi-blue" whileHover={{ y: -3 }}>
-            <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaThu)} đ</div>
-            <div className="tq-kpi-label">Giá Thu Thực Tế</div>
-          </AnimatedDiv>
-        </Col>
-        <Col xs={12} sm={12} md={5}>
-          <AnimatedDiv className="tq-kpi-card kpi-purple" whileHover={{ y: -3 }}>
-            <div className="tq-kpi-value">{vnd(filteredTotal.sumLoiNhuan)} đ</div>
-            <div className="tq-kpi-label">Lợi Nhuận Ước Tính</div>
-          </AnimatedDiv>
-        </Col>
-        <Col xs={12} sm={12} md={5}>
-          <AnimatedDiv className="tq-kpi-card kpi-teal" whileHover={{ y: -3 }}>
-            <div className="tq-kpi-value">{vnd(lnSauTruDisplay)} đ</div>
-            <div className="tq-kpi-label">Lợi Nhuận Đã Nhận</div>
-          </AnimatedDiv>
-        </Col>
-        <Col xs={12} sm={12} md={4}>
-          <AnimatedDiv className="tq-kpi-card kpi-green" whileHover={{ y: -3 }}>
-            <div className="tq-kpi-value">{filteredTotal.count}</div>
-            <div className="tq-kpi-label">Tổng đơn hàng</div>
-          </AnimatedDiv>
-        </Col>
-      </Row>
+      <div className="tq-kpi-grid">
+        <AnimatedDiv className="tq-kpi-card kpi-pink" whileHover={{ y: -3 }}>
+          <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaBan)} đ</div>
+          <div className="tq-kpi-label">Giá Bán Lên Đơn</div>
+        </AnimatedDiv>
+        <AnimatedDiv className="tq-kpi-card kpi-blue" whileHover={{ y: -3 }}>
+          <div className="tq-kpi-value">{vnd(filteredTotal.sumGiaThu)} đ</div>
+          <div className="tq-kpi-label">Giá Thu Thực Tế</div>
+        </AnimatedDiv>
+        <AnimatedDiv className="tq-kpi-card kpi-purple" whileHover={{ y: -3 }}>
+          <div className="tq-kpi-value">{vnd(filteredTotal.sumLoiNhuan)} đ</div>
+          <div className="tq-kpi-label">Lợi Nhuận Ước Tính</div>
+        </AnimatedDiv>
+        <AnimatedDiv className="tq-kpi-card kpi-teal" whileHover={{ y: -3 }}>
+          <div className="tq-kpi-value">{vnd(lnSauTruDisplay)} đ</div>
+          <div className="tq-kpi-label">Lợi Nhuận Đã Nhận</div>
+        </AnimatedDiv>
+        <AnimatedDiv className="tq-kpi-card kpi-green" whileHover={{ y: -3 }}>
+          <div className="tq-kpi-value">{filteredTotal.count}</div>
+          <div className="tq-kpi-label">Tổng đơn hàng</div>
+        </AnimatedDiv>
+      </div>
 
       {/* Stacked Bar Chart */}
       <AnimatedDiv className="sg-card" style={{ marginBottom: 24 }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
@@ -366,10 +434,10 @@ export default function TongQuat() {
         </div>
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height={Math.max(300, chartData.length * 50)}>
-            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 160, left: 80, bottom: 5 }}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: isMobile ? 80 : 160, left: isMobile ? 4 : 80, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
-              <YAxis type="category" dataKey="sale" tick={{ fontSize: 12, fill: '#374151' }} width={80} />
+              <YAxis type="category" dataKey="sale" tick={{ fontSize: isMobile ? 10 : 12, fill: '#374151' }} width={isMobile ? 56 : 80} />
               <Tooltip
                 formatter={(v, name) => {
                   if (name === '_lbl' || name === '') return null;
@@ -425,10 +493,10 @@ export default function TongQuat() {
             Lọc theo tình trạng giao hàng ở bộ lọc phía trên. Di chuột để xem Giá Thu và Lợi Nhuận từng kênh.
           </div>
           <ResponsiveContainer width="100%" height={Math.max(300, channelChartData.length * 60)}>
-            <BarChart data={channelChartData} layout="vertical" margin={{ top: 5, right: 160, left: 120, bottom: 5 }}>
+            <BarChart data={channelChartData} layout="vertical" margin={{ top: 5, right: isMobile ? 80 : 160, left: isMobile ? 4 : 120, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
               <XAxis type="number" tickFormatter={(v) => vndShort(v)} tick={{ fontSize: 11, fill: '#94A3B8' }} />
-              <YAxis type="category" dataKey="page" tick={{ fontSize: 11, fill: '#374151', fontWeight: 500 }} width={120} />
+              <YAxis type="category" dataKey="page" tick={{ fontSize: isMobile ? 9 : 11, fill: '#374151', fontWeight: 500 }} width={isMobile ? 60 : 120} />
               <Tooltip
                 cursor={{ fill: 'rgba(79, 70, 229, 0.04)' }}
                 contentStyle={{
@@ -470,6 +538,8 @@ export default function TongQuat() {
                   <th style={{ textAlign: 'left', padding: '8px 12px', color: '#64748B', fontWeight: 600 }}>Kênh Tiếp Thị</th>
                   <th style={{ textAlign: 'right', padding: '8px 12px', color: '#F59E0B', fontWeight: 600 }}>Lợi Nhuận</th>
                   <th style={{ textAlign: 'right', padding: '8px 12px', color: '#06B6D4', fontWeight: 600 }}>Giá Thu Thực Tế</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', color: '#059669', fontWeight: 600 }}>Lợi Nhuận Thực</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', color: '#7C3AED', fontWeight: 600 }}>Biên Độ LN</th>
                 </tr>
               </thead>
               <tbody>
@@ -478,6 +548,8 @@ export default function TongQuat() {
                     <td style={{ padding: '8px 12px', fontWeight: 500, color: '#374151' }}>{ch.page}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#F59E0B' }}>{vndFull(ch.loiNhuan)}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#06B6D4' }}>{vndFull(ch.giaThu)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#059669' }}>{vndFull(ch.loiNhuanThuc)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#7C3AED' }}>{ch.giaThu > 0 ? ((ch.loiNhuan / ch.giaThu) * 100).toFixed(1) + '%' : '–'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -489,6 +561,12 @@ export default function TongQuat() {
                   </td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#06B6D4', fontSize: 14 }}>
                     {vndFull(channelChartData.reduce((s, c) => s + c.giaThu, 0))}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#059669', fontSize: 14 }}>
+                    {vndFull(channelChartData.reduce((s, c) => s + c.loiNhuanThuc, 0))}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700, color: '#7C3AED', fontSize: 14 }}>
+                    {(() => { const t = channelChartData.reduce((s, c) => s + c.giaThu, 0); const l = channelChartData.reduce((s, c) => s + c.loiNhuan, 0); return t > 0 ? ((l / t) * 100).toFixed(1) + '%' : '–'; })()}
                   </td>
                 </tr>
               </tfoot>

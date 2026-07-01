@@ -60,7 +60,7 @@ function formatMsgTime(ts) {
 function parseDuration(sec) {
   if (!sec) return '';
   const m = Math.floor(sec / 60), s = sec % 60;
-  return m > 0 ? `${m}p ${s}s` : `${s}s`;
+  return m > 0 ? `${m} phút ${s} giây` : `${s} giây`;
 }
 
 function parseJsonCall(text) {
@@ -71,8 +71,23 @@ function parseJsonCall(text) {
     if (d.title === 'sendBubbleMessage' || String(d.action || '').includes('call')) {
       let p = {};
       try { p = typeof d.params === 'string' ? JSON.parse(d.params) : (d.params || {}); } catch {}
-      return { isVideo: p.calltype === 1, isCaller: !!p.isCaller, duration: p.duration || 0, hasCallback: !!p.isEnableCallback };
+      const duration = p.duration || 0;
+      const isCaller = !!p.isCaller;
+      return { _type: 'call', isVideo: p.calltype === 1, isCaller, duration, hasCallback: !!p.isEnableCallback, missed: !isCaller && duration === 0 };
     }
+    if (String(d.action || '').includes('actionlist') || String(d.action || '').includes('msginfo')) {
+      let p = {};
+      try { p = typeof d.params === 'string' ? JSON.parse(d.params) : (d.params || {}); } catch {}
+      const viMsg = p?.msg?.vi;
+      const label = viMsg ? viMsg.replace(/%1\$s/g, '').trim() : (d.title || 'Thông báo');
+      return { _type: 'notification', label };
+    }
+    if ((d.type === 7 || d.type === 1 || d.type === 2) && d.catId != null) {
+      return { _type: 'sticker', url: `https://zalo-sticker.zadn.vn/${d.catId}/${d.id}.png` };
+    }
+    const gifUrl = d.url || d.href || d.normalUrl || d.hdUrl;
+    if (gifUrl && typeof gifUrl === 'string') return { _type: 'gif', url: gifUrl };
+    return { _type: 'unsupported' };
   } catch {}
   return null;
 }
@@ -87,29 +102,55 @@ function MessageBubble({ msg, prevMsg }) {
   let content = null;
   if (isCall || callInfo) {
     const isVideo = (callInfo?.type || msg.type) === 'video_call';
-    content = (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#6B7280', fontSize: 13 }}>
-        {isVideo ? <VideoCameraOutlined /> : <PhoneOutlined />}
-        <span>{isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'}</span>
-        {callInfo?.duration ? <span style={{ fontSize: 11 }}>· {callInfo.duration}s</span> : null}
-      </div>
-    );
-  } else if (jsonCall) {
-    const iconColor = '#22c55e';
+    const isMissed = callInfo?.direction === 'missed';
+    const isIncoming = callInfo?.direction === 'incoming';
+    const iconColor = isMissed ? '#ef4444' : isIncoming ? '#22c55e' : '#3b82f6';
+    const bgColor = isMissed ? '#fef2f2' : isIncoming ? '#f0fdf4' : '#eff6ff';
+    const dirLabel = isMissed ? 'nhỡ' : isIncoming ? 'đến' : 'đi';
     content = (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180, padding: '2px 0' }}>
-        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f0fdf4', border: `1.5px solid ${iconColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: bgColor, border: `1.5px solid ${iconColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {isVideo ? <VideoCameraOutlined style={{ color: iconColor, fontSize: 16 }} /> : <PhoneOutlined style={{ color: iconColor, fontSize: 16 }} />}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, color: isMissed ? '#ef4444' : '#1f2937', lineHeight: 1.3 }}>
+            {isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} {dirLabel}
+          </div>
+          {callInfo?.duration > 0 && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>▶ {parseDuration(callInfo.duration)}</div>}
+          {callInfo?.hasCallBack && <div style={{ marginTop: 5, display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#0068ff', border: '1px solid #0068ff', borderRadius: 12, padding: '2px 10px' }}>GỌI LẠI</div>}
+        </div>
+      </div>
+    );
+  } else if (jsonCall && jsonCall._type === 'call') {
+    const iconColor = jsonCall.missed ? '#ef4444' : jsonCall.isCaller ? '#3b82f6' : '#22c55e';
+    const bgColor = jsonCall.missed ? '#fef2f2' : jsonCall.isCaller ? '#eff6ff' : '#f0fdf4';
+    const dirLabel = jsonCall.missed ? 'nhỡ' : jsonCall.isCaller ? 'đi' : 'đến';
+    content = (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180, padding: '2px 0' }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', background: bgColor, border: `1.5px solid ${iconColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {jsonCall.isVideo ? <VideoCameraOutlined style={{ color: iconColor, fontSize: 16 }} /> : <PhoneOutlined style={{ color: iconColor, fontSize: 16 }} />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, color: '#1f2937', lineHeight: 1.3 }}>
-            {jsonCall.isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} {jsonCall.isCaller ? 'đi' : 'đến'}
+          <div style={{ fontWeight: 600, fontSize: 13, color: jsonCall.missed ? '#ef4444' : '#1f2937', lineHeight: 1.3 }}>
+            {jsonCall.isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} {dirLabel}
           </div>
           {jsonCall.duration > 0 && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>▶ {parseDuration(jsonCall.duration)}</div>}
           {jsonCall.hasCallback && <div style={{ marginTop: 5, display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#0068ff', border: '1px solid #0068ff', borderRadius: 12, padding: '2px 10px' }}>GỌI LẠI</div>}
         </div>
       </div>
     );
+  } else if (jsonCall && jsonCall._type === 'notification') {
+    content = (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6B7280', fontSize: 13, fontStyle: 'italic' }}>
+        <span>{jsonCall.label}</span>
+      </div>
+    );
+  } else if (jsonCall && jsonCall._type === 'sticker') {
+    content = <img src={jsonCall.url} alt="Sticker" style={{ maxWidth: 100, maxHeight: 100 }} onError={e => { e.target.style.display = 'none'; }} />;
+  } else if (jsonCall && jsonCall._type === 'gif') {
+    content = <img src={jsonCall.url} alt="GIF" style={{ maxWidth: 200, maxHeight: 200, borderRadius: 8 }} onError={e => { e.target.style.display = 'none'; }} />;
+  } else if (jsonCall && jsonCall._type === 'unsupported') {
+    content = <span style={{ color: '#9ca3af', fontSize: 12, fontStyle: 'italic' }}>[Tin nhắn không hỗ trợ]</span>;
   } else if (msg.imageUrl) {
     content = (
       <>
@@ -319,7 +360,7 @@ export default function HopThuZalo() {
                         {formatTime(conv.updatedAt)}
                       </span>
                     </div>
-                    <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                    <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', marginTop: 2, lineHeight: 1.4 }}>
                       {conv.lastMessage || <span style={{ fontStyle: 'italic', color: '#D1D5DB' }}>Chưa có tin nhắn</span>}
                     </div>
                   </div>

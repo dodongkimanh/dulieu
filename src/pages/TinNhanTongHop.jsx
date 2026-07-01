@@ -23,6 +23,18 @@ function formatTime(ts) {
   return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 }
 
+function formatMsgTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts > 1e12 ? ts : ts * 1000);
+  const now = new Date();
+  const time = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return `${time} Hôm qua`;
+  return `${time} ${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+}
+
 // Zalo service có thể trả time=0 hoặc là chuỗi tương đối trong lastMsg ("8 phút", "3 giờ").
 // Hàm này trả về timestamp tuyệt đối (giây) để sort đúng — mới nhất = số lớn nhất.
 function parseContactTime(c) {
@@ -65,9 +77,15 @@ function SessionStatusStrip({ sessionPills, sessionContacts }) {
     return s === 'logged_in' ? 'Online' : s === 'waiting_qr' ? 'Chờ QR' : s === 'loading' ? 'Đang tải' : 'Offline';
   };
 
+  const sorted = [...sessionPills].sort((a, b) => {
+    const aOn = a.status === 'logged_in' || a.status === 'waiting_qr' || a.status === 'loading' ? 0 : 1;
+    const bOn = b.status === 'logged_in' || b.status === 'waiting_qr' || b.status === 'loading' ? 0 : 1;
+    return aOn - bOn;
+  });
+
   return (
     <div className="zadmin-strip">
-      {sessionPills.map((u) => {
+      {sorted.map((u) => {
         const sc = statusClass(u);
         const count = (sessionContacts[u.username] || []).length;
         return (
@@ -97,7 +115,9 @@ function parseCallSticker(content) {
     if (d.title === 'sendBubbleMessage' || String(d.action || '').includes('call')) {
       let p = {};
       try { p = typeof d.params === 'string' ? JSON.parse(d.params) : (d.params || {}); } catch {}
-      return { _type: 'call', isVideo: p.calltype === 1, isCaller: !!p.isCaller, duration: p.duration || 0, hasCallback: !!p.isEnableCallback };
+      const duration = p.duration || 0;
+      const isCaller = !!p.isCaller;
+      return { _type: 'call', isVideo: p.calltype === 1, isCaller, duration, hasCallback: !!p.isEnableCallback, missed: !isCaller && duration === 0 };
     }
     if (d.type === 7 && d.catId != null) {
       return { _type: 'sticker', url: `https://zalo-sticker.zadn.vn/${d.catId}/${d.id}.png` };
@@ -144,15 +164,17 @@ function SpecialMsgContent({ content }) {
     return <div style={{ color: '#9ca3af', fontSize: 12, fontStyle: 'italic' }}>[Tin nhắn không hỗ trợ]</div>;
   }
   if (parsed._type === 'call') {
-    const iconColor = '#22c55e';
+    const iconColor = parsed.missed ? '#ef4444' : parsed.isCaller ? '#3b82f6' : '#22c55e';
+    const bgColor = parsed.missed ? '#fef2f2' : parsed.isCaller ? '#eff6ff' : '#f0fdf4';
+    const dirLabel = parsed.missed ? 'nhỡ' : parsed.isCaller ? 'đi' : 'đến';
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 180, padding: '2px 0' }}>
-        <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#f0fdf4', border: `1.5px solid ${iconColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ width: 38, height: 38, borderRadius: '50%', background: bgColor, border: `1.5px solid ${iconColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {parsed.isVideo ? <VideoCameraFilled style={{ color: iconColor, fontSize: 17 }} /> : <PhoneFilled style={{ color: iconColor, fontSize: 17 }} />}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, color: '#1f2937', lineHeight: 1.3 }}>
-            {parsed.isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} {parsed.isCaller ? 'đi' : 'đến'}
+          <div style={{ fontWeight: 600, fontSize: 13, color: parsed.missed ? '#ef4444' : '#1f2937', lineHeight: 1.3 }}>
+            {parsed.isVideo ? 'Cuộc gọi video' : 'Cuộc gọi thoại'} {dirLabel}
           </div>
           {parsed.duration > 0 && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 1 }}>▶ {parseDuration(parsed.duration)}</div>}
           {parsed.hasCallback && <div style={{ marginTop: 5, display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#0068ff', border: '1px solid #0068ff', borderRadius: 12, padding: '2px 10px' }}>GỌI LẠI</div>}
@@ -578,12 +600,12 @@ export default function TinNhanTongHop() {
         <div className="zalo-chat-area">
           {!activeConv ? (
             <div className="zalo-no-chat">
-              <MessageOutlined style={{ fontSize: 48, color: '#BFDBFE' }} />
-              <h3 style={{ color: '#374151', marginTop: 16 }}>Chọn một cuộc trò chuyện</h3>
-              <p style={{ color: '#9CA3AF' }}>
+              <MessageOutlined style={{ fontSize: 32, color: '#BFDBFE' }} />
+              <h3 style={{ color: '#374151', marginTop: 8, fontSize: 14 }}>Chọn một cuộc trò chuyện</h3>
+              <p style={{ color: '#9CA3AF', fontSize: 12 }}>
                 {allContacts.length === 0
-                  ? 'Chưa có tin nhắn nào. Nhân viên cần đăng nhập Zalo trước.'
-                  : 'Nhấn vào liên hệ bên trái để xem tin nhắn'}
+                  ? 'Chưa có tin nhắn nào.'
+                  : 'Nhấn vào liên hệ bên trái để xem'}
               </p>
             </div>
           ) : (
@@ -654,7 +676,7 @@ export default function TinNhanTongHop() {
                               {m.content && typeof m.content === 'string' && <div className="zalo-msg-content">{m.content}</div>}
                             </>
                           )}
-                          <span className="zalo-msg-time">{formatTime(m.time)}</span>
+                          <span className="zalo-msg-time">{formatMsgTime(m.time || m.timestamp)}</span>
                         </div>
                       </div>
                     );

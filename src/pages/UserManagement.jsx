@@ -52,7 +52,11 @@ export default function UserManagement() {
     try {
       const res = await authApi.getUsers();
       // Sort by role priority: ADMIN → KE_TOAN → SALER
-      const sorted = [...(res.data || [])].sort((a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9));
+      const sorted = [...(res.data || [])].sort((a, b) => {
+        // Active trước, bị khóa xuống dưới
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        return (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9);
+      });
       setUsers(sorted);
     } catch { message.error('Không thể tải danh sách tài khoản'); }
     finally { setLoading(false); }
@@ -231,13 +235,23 @@ export default function UserManagement() {
           </Tooltip>
         )}
         <Popconfirm
-          title={record.active ? 'Khóa tài khoản này?' : 'Mở khóa tài khoản này?'}
+          title={record.active ? 'Khóa tài khoản này? NV sẽ không đăng nhập được nữa.' : 'Mở khóa tài khoản này?'}
           onConfirm={() => handleToggle(record.id)}
           okText="Xác nhận" cancelText="Hủy"
         >
-          <Button type="text" size="small" danger={record.active} style={!record.active ? { color: '#059669' } : {}}>
-            {record.active ? 'Khóa' : 'Mở khóa'}
-          </Button>
+          <Tooltip title={record.active ? 'Khóa tài khoản' : 'Mở khóa'}>
+            <Button
+              type="text"
+              size="small"
+              icon={record.active ? <LockOutlined /> : <CheckCircleOutlined />}
+              style={{
+                color: record.active ? '#EF4444' : '#10B981',
+                fontSize: 16,
+                width: 32,
+                height: 32,
+              }}
+            />
+          </Tooltip>
         </Popconfirm>
         <Popconfirm
           title={<span style={{ color: '#DC2626', fontWeight: 600 }}>Xóa tài khoản "{record.fullName || record.username}"?</span>}
@@ -257,29 +271,29 @@ export default function UserManagement() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-      <div className="page-header-premium">
-        <div className="page-header-left">
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} size="large" className="create-btn-premium">Tạo tài khoản</Button>
-          <div className="page-header-info">
-            <UserOutlined style={{ fontSize: 20, color: '#4F46E5' }} />
-            <span className="page-header-title-text">Quản lý tài khoản</span>
-          </div>
+      <div className="page-header-premium" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate} className="create-btn-premium" style={{ width: 'auto', flexShrink: 0 }}>Tạo tài khoản</Button>
+        <div className="page-header-info" style={{ flexShrink: 0 }}>
+          <UserOutlined style={{ fontSize: 18, color: '#4F46E5' }} />
+          <span className="page-header-title-text">Quản lý tài khoản</span>
         </div>
-        <div className="page-header-right" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1, minWidth: 0 }}>
           <Input
-            placeholder="Tìm tài khoản / họ tên..."
+            placeholder="Tìm tài kh..."
             prefix={<UserOutlined style={{ color: '#94A3B8' }} />}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             allowClear
-            style={{ width: 220 }}
+            style={{ flex: 1, minWidth: 80 }}
+            size="small"
           />
           <Select
             placeholder="Vai trò"
             value={roleFilter}
             onChange={(v) => setRoleFilter(v)}
             allowClear
-            style={{ width: 170 }}
+            style={{ width: 110, flexShrink: 0 }}
+            size="small"
           >
             <Option value="ADMIN"><Tag style={{ background: '#EDE9FE', color: '#7C3AED', border: 'none', fontWeight: 600 }}>Quản trị viên</Tag></Option>
             <Option value="KE_TOAN"><Tag style={{ background: '#DBEAFE', color: '#2563EB', border: 'none', fontWeight: 600 }}>Kế toán</Tag></Option>
@@ -301,15 +315,23 @@ export default function UserManagement() {
           columns={columns}
           rowKey="id"
           loading={loading}
+          rowClassName={(record) => record.active ? '' : 'row-locked-user'}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50'],
-            showTotal: (total) => `Tổng ${total} tài khoản`,
+            showTotal: (total) => {
+              const locked = filteredUsers.filter(u => !u.active).length;
+              return `Tổng ${total} tài khoản${locked > 0 ? ` (${locked} đã khóa)` : ''}`;
+            },
             size: 'small',
           }}
           size="middle"
         />
+        <style>{`
+          .row-locked-user td { opacity: 0.5; background: #FEF2F2 !important; }
+          .row-locked-user:hover td { opacity: 0.8; }
+        `}</style>
       </motion.div>
 
       <Modal
@@ -369,10 +391,10 @@ export default function UserManagement() {
               </Option>
             </Select>
           </Form.Item>
-          {(watchRole === 'LAI_XE' || watchRole === 'NHAN_VIEN' || watchRole === 'SALER') && (
+          {(watchRole === 'LAI_XE' || watchRole === 'NHAN_VIEN' || watchRole === 'SALER' || watchRole === 'KE_TOAN') && (
             <Form.Item name="nhanVienId"
-              label={watchRole === 'SALER' ? 'Liên kết nhân viên (để xem CC + lương của mình)' : 'Liên kết nhân viên'}
-              rules={watchRole === 'SALER' ? [] : [{ required: true, message: 'Chọn nhân viên để liên kết' }]}
+              label="Liên kết nhân viên (để xem CC + lương của mình)"
+              rules={watchRole === 'LAI_XE' ? [{ required: true, message: 'Chọn nhân viên để liên kết' }] : []}
             >
               <Select placeholder="Chọn nhân viên..." showSearch optionFilterProp="label" allowClear
                 options={nhanVienList
@@ -492,8 +514,8 @@ export default function UserManagement() {
               message={<span><b>Nhân viên Sale</b> giữ đầy đủ menu. Liên kết nhân viên bên dưới để họ cũng xem được chấm công và bảng lương của mình.</span>}
             />
           )}
-          {(watchEditRole === 'LAI_XE' || watchEditRole === 'NHAN_VIEN' || watchEditRole === 'SALER') && (
-            <Form.Item name="nhanVienId" label="Liên kết nhân viên (để xem CC + lương của mình)">
+          {(watchEditRole === 'LAI_XE' || watchEditRole === 'NHAN_VIEN' || watchEditRole === 'SALER' || watchEditRole === 'KE_TOAN') && (
+            <Form.Item name="nhanVienId" label="Liên kết nhân viên (để xác nhận lương của mình)">
               <Select placeholder="Chọn nhân viên..." showSearch optionFilterProp="label" allowClear
                 options={nhanVienList
                   .filter(nv => watchEditRole === 'LAI_XE' ? nv.chucVu === 'LAI_XE' : true)

@@ -47,7 +47,6 @@ const vnd = (v) => Number(v || 0).toLocaleString('vi-VN');
 const COLUMNS_DEFAULT = [
   { key: 'stt', label: 'STT', width: 36, type: 'index' },
   { key: 'ngay', label: 'Ngày', width: 100, type: 'date' },
-  { key: 'maHoaDon', label: 'Mã Hóa Đơn', width: 100, type: 'text', style: { fontWeight: 600, color: '#4F46E5' } },
   { key: 'maDatHang', label: 'Mã Đặt Hàng', width: 100, type: 'text' },
   { key: 'khachHang', label: 'Khách Hàng', width: 130, type: 'text' },
   { key: 'sdt', label: 'SĐT', width: 100, type: 'text' },
@@ -76,7 +75,7 @@ const COLUMNS_DEFAULT = [
 export default function NhapLieu() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 9999, total: 0 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 200, total: 0 });
   const [backendTotals, setBackendTotals] = useState(null);
   const [salesList, setSalesList] = useState([]);
   const [editedRows, setEditedRows] = useState({});
@@ -180,7 +179,7 @@ export default function NhapLieu() {
     filteredData.map(row => ({ ...row, ...(localEdits[row.id] || {}) })),
   [filteredData, localEdits]);
 
-  const fetchData = useCallback(async (pg = 1, size = 9999, kw = keyword) => {
+  const fetchData = useCallback(async (pg = 1, size = 200, kw = keyword) => {
     setLoading(true);
     try {
       const params = {
@@ -255,6 +254,7 @@ export default function NhapLieu() {
       if (payload.ngay && payload.ngay.format) payload.ngay = payload.ngay.format('YYYY-MM-DD');
       await donHangApi.update(record.id, payload);
       message.success(`Đã lưu đơn ${record.maHoaDon || record.id}`);
+      setData(prev => prev.map(r => r.id === record.id ? { ...r, ...edit, ngay: payload.ngay } : r));
       setEditedRows(prev => { const n = { ...prev }; delete n[record.id]; return n; });
       setLocalEdits(prev => { const n = { ...prev }; delete n[record.id]; return n; });
     } catch { message.error('Lỗi khi lưu'); }
@@ -265,19 +265,25 @@ export default function NhapLieu() {
     const editedIds = Object.keys(editedRows);
     if (editedIds.length === 0) { message.info('Không có thay đổi'); return; }
     setSaving(true);
-    let success = 0;
-    for (const id of editedIds) {
+    const savedEdits = {};
+    const promises = editedIds.map(id => {
       const row = data.find(r => r.id === Number(id));
-      if (!row) continue;
-      try {
-        const edit = localEdits[Number(id)] || {};
-        const payload = { ...row, ...edit };
-        if (payload.ngay && payload.ngay.format) payload.ngay = payload.ngay.format('YYYY-MM-DD');
-        await donHangApi.update(row.id, payload);
-        success++;
-      } catch {}
-    }
+      if (!row) return Promise.resolve(null);
+      const edit = localEdits[Number(id)] || {};
+      const payload = { ...row, ...edit };
+      if (payload.ngay && payload.ngay.format) payload.ngay = payload.ngay.format('YYYY-MM-DD');
+      return donHangApi.update(row.id, payload).then(() => {
+        savedEdits[Number(id)] = { ...edit, ngay: payload.ngay };
+        return true;
+      }).catch(() => false);
+    });
+    const results = await Promise.allSettled(promises);
+    const success = results.filter(r => r.status === 'fulfilled' && r.value === true).length;
     message.success(`Đã lưu ${success}/${editedIds.length} đơn hàng`);
+    setData(prev => prev.map(r => {
+      const edit = savedEdits[r.id];
+      return edit ? { ...r, ...edit } : r;
+    }));
     setEditedRows({});
     setLocalEdits({});
     setSaving(false);
@@ -564,7 +570,7 @@ export default function NhapLieu() {
 
   const renderSummaryCell = (col) => {
     if (col.type === 'index') return <span className="nl-summary-label">Σ</span>;
-    if (col.key === 'ngay' || col.key === 'maHoaDon' || col.key === 'maDatHang' || col.key === 'khachHang' || col.key === 'sdt' || col.key === 'sale' || col.key === 'tinhTrang' || col.key === 'huongDoanhSo' || col.key === 'page' || col.key === 'maIdQuangCao' || col.key === 'ghiChu') return null;
+    if (col.key === 'ngay' || col.key === 'maDatHang' || col.key === 'khachHang' || col.key === 'sdt' || col.key === 'sale' || col.key === 'tinhTrang' || col.key === 'huongDoanhSo' || col.key === 'page' || col.key === 'maIdQuangCao' || col.key === 'ghiChu') return null;
     if (col.type === 'computed-pct') return null;
     const val = summary[col.key];
     if (val === undefined) return null;
@@ -819,11 +825,6 @@ export default function NhapLieu() {
       >
         <Form form={editForm} layout="vertical" size="middle">
           <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item label="Mã Hóa Đơn" name="maHoaDon">
-                <Input style={{ fontWeight: 700, color: '#4F46E5' }} placeholder="Để trống sẽ tự tạo" />
-              </Form.Item>
-            </Col>
             <Col span={8}>
               <Form.Item label="Ngày" name="ngay">
                 <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />

@@ -1,6 +1,8 @@
 ﻿import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
 import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox, Badge, Spin, Avatar, Progress } from 'antd';
 
 const AnimatedDiv = motion.div;
@@ -29,7 +31,7 @@ import {
   FireOutlined,
   DownloadOutlined,
 } from '@ant-design/icons';
-import { khachHangApi, authApi, kenhTiepThiApi, zaloContactApi, callRecordingApi } from '../api';
+import { khachHangApi, authApi, kenhTiepThiApi, zaloContactApi, callRecordingApi, transferHistoryApi, audioApi } from '../api';
 import dayjs from 'dayjs';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -191,9 +193,22 @@ function maskPhone(phone) {
 
 function PhoneDisplay({ phone, masked }) {
   const display = masked ? maskPhone(phone) : (phone || '—');
+  if (!masked && phone) {
+    const digits = phone.replace(/\D/g, '');
+    return (
+      <a
+        href={`tel:${digits}`}
+        className="phone-masked"
+        onClick={(e) => e.stopPropagation()}
+        style={{ color: '#2563EB', textDecoration: 'none', fontWeight: 600 }}
+      >
+        {display}
+      </a>
+    );
+  }
   return (
     <span
-      className={`no-select phone-masked${masked ? '' : ''}`}
+      className={`no-select phone-masked`}
       onContextMenu={(e) => e.preventDefault()}
       title={masked ? 'Số điện thoại đã được ẩn' : undefined}
     >
@@ -210,6 +225,8 @@ const LOAI_MESS_OPTIONS = [
   { value: 'mess_moi', label: 'Mess Mới', color: '#10B981', bg: '#D1FAE5' },
   { value: 'mess_cu', label: 'Mess Cũ', color: '#F59E0B', bg: '#FFFBEB' },
   { value: 'mess_spam', label: 'Mess Spam', color: '#EF4444', bg: '#FEE2E2' },
+  { value: 'mess_so_noi', label: 'Mess Số Nổi', color: '#F97316', bg: '#FFF7ED' },
+  { value: 'mess_phan_cong', label: 'Mess Được Phân Công', color: '#06B6D4', bg: '#ECFEFF' },
 ];
 
 const statusColors = {
@@ -240,6 +257,7 @@ export default function KhachHang() {
   }));
   const [activeTab, setActiveTab] = useState('all');
   const [dateRange, setDateRange] = useState(null);
+  const [dateModalOpen, setDateModalOpen] = useState(false);
   const [hasSdt, setHasSdt] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
@@ -271,6 +289,9 @@ export default function KhachHang() {
   const phonebookCacheRef = useRef({});
   const msgPollerRef = useRef(null);
   const [newMsgCount, setNewMsgCount] = useState(0);
+
+  const [transferHistoryCache, setTransferHistoryCache] = useState({});
+  const [allZaloContacts, setAllZaloContacts] = useState({});
 
   const [khoSoNoiData, setKhoSoNoiData] = useState([]);
   const [khoSoNoiLoading, setKhoSoNoiLoading] = useState(false);
@@ -468,7 +489,6 @@ export default function KhachHang() {
       setZaloData(prev => {
         const next = { ...prev };
         fetched.forEach(zc => {
-          // Always load from DB unless a fresh sync already set this entry
           if (!next[zc.khachHangId] || next[zc.khachHangId].fromDb) {
             next[zc.khachHangId] = {
               contact: { id: zc.zaloId, name: zc.displayName, avatar: zc.avatar },
@@ -479,8 +499,33 @@ export default function KhachHang() {
         });
         return next;
       });
+      setAllZaloContacts(prev => {
+        const next = { ...prev };
+        fetched.forEach(zc => {
+          if (!next[zc.khachHangId]) next[zc.khachHangId] = [];
+          const existing = next[zc.khachHangId].find(c => c.sessionId === zc.sessionId);
+          if (existing) {
+            Object.assign(existing, { zaloId: zc.zaloId, displayName: zc.displayName, avatar: zc.avatar });
+          } else {
+            next[zc.khachHangId] = [...next[zc.khachHangId], { sessionId: zc.sessionId, zaloId: zc.zaloId, displayName: zc.displayName, avatar: zc.avatar }];
+          }
+        });
+        return next;
+      });
     } catch {}
   }, []);
+
+  const fetchTransferHistory = useCallback(async (khachHangId) => {
+    if (transferHistoryCache[khachHangId]) return transferHistoryCache[khachHangId];
+    try {
+      const res = await transferHistoryApi.getByKhachHang(khachHangId);
+      const history = res.data || [];
+      setTransferHistoryCache(prev => ({ ...prev, [khachHangId]: history }));
+      return history;
+    } catch {
+      return [];
+    }
+  }, [transferHistoryCache]);
 
   useEffect(() => {
     fetchData();
@@ -731,10 +776,14 @@ export default function KhachHang() {
   };
 
   const handleAudioIconClick = async (record) => {
-    setAudioModal({ open: true, record, recordings: [], loading: true, uploading: false, uploadProgress: 0 });
+    const filterSale = record._filterSale || null;
+    setAudioModal({ open: true, record, recordings: [], loading: true, uploading: false, uploadProgress: 0, filterSale });
     try {
       const res = await callRecordingApi.getByKhachHang(record.id);
-      const recs = res.data || [];
+      let recs = res.data || [];
+      if (filterSale) {
+        recs = recs.filter(r => r.saleName === filterSale || (!r.saleName && !filterSale));
+      }
       setAudioModal(prev => ({ ...prev, recordings: recs, loading: false }));
       setRecordingCounts(prev => {
         const next = { ...prev, [record.id]: recs.length };
@@ -757,6 +806,8 @@ export default function KhachHang() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('khachHangId', record.id);
+      if (record._filterSale) formData.append('saleName', record._filterSale);
+      else if (record.sale) formData.append('saleName', record.sale);
       await callRecordingApi.upload(formData, {
         onUploadProgress: (e) => {
           const pct = e.total ? Math.round((e.loaded * 100) / e.total) : 0;
@@ -887,7 +938,7 @@ export default function KhachHang() {
       </Select>
     )},
     { title: 'Sale', dataIndex: 'sale', _defaultWidth: 90, ellipsis: true },
-    { title: 'Kênh Tiếp Thị', dataIndex: 'page', _defaultWidth: 170, ellipsis: true, render: (v) => v ? <Tooltip title={v}><Tag style={{ background: '#F5F3FF', color: '#7C3AED', border: 'none', fontWeight: 500, borderRadius: 6, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</Tag></Tooltip> : <span style={{ color: '#CBD5E1' }}>—</span> },
+    { title: 'Kênh Tiếp Thị', dataIndex: 'page', _defaultWidth: 170, ellipsis: true, render: (v) => v ? <Tag style={{ background: '#F5F3FF', color: '#7C3AED', border: 'none', fontWeight: 500, borderRadius: 6, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v}</Tag> : <span style={{ color: '#CBD5E1' }}>—</span> },
     ...(activeTab === 'assigned' ? [{
       title: 'Chuyển từ', dataIndex: 'assignedFrom', _defaultWidth: 110,
       render: (v) => v ? <Tag color="cyan">{v}</Tag> : '—'
@@ -928,7 +979,7 @@ export default function KhachHang() {
         />
       );
     }},
-    { title: '', width: canManage ? 168 : (isSaler ? 98 : 108), fixed: 'right', render: (_, record) => {
+    { title: '', width: canManage ? 168 : (isSaler ? 98 : 108), render: (_, record) => {
       const savedStatus = statusColors[record.status] ? record.status : 'moi';
       const originalNote = record.mess && record.mess !== 'EMPTY' && record.mess !== 'Mes Mới' ? record.mess : '';
       const hasChanges = (pendingStatus[record.id] !== undefined && pendingStatus[record.id] !== savedStatus)
@@ -1008,38 +1059,374 @@ export default function KhachHang() {
     };
   });
 
-  const expandedRowRender = (record) => (
-    <div className="expand-detail-grid">
-      <div className="expand-section">
-        <div className="expand-section-title"><UserOutlined /> Thông tin khách hàng</div>
-        <div className="expand-items">
-          <div className="expand-item"><span className="expand-label">Khách hàng</span><span className="expand-value no-select" onContextMenu={(e) => e.preventDefault()}>{record.khachHang || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">SĐT</span><span className="expand-value"><PhoneDisplay phone={record.sdt} masked={false} /></span></div>
-          <div className="expand-item"><span className="expand-label">Sale</span><span className="expand-value">{record.sale || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">Loại Mess</span><span className="expand-value">{LOAI_MESS_OPTIONS.find(o => o.value === (record.loaiMess || 'mess_moi'))?.label || 'Mess Mới'}</span></div>
-          {record.assignedFrom && <div className="expand-item"><span className="expand-label">Chuyển từ</span><span className="expand-value" style={{ color: '#06B6D4', fontWeight: 600 }}>{record.assignedFrom}</span></div>}
-          <div className="expand-item"><span className="expand-label">UID</span><span className="expand-value">{record.uid || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">Ad ID</span><span className="expand-value">{record.adId || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">ID Trang</span><span className="expand-value">{record.idTrang || '—'}</span></div>
+  function AudioSyncSection({ record }) {
+    const [syncResults, setSyncResults] = useState([]);
+    const [syncLoading, setSyncLoading] = useState(false);
+    const [syncMode, setSyncMode] = useState(null);
+    const [showResults, setShowResults] = useState(false);
+
+    const doSync = async (mode) => {
+      setSyncLoading(true);
+      setSyncMode(mode);
+      setShowResults(true);
+      try {
+        let res;
+        if (mode === 'phone' && record.sdt) {
+          res = await audioApi.search({ phone: record.sdt });
+        } else if (mode === 'zalo') {
+          const zInfo = zaloData[record.id];
+          const zaloName = zInfo?.contact?.name || record.khachHang;
+          res = await audioApi.search({ name: zaloName });
+        } else {
+          res = await audioApi.getUnlinked();
+        }
+        setSyncResults(res.data || []);
+        if ((res.data || []).length === 0) {
+          message.info(mode === 'phone' ? 'Không tìm thấy ghi âm khớp SĐT' : mode === 'zalo' ? 'Không tìm thấy ghi âm khớp tên Zalo' : 'Không có ghi âm chưa liên kết');
+        }
+      } catch { message.error('Lỗi tìm kiếm'); setSyncResults([]); }
+      finally { setSyncLoading(false); }
+    };
+
+    const handleLink = async (recId) => {
+      try {
+        await audioApi.linkToCustomer(recId, record.id);
+        message.success('Đã liên kết ghi âm');
+        setSyncResults(prev => prev.filter(r => r.id !== recId));
+      } catch { message.error('Lỗi liên kết'); }
+    };
+
+    const handleAutoSync = async () => {
+      try {
+        const res = await audioApi.syncToCustomer(record.id);
+        const linked = res.data?.linked || 0;
+        message.success(linked > 0 ? `Tự động liên kết ${linked} bản ghi âm` : 'Không tìm thấy ghi âm khớp');
+      } catch { message.error('Lỗi đồng bộ'); }
+    };
+
+    return (
+      <div className="expand-section" style={{ gridColumn: '1 / -1' }}>
+        <div className="expand-section-title"><AudioOutlined /> Đồng bộ ghi âm cuộc gọi</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, padding: '8px 0' }}>
+          <Tooltip title="Tự động tìm và liên kết ghi âm theo SĐT">
+            <Button size="small" icon={<SyncOutlined />} onClick={handleAutoSync}
+              style={{ borderColor: '#7C3AED', color: '#7C3AED', borderRadius: 6 }}>
+              Tự động
+            </Button>
+          </Tooltip>
+          {record.sdt && (
+            <Tooltip title={`Tìm ghi âm có SĐT ${record.sdt}`}>
+              <Button size="small" icon={<PhoneOutlined />} onClick={() => doSync('phone')} loading={syncLoading && syncMode === 'phone'}
+                style={{ borderColor: '#0891B2', color: '#0891B2', borderRadius: 6 }}>
+                Tìm theo SĐT
+              </Button>
+            </Tooltip>
+          )}
+          <Tooltip title="Tìm ghi âm theo tên Zalo/tên khách">
+            <Button size="small" icon={<MessageOutlined />} onClick={() => doSync('zalo')} loading={syncLoading && syncMode === 'zalo'}
+              style={{ borderColor: '#F59E0B', color: '#F59E0B', borderRadius: 6 }}>
+              Tìm theo Zalo
+            </Button>
+          </Tooltip>
+          <Tooltip title="Xem tất cả ghi âm chưa liên kết để chọn thủ công">
+            <Button size="small" icon={<AudioOutlined />} onClick={() => doSync('all')} loading={syncLoading && syncMode === 'all'}
+              style={{ borderColor: '#6B7280', color: '#6B7280', borderRadius: 6 }}>
+              Chọn thủ công
+            </Button>
+          </Tooltip>
+        </div>
+
+        {showResults && (
+          <div style={{ marginTop: 4, maxHeight: 250, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8, background: '#FAFAFA' }}>
+            {syncLoading ? (
+              <div style={{ padding: 20, textAlign: 'center' }}><Spin size="small" /> <span style={{ color: '#9CA3AF', fontSize: 12 }}>Đang tìm...</span></div>
+            ) : syncResults.length === 0 ? (
+              <div style={{ padding: 16, textAlign: 'center', color: '#9CA3AF', fontSize: 12 }}>Không tìm thấy ghi âm phù hợp</div>
+            ) : (
+              syncResults.map(rec => (
+                <div key={rec.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid #F1F5F9', fontSize: 12 }}>
+                  <Tag style={{ background: rec.callType === 'ZALO' ? '#DCFCE7' : '#DBEAFE', color: rec.callType === 'ZALO' ? '#15803D' : '#1D4ED8', border: 'none', fontWeight: 600, borderRadius: 4, margin: 0, fontSize: 10 }}>{rec.callType}</Tag>
+                  <span style={{ fontFamily: 'monospace', color: '#0891B2', minWidth: 90 }}>{rec.phone || '—'}</span>
+                  <span style={{ color: '#374151', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rec.customerName || rec.zaloName || '—'}</span>
+                  <span style={{ color: '#9CA3AF', fontSize: 11, flexShrink: 0 }}>{rec.recordedAt ? dayjs(rec.recordedAt).format('DD/MM HH:mm') : ''}</span>
+                  {rec.fileUrl && <audio controls preload="none" style={{ height: 28, width: 150, flexShrink: 0 }}><source src={rec.fileUrl.startsWith('http') ? rec.fileUrl : `${API_BASE}${rec.fileUrl}`} /></audio>}
+                  <Button type="primary" size="small" onClick={() => handleLink(rec.id)}
+                    style={{ background: '#10B981', borderColor: '#10B981', borderRadius: 4, fontSize: 11, height: 24, flexShrink: 0 }}>
+                    Liên kết
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const ExpandedRowContent = memo(function ExpandedRowContent({ record }) {
+    const [history, setHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(true);
+
+    useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        setHistoryLoading(true);
+        const cached = transferHistoryCache[record.id];
+        if (cached) {
+          setHistory(cached);
+          setHistoryLoading(false);
+          return;
+        }
+        const h = await fetchTransferHistory(record.id);
+        if (!cancelled) {
+          setHistory(h);
+          setHistoryLoading(false);
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [record.id]);
+
+    const normStr = s => (s || '').replace(/\s+/g, ' ').trim();
+    const getSessionForSale = (saleName) => {
+      const saleUser = allCrmUsers.find(u => normStr(u.fullName) === normStr(saleName));
+      return saleUser?.username || (isSaler ? user?.username : null) || saleName || 'default';
+    };
+
+    const customerZaloContacts = allZaloContacts[record.id] || [];
+
+    const getZaloForSession = (sessionId) => {
+      return customerZaloContacts.find(c => c.sessionId === sessionId);
+    };
+
+    const handleZaloSyncForSale = async (saleName) => {
+      if (!record.sdt) {
+        message.warning('Khách hàng không có số điện thoại');
+        return;
+      }
+      const sessionId = getSessionForSale(saleName);
+      try {
+        const resp = await fetch(
+          `${ZALO_SERVICE}/search?session=${encodeURIComponent(sessionId)}&q=${encodeURIComponent(record.sdt)}`
+        );
+        if (!resp.ok) { message.error('Không thể tìm Zalo'); return; }
+        const contacts = await resp.json();
+        if (Array.isArray(contacts) && contacts.length > 0) {
+          const contact = contacts[0];
+          setAllZaloContacts(prev => {
+            const next = { ...prev };
+            if (!next[record.id]) next[record.id] = [];
+            const existing = next[record.id].find(c => c.sessionId === sessionId);
+            if (existing) {
+              Object.assign(existing, { zaloId: contact.id, displayName: contact.name, avatar: contact.avatar });
+            } else {
+              next[record.id] = [...next[record.id], { sessionId, zaloId: contact.id, displayName: contact.name, avatar: contact.avatar }];
+            }
+            return next;
+          });
+          zaloContactApi.syncBatch([{
+            khachHangId: record.id, sessionId,
+            zaloId: contact.id, displayName: contact.name, avatar: contact.avatar || null,
+          }]).catch(() => {});
+          message.success(`Đồng bộ Zalo thành công cho ${saleName}`);
+        } else {
+          message.info('Không tìm thấy trên Zalo');
+        }
+      } catch {
+        message.error('Lỗi khi đồng bộ Zalo');
+      }
+    };
+
+    const handleViewZaloForSale = (saleName) => {
+      const sessionId = getSessionForSale(saleName);
+      const zc = getZaloForSession(sessionId);
+      if (!zc) return;
+      const zInfo = { contact: { id: zc.zaloId, name: zc.displayName, avatar: zc.avatar }, saleSession: sessionId };
+      stopMsgPoller();
+      setNewMsgCount(0);
+      setZaloPopup({ open: true, record, contact: zInfo.contact, messages: [], loading: true });
+
+      (async () => {
+        try {
+          const resp = await fetch(
+            `${ZALO_SERVICE}/messages-db?session=${encodeURIComponent(sessionId)}&contactId=${encodeURIComponent(zc.zaloId)}`
+          );
+          const msgs = await resp.json();
+          setZaloPopup(prev => ({ ...prev, messages: Array.isArray(msgs) ? msgs : [], loading: false }));
+          msgPollerRef.current = setInterval(async () => {
+            try {
+              const r2 = await fetch(
+                `${ZALO_SERVICE}/messages-db?session=${encodeURIComponent(sessionId)}&contactId=${encodeURIComponent(zc.zaloId)}`
+              );
+              if (!r2.ok) return;
+              const latest = await r2.json();
+              if (!Array.isArray(latest)) return;
+              setZaloPopup(prev => {
+                if (latest.length <= prev.messages.length) return prev;
+                setNewMsgCount(n => n + (latest.length - prev.messages.length));
+                return { ...prev, messages: latest };
+              });
+            } catch {}
+          }, 5000);
+        } catch {
+          message.error('Không thể tải tin nhắn Zalo');
+          setZaloPopup(prev => ({ ...prev, loading: false }));
+        }
+      })();
+    };
+
+    const handleRecordingForSale = (saleName) => {
+      handleAudioIconClick({ ...record, _filterSale: saleName });
+    };
+
+    const typeLabel = (type) => {
+      switch (type) {
+        case 'kho_noi': return 'Nhận từ Kho Nổi';
+        case 'transfer': return 'Chuyển Sale';
+        default: return 'Chuyển Sale';
+      }
+    };
+
+    const typeColor = (type) => {
+      switch (type) {
+        case 'kho_noi': return { color: '#F97316', bg: '#FFF7ED' };
+        case 'transfer': return { color: '#06B6D4', bg: '#ECFEFF' };
+        default: return { color: '#6B7280', bg: '#F3F4F6' };
+      }
+    };
+
+    return (
+      <div className="expand-detail-grid">
+        <div className="expand-section">
+          <div className="expand-section-title"><UserOutlined /> Thông tin khách hàng</div>
+          <div className="expand-items">
+            <div className="expand-item"><span className="expand-label">Khách hàng</span><span className="expand-value no-select" onContextMenu={(e) => e.preventDefault()}>{record.khachHang || '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">SĐT</span><span className="expand-value"><PhoneDisplay phone={record.sdt} masked={false} /></span></div>
+            <div className="expand-item"><span className="expand-label">Sale</span><span className="expand-value">{record.sale || '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">Loại Mess</span><span className="expand-value">{LOAI_MESS_OPTIONS.find(o => o.value === (record.loaiMess || 'mess_moi'))?.label || 'Mess Mới'}</span></div>
+            {record.assignedFrom && <div className="expand-item"><span className="expand-label">Chuyển từ</span><span className="expand-value" style={{ color: '#06B6D4', fontWeight: 600 }}>{record.assignedFrom}</span></div>}
+            <div className="expand-item"><span className="expand-label">UID</span><span className="expand-value">{record.uid || '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">Ad ID</span><span className="expand-value">{record.adId || '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">ID Trang</span><span className="expand-value">{record.idTrang || '—'}</span></div>
+          </div>
+        </div>
+        <div className="expand-section">
+          <div className="expand-section-title"><InfoCircleOutlined /> Nguồn & Trạng thái</div>
+          <div className="expand-items">
+            <div className="expand-item"><span className="expand-label">Page</span><span className="expand-value">{record.page || '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">Trạng thái</span><span className="expand-value" style={{ color: statusColors[record.status]?.color, fontWeight: 700 }}>{statusColors[record.status]?.label || record.status || '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">Ghi chú</span><span className="expand-value">{(record.mess && record.mess !== 'EMPTY' && record.mess !== 'Mes Mới') ? record.mess : '—'}</span></div>
+          </div>
+        </div>
+        <div className="expand-section">
+          <div className="expand-section-title"><ClockCircleOutlined /> Thời gian</div>
+          <div className="expand-items">
+            <div className="expand-item"><span className="expand-label">Ngày tháng</span><span className="expand-value">{record.ngayThang ? dayjs(record.ngayThang).format('DD/MM/YYYY') : '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">Ngày tạo</span><span className="expand-value">{record.createdAt ? dayjs(record.createdAt).format('DD/MM/YYYY HH:mm') : '—'}</span></div>
+          </div>
+        </div>
+
+        {/* Đồng bộ ghi âm từ điện thoại */}
+        {isAdmin && <AudioSyncSection record={record} />}
+
+        {/* Lịch sử chuyển Sale */}
+        <div className="expand-section" style={{ gridColumn: '1 / -1' }}>
+          <div className="expand-section-title"><SwapOutlined /> Lịch sử chuyển Sale</div>
+          {historyLoading ? (
+            <div style={{ padding: 16, textAlign: 'center' }}><Spin size="small" /><span style={{ marginLeft: 8, color: '#9CA3AF', fontSize: 12 }}>Đang tải...</span></div>
+          ) : history.length === 0 ? (
+            <div style={{ padding: '12px 0', color: '#9CA3AF', fontSize: 12 }}>Chưa có lịch sử chuyển sale</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative', paddingLeft: 16 }}>
+              {/* Timeline line */}
+              <div style={{ position: 'absolute', left: 22, top: 12, bottom: 12, width: 2, background: 'linear-gradient(to bottom, #C7D2FE, #06B6D4, #10B981)', borderRadius: 1 }} />
+              {history.map((h, idx) => {
+                const tc = typeColor(h.transferType);
+                const sessionId = getSessionForSale(h.saleName);
+                const zc = getZaloForSession(sessionId);
+                const isLast = idx === history.length - 1;
+                return (
+                  <div key={h.id} style={{ display: 'flex', gap: 14, padding: '10px 0', position: 'relative', alignItems: 'flex-start' }}>
+                    {/* Timeline dot */}
+                    <div style={{
+                      width: 14, height: 14, borderRadius: '50%', flexShrink: 0, marginTop: 2, zIndex: 1,
+                      background: isLast ? '#10B981' : tc.color,
+                      border: `2px solid ${isLast ? '#D1FAE5' : tc.bg}`,
+                      boxShadow: isLast ? '0 0 0 3px #D1FAE5' : 'none',
+                    }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <Tag style={{
+                          background: tc.bg, color: tc.color, border: 'none',
+                          fontWeight: 600, fontSize: 11, borderRadius: 6, margin: 0, padding: '1px 8px',
+                        }}>
+                          {typeLabel(h.transferType)}
+                        </Tag>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: '#1F2937' }}>
+                          {h.saleName}
+                        </span>
+                        {h.fromSale && (
+                          <span style={{ fontSize: 12, color: '#9CA3AF' }}>
+                            (từ <span style={{ color: '#EF4444', fontWeight: 500 }}>{h.fromSale}</span>)
+                          </span>
+                        )}
+                        {isLast && (
+                          <Tag style={{ background: '#D1FAE5', color: '#15803D', border: 'none', fontWeight: 600, fontSize: 10, borderRadius: 6, margin: 0, padding: '0px 6px' }}>
+                            Hiện tại
+                          </Tag>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                        {h.transferredAt ? dayjs(h.transferredAt).format('DD/MM/YYYY HH:mm') : ''}
+                        {h.note && <span style={{ marginLeft: 8, color: '#6B7280' }}>· {h.note}</span>}
+                      </div>
+                      {/* Zalo + Recording buttons per sale */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                        {zc ? (
+                          <Tooltip title={`Xem Zalo: ${zc.displayName}`}>
+                            <Button
+                              type="text" size="small"
+                              icon={<ZaloIcon size={14} />}
+                              onClick={() => handleViewZaloForSale(h.saleName)}
+                              style={{ color: '#0068FF', padding: '0 6px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, height: 26, borderRadius: 6, background: '#EFF6FF' }}
+                            >
+                              <span style={{ fontSize: 11 }}>{zc.displayName}</span>
+                            </Button>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip title={`Đồng bộ Zalo cho ${h.saleName}`}>
+                            <Button
+                              type="dashed" size="small"
+                              icon={<SyncOutlined style={{ fontSize: 12 }} />}
+                              onClick={() => handleZaloSyncForSale(h.saleName)}
+                              style={{ fontSize: 11, height: 26, borderRadius: 6, color: '#0068FF', borderColor: '#93C5FD' }}
+                            >
+                              Đồng bộ Zalo
+                            </Button>
+                          </Tooltip>
+                        )}
+                        <Tooltip title={`Bản ghi âm - ${h.saleName}`}>
+                          <Button
+                            type="text" size="small"
+                            icon={<AudioOutlined style={{ fontSize: 12 }} />}
+                            onClick={() => handleRecordingForSale(h.saleName)}
+                            style={{ color: '#7C3AED', padding: '0 6px', height: 26, borderRadius: 6, background: '#FAF5FF', fontSize: 11 }}
+                          >
+                            Ghi âm
+                          </Button>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
-      <div className="expand-section">
-        <div className="expand-section-title"><InfoCircleOutlined /> Nguồn & Trạng thái</div>
-        <div className="expand-items">
-          <div className="expand-item"><span className="expand-label">Page</span><span className="expand-value">{record.page || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">Trạng thái</span><span className="expand-value" style={{ color: statusColors[record.status]?.color, fontWeight: 700 }}>{statusColors[record.status]?.label || record.status || '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">Ghi chú</span><span className="expand-value">{(record.mess && record.mess !== 'EMPTY' && record.mess !== 'Mes Mới') ? record.mess : '—'}</span></div>
-        </div>
-      </div>
-      <div className="expand-section">
-        <div className="expand-section-title"><ClockCircleOutlined /> Thời gian</div>
-        <div className="expand-items">
-          <div className="expand-item"><span className="expand-label">Ngày tháng</span><span className="expand-value">{record.ngayThang ? dayjs(record.ngayThang).format('DD/MM/YYYY') : '—'}</span></div>
-          <div className="expand-item"><span className="expand-label">Ngày tạo</span><span className="expand-value">{record.createdAt ? dayjs(record.createdAt).format('DD/MM/YYYY HH:mm') : '—'}</span></div>
-        </div>
-      </div>
-    </div>
-  );
+    );
+  });
+
+  const expandedRowRender = (record) => <ExpandedRowContent record={record} />;
 
   return (
     <AnimatedDiv initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -1099,6 +1486,31 @@ export default function KhachHang() {
               Nhắn tin Zalo
             </Button>
           </Tooltip>
+          {isAdmin && (
+            <Tooltip title={selectedRowKeys.length ? `Đồng bộ ghi âm cho ${selectedRowKeys.length} khách đã chọn` : 'Chọn khách hàng để đồng bộ ghi âm'}>
+              <Button
+                onClick={async () => {
+                  if (!selectedRowKeys.length) { message.warning('Chọn ít nhất 1 khách hàng'); return; }
+                  try {
+                    message.loading({ content: `Đang đồng bộ ${selectedRowKeys.length} khách hàng...`, key: 'bulkSync' });
+                    const res = await audioApi.syncBulk(selectedRowKeys);
+                    const linked = res.data?.linked || 0;
+                    message.success({ content: `Đã liên kết ${linked} bản ghi âm cho ${res.data?.customers || selectedRowKeys.length} khách hàng`, key: 'bulkSync' });
+                  } catch { message.error({ content: 'Lỗi đồng bộ ghi âm', key: 'bulkSync' }); }
+                }}
+                disabled={!selectedRowKeys.length}
+                icon={<AudioOutlined />}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  borderColor: '#7C3AED', color: '#7C3AED',
+                  fontWeight: 600, borderRadius: 8,
+                  opacity: selectedRowKeys.length ? 1 : 0.5,
+                }}
+              >
+                Đồng bộ Ghi âm
+              </Button>
+            </Tooltip>
+          )}
         </div>
         <div className="page-header-right">
           <Input
@@ -1118,14 +1530,16 @@ export default function KhachHang() {
               {allSaleUsers.map(s => <Option key={s} value={s}>{s}</Option>)}
             </Select>
           )}
-          <RangePicker
-            value={dateRange}
-            onChange={(dates) => setDateRange(dates)}
-            format="DD/MM/YYYY"
-            placeholder={['Từ ngày', 'Đến ngày']}
-            style={{ width: 240 }}
-            allowClear
-          />
+          <Button
+            icon={<CalendarOutlined />}
+            onClick={() => setDateModalOpen(true)}
+            style={dateRange ? { borderColor: '#4F46E5', color: '#4F46E5' } : {}}
+          >
+            {dateRange ? `${dateRange[0].format('DD/MM')} → ${dateRange[1].format('DD/MM')}` : 'T...'}
+          </Button>
+          {dateRange && (
+            <Button type="text" size="small" onClick={() => setDateRange(null)} style={{ padding: '0 4px', color: '#94A3B8' }}>✕</Button>
+          )}
           <Checkbox checked={hasSdt} onChange={(e) => setHasSdt(e.target.checked)}>
             <PhoneOutlined style={{ marginRight: 4, color: '#10B981' }} />Có SĐT
           </Checkbox>
@@ -1340,7 +1754,6 @@ export default function KhachHang() {
                 selectedRowKeys,
                 onChange: (keys) => setSelectedRowKeys(keys),
                 columnWidth: 42,
-                fixed: true,
                 getCheckboxProps: () => ({ style: { transform: 'scale(1.15)' } }),
               }}
               pagination={{ ...pagination, showSizeChanger: true, pageSizeOptions: ['30', '50', '100'], showTotal: (t) => `Tổng ${t} khách hàng` }}
@@ -1576,7 +1989,10 @@ export default function KhachHang() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <AudioOutlined style={{ color: '#7C3AED', fontSize: 20 }} />
             <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#1F2937' }}>Bản ghi âm cuộc gọi</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#1F2937' }}>
+                Bản ghi âm cuộc gọi
+                {audioModal.filterSale && <Tag color="cyan" style={{ marginLeft: 8, fontSize: 11, fontWeight: 600 }}>{audioModal.filterSale}</Tag>}
+              </div>
               <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 400 }}>
                 KH: <span className="no-select">{audioModal.record?.khachHang}</span> · SĐT: <PhoneDisplay phone={audioModal.record?.sdt} masked={false} />
               </div>
@@ -1667,7 +2083,7 @@ export default function KhachHang() {
                     </div>
                     <audio
                       controls
-                      src={rec.fileUrl}
+                      src={rec.fileUrl?.startsWith('http') ? rec.fileUrl : `${API_BASE}${rec.fileUrl}`}
                       style={{ width: '100%', height: 36, borderRadius: 6 }}
                       preload="metadata"
                     />
@@ -1800,6 +2216,47 @@ export default function KhachHang() {
           <div style={{ padding: '10px 20px', borderTop: '1px solid #E2E8F0', background: '#fff', fontSize: 12, color: '#9CA3AF', textAlign: 'center' }}>
             Để nhắn tin, hãy mở tab <strong>Zalo</strong> trong menu
           </div>
+        </div>
+      </Modal>
+
+      {/* Date Range Modal */}
+      <Modal
+        open={dateModalOpen}
+        onCancel={() => setDateModalOpen(false)}
+        footer={null}
+        title="Chọn khoảng thời gian"
+        centered
+        width={340}
+        destroyOnClose
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <RangePicker
+            value={dateRange}
+            onChange={(dates) => { setDateRange(dates); setDateModalOpen(false); }}
+            format="DD/MM/YYYY"
+            placeholder={['Từ ngày', 'Đến ngày']}
+            style={{ width: '100%' }}
+          />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Hôm nay', range: [dayjs(), dayjs()] },
+              { label: 'Hôm qua', range: [dayjs().subtract(1, 'day'), dayjs().subtract(1, 'day')] },
+              { label: '3 ngày qua', range: [dayjs().subtract(2, 'day'), dayjs()] },
+              { label: '7 ngày qua', range: [dayjs().subtract(6, 'day'), dayjs()] },
+              { label: 'Tháng này', range: [dayjs().startOf('month'), dayjs().endOf('month')] },
+              { label: 'Tháng trước', range: [dayjs().subtract(1, 'month').startOf('month'), dayjs().subtract(1, 'month').endOf('month')] },
+            ].map(p => (
+              <Button
+                key={p.label}
+                size="small"
+                type={dateRange && dateRange[0]?.isSame(p.range[0], 'day') && dateRange[1]?.isSame(p.range[1], 'day') ? 'primary' : 'default'}
+                onClick={() => { setDateRange(p.range); setDateModalOpen(false); }}
+              >{p.label}</Button>
+            ))}
+          </div>
+          {dateRange && (
+            <Button size="small" danger onClick={() => { setDateRange(null); setDateModalOpen(false); }}>Xóa bộ lọc ngày</Button>
+          )}
         </div>
       </Modal>
     </AnimatedDiv>

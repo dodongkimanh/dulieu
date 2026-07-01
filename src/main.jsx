@@ -13,6 +13,11 @@ dayjs.extend(utc)
 dayjs.extend(timezone)
 dayjs.tz.setDefault('Asia/Ho_Chi_Minh')
 
+// PWA: khóa màn hình ngang
+if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+  try { screen.orientation.lock('landscape').catch(() => {}) } catch {}
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ConfigProvider
