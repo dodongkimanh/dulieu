@@ -23,13 +23,18 @@ public class JwtUtil {
     }
 
     public String generateToken(String username, String role) {
-        return Jwts.builder()
+        return generateToken(username, role, null);
+    }
+
+    public String generateToken(String username, String role, Long nhanVienId) {
+        var builder = Jwts.builder()
                 .subject(username)
                 .claim("role", role)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(key)
-                .compact();
+                .signWith(key);
+        if (nhanVienId != null) builder.claim("nhanVienId", nhanVienId);
+        return builder.compact();
     }
 
     public String getUsername(String token) {
@@ -38,6 +43,12 @@ public class JwtUtil {
 
     public String getRole(String token) {
         return getClaims(token).getPayload().get("role", String.class);
+    }
+
+    public Long getNhanVienId(String token) {
+        Object val = getClaims(token).getPayload().get("nhanVienId");
+        if (val instanceof Number) return ((Number) val).longValue();
+        return null;
     }
 
     public boolean validateToken(String token) {

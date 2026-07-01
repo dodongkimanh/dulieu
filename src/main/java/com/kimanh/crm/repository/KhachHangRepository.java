@@ -218,4 +218,70 @@ public interface KhachHangRepository extends JpaRepository<KhachHang, Long> {
            "WHERE REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g') = REGEXP_REPLACE(TRIM(CAST(:oldSale AS text)), '\\s+', ' ', 'g')",
            nativeQuery = true)
     int updateSaleByName(@Param("oldSale") String oldSale, @Param("newSale") String newSale);
+
+    // Kho Số Nổi: lấy 100 số từ 7 ngày trước, phân bổ đều theo sale, loại trừ uu_tien, da_chot_don và số không có SĐT
+    @Query(value = "WITH sale_count AS ( " +
+           "  SELECT COUNT(DISTINCT REGEXP_REPLACE(TRIM(\"Sale\"), '\\s+', ' ', 'g')) AS cnt " +
+           "  FROM data_dulieukhach " +
+           "  WHERE \"Ngay_thang\" >= :fromDate " +
+           "    AND status NOT IN ('uu_tien', 'da_chot_don') " +
+           "    AND kho_noi_claimed_by IS NULL " +
+           "    AND \"Sale\" IS NOT NULL AND TRIM(\"Sale\") <> '' " +
+           "    AND \"Sdt\" IS NOT NULL AND TRIM(\"Sdt\") <> '' " +
+           "), " +
+           "ranked AS ( " +
+           "  SELECT d.*, " +
+           "    ROW_NUMBER() OVER (PARTITION BY REGEXP_REPLACE(TRIM(d.\"Sale\"), '\\s+', ' ', 'g') ORDER BY d.\"Ngay_thang\" ASC, d.created_at ASC) AS rn " +
+           "  FROM data_dulieukhach d " +
+           "  WHERE d.\"Ngay_thang\" >= :fromDate " +
+           "    AND d.status NOT IN ('uu_tien', 'da_chot_don') " +
+           "    AND d.kho_noi_claimed_by IS NULL " +
+           "    AND d.\"Sale\" IS NOT NULL AND TRIM(d.\"Sale\") <> '' " +
+           "    AND d.\"Sdt\" IS NOT NULL AND TRIM(d.\"Sdt\") <> '' " +
+           ") " +
+           "SELECT r.id, r.\"Ngay_thang\", r.\"Khach_hang\", r.\"Sdt\", r.\"Sale\", r.\"Mess\", r.\"Uid\", r.ad_id, r.\"ID Trang\", r.\"Page\", r.loai_mess, r.assigned_from, r.status, r.created_at, r.kho_noi_claimed_by, r.kho_noi_claimed_at, r.from_kho_noi " +
+           "FROM ranked r, sale_count s " +
+           "WHERE r.rn <= GREATEST(1, CEIL(100.0 / GREATEST(s.cnt, 1))) " +
+           "ORDER BY RANDOM() " +
+           "LIMIT 100",
+           nativeQuery = true)
+    List<KhachHang> findKhoSoNoiPool(@Param("fromDate") LocalDate fromDate);
+
+    // Thống kê số lượng đã nhận từ kho nổi theo từng sale trong ngày hôm nay (cho admin)
+    @Query(value = "SELECT kho_noi_claimed_by AS sale, COUNT(*) AS claimed " +
+           "FROM data_dulieukhach " +
+           "WHERE kho_noi_claimed_by IS NOT NULL AND kho_noi_claimed_by <> '' " +
+           "AND kho_noi_claimed_at >= :startOfDay " +
+           "GROUP BY kho_noi_claimed_by " +
+           "ORDER BY claimed DESC",
+           nativeQuery = true)
+    List<Object[]> findKhoNoiClaimStats(@Param("startOfDay") java.time.OffsetDateTime startOfDay);
+
+    // Đếm số số đã nhận từ kho nổi bởi 1 sale trong ngày hôm nay
+    @Query(value = "SELECT COUNT(*) FROM data_dulieukhach " +
+           "WHERE kho_noi_claimed_by = CAST(:sale AS text) " +
+           "AND kho_noi_claimed_at >= :startOfDay",
+           nativeQuery = true)
+    long countClaimedByUserToday(@Param("sale") String sale, @Param("startOfDay") java.time.OffsetDateTime startOfDay);
+
+    // Trả số về kho nổi nếu quá 7 ngày chưa chuyển sang uu_tien hoặc da_chot_don
+    @Modifying
+    @Query(value = "UPDATE data_dulieukhach " +
+           "SET \"Sale\" = assigned_from, " +
+           "    assigned_from = NULL, " +
+           "    status = 'moi', " +
+           "    kho_noi_claimed_by = NULL, " +
+           "    kho_noi_claimed_at = NULL " +
+           "WHERE from_kho_noi = TRUE " +
+           "  AND kho_noi_claimed_by IS NOT NULL " +
+           "  AND kho_noi_claimed_at <= :expiredBefore " +
+           "  AND status NOT IN ('uu_tien', 'da_chot_don') " +
+           "  AND assigned_from IS NOT NULL AND assigned_from <> ''",
+           nativeQuery = true)
+    int returnExpiredKhoNoiToPool(@Param("expiredBefore") java.time.OffsetDateTime expiredBefore);
+
+    // Lấy tất cả khách hàng theo ngày có SĐT (dùng cho auto sync Zalo)
+    @Query(value = "SELECT * FROM data_dulieukhach WHERE \"Ngay_thang\" = :date AND \"Sdt\" IS NOT NULL AND \"Sdt\" <> ''",
+           nativeQuery = true)
+    List<KhachHang> findByDateWithPhone(@Param("date") LocalDate date);
 }

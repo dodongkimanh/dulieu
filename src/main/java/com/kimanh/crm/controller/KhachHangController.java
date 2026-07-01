@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/api/khach-hang")
@@ -189,6 +190,42 @@ public class KhachHangController {
             ensureSalerOwnsCustomer(id, getCurrentSalerNameOrThrow(auth));
         }
         return ResponseEntity.ok(service.updateLoaiMess(id, body.get("loaiMess")));
+    }
+
+    @GetMapping("/kho-so-noi")
+    public ResponseEntity<List<KhachHang>> getKhoSoNoi() {
+        return ResponseEntity.ok(service.getKhoSoNoi());
+    }
+
+    @GetMapping("/kho-so-noi/claim-stats")
+    @PreAuthorize("hasAnyRole('ADMIN', 'KE_TOAN')")
+    public ResponseEntity<List<Map<String, Object>>> getKhoNoiClaimStats() {
+        return ResponseEntity.ok(service.getKhoNoiClaimStats());
+    }
+
+    @GetMapping("/kho-so-noi/my-count")
+    public ResponseEntity<Map<String, Object>> getMyClaimCount() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String sale = userRepository.findByUsername(auth.getName())
+                .map(User::getFullName)
+                .map(this::normalizeSale)
+                .orElse(null);
+        long count = sale != null ? service.getClaimedCount(sale) : 0L;
+        Map<String, Object> result = new HashMap<>();
+        result.put("count", count);
+        result.put("limit", 10);
+        result.put("canClaim", count < 10);
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/{id}/nhan-kho-noi")
+    public ResponseEntity<KhachHang> claimKhoSoNoi(@PathVariable Long id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String sale = userRepository.findByUsername(auth.getName())
+                .map(User::getFullName)
+                .map(this::normalizeSale)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin tài khoản"));
+        return ResponseEntity.ok(service.claimKhoSoNoi(id, sale));
     }
 
     @GetMapping("/assigned-count")

@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.*;
 
 @Slf4j
@@ -222,6 +223,63 @@ public class KhachHangService {
     @Transactional(readOnly = true)
     public long countPendingAssigned(String sale) {
         return repository.countPendingAssigned(sale);
+    }
+
+    @Transactional(readOnly = true)
+    public List<KhachHang> getKhoSoNoi() {
+        LocalDate fromDate = LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")).minusDays(15);
+        return repository.findKhoSoNoiPool(fromDate);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getKhoNoiClaimStats() {
+        List<Object[]> rows = repository.findKhoNoiClaimStats(startOfTodayVN());
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object[] row : rows) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("sale", row[0] != null ? row[0].toString() : "");
+            item.put("claimed", row[1] != null ? ((Number) row[1]).longValue() : 0L);
+            result.add(item);
+        }
+        return result;
+    }
+
+    private OffsetDateTime startOfTodayVN() {
+        return LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh"))
+                .atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh"))
+                .toOffsetDateTime();
+    }
+
+    @Transactional(readOnly = true)
+    public long getClaimedCount(String sale) {
+        return repository.countClaimedByUserToday(sale, startOfTodayVN());
+    }
+
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "khachHang", key = "#id"),
+        @CacheEvict(value = "mess_stats", allEntries = true)
+    })
+    public KhachHang claimKhoSoNoi(Long id, String claimerSale) {
+        long alreadyClaimed = repository.countClaimedByUserToday(claimerSale, startOfTodayVN());
+        if (alreadyClaimed >= 10) {
+            throw new RuntimeException("Bạn đã nhận đủ 10 số từ kho nổi");
+        }
+        KhachHang existing = findById(id);
+        if (existing.getKhoNoiClaimedBy() != null) {
+            throw new RuntimeException("Số này đã được sale khác nhận rồi");
+        }
+        if ("uu_tien".equals(existing.getStatus()) || "da_chot_don".equals(existing.getStatus())) {
+            throw new RuntimeException("Số này không nằm trong kho nổi");
+        }
+        String originalSale = existing.getSale();
+        existing.setAssignedFrom(originalSale);
+        existing.setSale(claimerSale);
+        existing.setStatus("moi");
+        existing.setKhoNoiClaimedBy(claimerSale);
+        existing.setKhoNoiClaimedAt(OffsetDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+        existing.setFromKhoNoi(true);
+        return repository.save(existing);
     }
 
     // Sale dashboard: mess stats for a specific sale

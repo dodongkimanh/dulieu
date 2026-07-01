@@ -87,18 +87,24 @@ public class AuthService {
         }
 
         log.info("Login success for user: {} ({})", matchedUser.getUsername(), matchedUser.getFullName());
-        String token = jwtUtil.generateToken(matchedUser.getUsername(), matchedUser.getRole());
+        String token = jwtUtil.generateToken(matchedUser.getUsername(), matchedUser.getRole(), matchedUser.getNhanVienId());
 
         Map<String, Object> result = new HashMap<>();
         result.put("token", token);
         result.put("username", matchedUser.getUsername());
         result.put("fullName", matchedUser.getFullName());
         result.put("role", matchedUser.getRole());
+        result.put("nhanVienId", matchedUser.getNhanVienId());
         return result;
     }
 
     @Transactional
     public User register(String username, String password, String fullName, String role, String zalo, String sim, String zaloPassword) {
+        return register(username, password, fullName, role, zalo, sim, zaloPassword, null);
+    }
+
+    @Transactional
+    public User register(String username, String password, String fullName, String role, String zalo, String sim, String zaloPassword, Long nhanVienId) {
         if (username == null || username.isBlank()) {
             throw new RuntimeException("Tên đăng nhập không được để trống");
         }
@@ -116,8 +122,9 @@ public class AuthService {
             throw new RuntimeException("Tên đăng nhập đã tồn tại");
         }
 
-        // Only allow SALER and KE_TOAN roles; ADMIN cannot be created
-        if (role == null || (!role.equals("SALER") && !role.equals("KE_TOAN"))) {
+        // Only allow SALER, KE_TOAN, LAI_XE, NHAN_VIEN roles; ADMIN cannot be created
+        if (role == null || (!role.equals("SALER") && !role.equals("KE_TOAN")
+                && !role.equals("LAI_XE") && !role.equals("NHAN_VIEN"))) {
             role = "SALER";
         }
 
@@ -129,6 +136,7 @@ public class AuthService {
                 .zalo(zalo)
                 .zaloPassword(zaloPassword)
                 .sim(sim)
+                .nhanVienId(nhanVienId)
                 .active(true)
                 .build();
 
@@ -147,6 +155,21 @@ public class AuthService {
         return userRepository.save(Objects.requireNonNull(user, "user must not be null"));
     }
 
+    public String changePassword(String username, String currentPassword, String newPassword) {
+        java.util.Optional<User> userOpt = userRepository.findByUsername(username);
+        if (userOpt.isEmpty()) return "Không tìm thấy tài khoản";
+        User user = userOpt.get();
+        if (user.getPassword() == null || !passwordEncoder.matches(currentPassword, user.getPassword())) {
+            return "Mật khẩu hiện tại không đúng";
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            return "Mật khẩu mới phải có ít nhất 6 ký tự";
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        return "ok";
+    }
+
     public List<String> getSaleUserNames() {
         return userRepository.findByRoleAndActiveTrue("SALER").stream()
                 .map(User::getFullName)
@@ -158,6 +181,16 @@ public class AuthService {
 
     @Transactional
     public Map<String, Object> updateUser(Long id, String username, String fullName, String password, String zalo, String sim, String zaloPassword) {
+        return updateUser(id, username, fullName, password, zalo, sim, zaloPassword, null, false);
+    }
+
+    @Transactional
+    public Map<String, Object> updateUser(Long id, String username, String fullName, String password, String zalo, String sim, String zaloPassword, Long nhanVienId, boolean updateNhanVienId) {
+        return updateUser(id, username, fullName, password, zalo, sim, zaloPassword, nhanVienId, updateNhanVienId, null);
+    }
+
+    @Transactional
+    public Map<String, Object> updateUser(Long id, String username, String fullName, String password, String zalo, String sim, String zaloPassword, Long nhanVienId, boolean updateNhanVienId, String newRole) {
         User user = userRepository.findById(Objects.requireNonNull(id, "id must not be null"))
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại (ID: " + id + ")"));
         if (username != null && !username.isBlank()) {
@@ -192,6 +225,12 @@ public class AuthService {
         if (zalo != null) user.setZalo(zalo.trim().isEmpty() ? null : zalo.trim());
         if (zaloPassword != null) user.setZaloPassword(zaloPassword.trim().isEmpty() ? null : zaloPassword.trim());
         if (sim != null) user.setSim(sim.trim().isEmpty() ? null : sim.trim());
+        if (updateNhanVienId) user.setNhanVienId(nhanVienId);
+        // Role change: cannot set to ADMIN; only allow known roles
+        if (newRole != null && !newRole.isBlank() && !"ADMIN".equals(newRole)) {
+            List<String> allowed = List.of("SALER", "KE_TOAN", "LAI_XE", "NHAN_VIEN");
+            if (allowed.contains(newRole)) user.setRole(newRole);
+        }
         User saved = userRepository.save(Objects.requireNonNull(user, "user must not be null"));
         Map<String, Object> result = new HashMap<>();
         result.put("user", saved);

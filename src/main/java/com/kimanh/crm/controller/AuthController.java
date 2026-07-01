@@ -26,16 +26,17 @@ public class AuthController {
 
     @PostMapping("/register")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, Object>> register(@RequestBody Map<String, String> body) {
-        String username = body.get("username");
-        String password = body.get("password");
-        String fullName = body.get("fullName");
-        String role = body.get("role");
-        String zalo = body.get("zalo");
-        String sim = body.get("sim");
-        String zaloPassword = body.get("zaloPassword");
+    public ResponseEntity<Map<String, Object>> register(@RequestBody Map<String, Object> body) {
+        String username = (String) body.get("username");
+        String password = (String) body.get("password");
+        String fullName = (String) body.get("fullName");
+        String role = (String) body.get("role");
+        String zalo = (String) body.get("zalo");
+        String sim = (String) body.get("sim");
+        String zaloPassword = (String) body.get("zaloPassword");
+        Long nhanVienId = body.get("nhanVienId") != null ? ((Number) body.get("nhanVienId")).longValue() : null;
 
-        User user = authService.register(username, password, fullName, role, zalo, sim, zaloPassword);
+        User user = authService.register(username, password, fullName, role, zalo, sim, zaloPassword, nhanVienId);
         return ResponseEntity.ok(Map.of(
                 "message", "Đăng ký thành công",
                 "username", user.getUsername(),
@@ -61,6 +62,16 @@ public class AuthController {
         return ResponseEntity.ok(authService.toggleActive(id));
     }
 
+    @PatchMapping("/change-password")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, String>> changePassword(
+            @RequestBody Map<String, String> body,
+            org.springframework.security.core.Authentication auth) {
+        String result = authService.changePassword(auth.getName(), body.get("currentPassword"), body.get("newPassword"));
+        if ("ok".equals(result)) return ResponseEntity.ok(Map.of("message", "Đổi mật khẩu thành công"));
+        return ResponseEntity.badRequest().body(Map.of("error", result));
+    }
+
     @GetMapping("/users/sales")
     public ResponseEntity<List<String>> getSaleUsers() {
         return ResponseEntity.ok(authService.getSaleUserNames());
@@ -68,14 +79,18 @@ public class AuthController {
 
     @PutMapping("/users/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, Object>> updateUser(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        String username = body.get("username");
-        String fullName = body.get("fullName");
-        String password = body.get("password");
-        String zalo = body.get("zalo");
-        String sim = body.get("sim");
-        String zaloPassword = body.get("zaloPassword");
-        return ResponseEntity.ok(authService.updateUser(id, username, fullName, password, zalo, sim, zaloPassword));
+    public ResponseEntity<Map<String, Object>> updateUser(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String username = (String) body.get("username");
+        String fullName = (String) body.get("fullName");
+        String password = (String) body.get("password");
+        String zalo = (String) body.get("zalo");
+        String sim = (String) body.get("sim");
+        String zaloPassword = (String) body.get("zaloPassword");
+        String role = (String) body.get("role");
+        boolean hasNhanVienId = body.containsKey("nhanVienId");
+        Long nhanVienId = hasNhanVienId && body.get("nhanVienId") != null
+                ? ((Number) body.get("nhanVienId")).longValue() : null;
+        return ResponseEntity.ok(authService.updateUser(id, username, fullName, password, zalo, sim, zaloPassword, nhanVienId, hasNhanVienId, role));
     }
 
     @DeleteMapping("/users/{id}")

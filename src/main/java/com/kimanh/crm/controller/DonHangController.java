@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,7 +44,7 @@ public class DonHangController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<DonHang>> getAll(
+    public ResponseEntity<Map<String, Object>> getAll(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String tinhTrang,
             @RequestParam(required = false) String sale,
@@ -52,7 +53,9 @@ public class DonHangController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(defaultValue = "0") int pageNum,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "false") boolean successOnly,
+            @RequestParam(defaultValue = "false") boolean doanhSoMode) {
 
         // SALER can only see their own orders
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -62,7 +65,8 @@ public class DonHangController {
         }
 
         PageRequest pageable = PageRequest.of(pageNum, size);
-        Page<DonHang> result = service.findAll(keyword, tinhTrang, sale, page, maIdQuangCao, fromDate, toDate, pageable);
+        org.springframework.data.domain.Page<DonHang> result =
+                service.findAll(keyword, tinhTrang, sale, page, maIdQuangCao, fromDate, toDate, successOnly, doanhSoMode, pageable);
 
         // SALER must NOT see cost/profit fields — null them out
         if (currentUserIsSaler) {
@@ -78,7 +82,18 @@ public class DonHangController {
             });
         }
 
-        return ResponseEntity.ok(result);
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", result.getContent());
+        response.put("totalElements", result.getTotalElements());
+        response.put("totalPages", result.getTotalPages());
+        response.put("number", result.getNumber());
+        response.put("size", result.getSize());
+
+        if (!currentUserIsSaler) {
+            response.put("totals", service.findTotals(keyword, tinhTrang, sale, page, maIdQuangCao, fromDate, toDate, successOnly, doanhSoMode));
+        }
+
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")
@@ -102,6 +117,28 @@ public class DonHangController {
     @PreAuthorize("hasAnyRole('ADMIN', 'KE_TOAN')")
     public ResponseEntity<DonHang> updateStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
         return ResponseEntity.ok(service.updateStatus(id, body.get("tinhTrang")));
+    }
+
+    @PatchMapping("/{id}/ghi-chu-doanh-so")
+    @PreAuthorize("hasAnyRole('ADMIN', 'KE_TOAN', 'SALER')")
+    public ResponseEntity<DonHang> updateGhiChuDoanhSo(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(service.updateGhiChuDoanhSo(id, body.get("ghiChuDoanhSo")));
+    }
+
+    @PatchMapping("/{id}/hoa-hong")
+    @PreAuthorize("hasAnyRole('ADMIN', 'KE_TOAN')")
+    public ResponseEntity<DonHang> updateHoaHong(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(service.updateHoaHong(id, body.get("hoaHong")));
+    }
+
+    @PatchMapping("/{id}/day-doanh-so")
+    @PreAuthorize("hasAnyRole('ADMIN', 'KE_TOAN')")
+    public ResponseEntity<DonHang> dayDoanhSo(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String dateStr = body.get("ngayTinhDoanhSo");
+        java.time.LocalDate date = (dateStr != null && !dateStr.isBlank())
+                ? java.time.LocalDate.parse(dateStr)
+                : null;
+        return ResponseEntity.ok(service.updateNgayTinhDoanhSo(id, date));
     }
 
     @DeleteMapping("/{id}")
@@ -130,9 +167,11 @@ public class DonHangController {
             @RequestParam(required = false) String page,
             @RequestParam(required = false) String maIdQuangCao,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) throws IOException {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "false") boolean successOnly,
+            @RequestParam(defaultValue = "false") boolean doanhSoMode) throws IOException {
 
-        byte[] excelData = service.exportToExcel(keyword, tinhTrang, sale, page, maIdQuangCao, fromDate, toDate);
+        byte[] excelData = service.exportToExcel(keyword, tinhTrang, sale, page, maIdQuangCao, fromDate, toDate, successOnly, doanhSoMode);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
