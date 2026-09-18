@@ -1,7 +1,9 @@
 package com.kimanh.crm.service;
 
+import com.kimanh.crm.entity.RemovedSaleName;
 import com.kimanh.crm.entity.User;
 import com.kimanh.crm.repository.KhachHangRepository;
+import com.kimanh.crm.repository.RemovedSaleNameRepository;
 import com.kimanh.crm.repository.UserRepository;
 import com.kimanh.crm.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class AuthService {
     private final KhachHangRepository khachHangRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final RemovedSaleNameRepository removedSaleNameRepository;
 
     /** Normalize Vietnamese Unicode to NFC to avoid NFC/NFD mismatch */
     private String normalizeUnicode(String s) {
@@ -238,11 +241,18 @@ public class AuthService {
         return result;
     }
 
+    @Transactional
     public void deleteUser(Long id) {
         User user = userRepository.findById(Objects.requireNonNull(id, "id must not be null"))
                 .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
         if ("ADMIN".equals(user.getRole())) {
             throw new RuntimeException("Không thể xóa tài khoản Admin");
+        }
+        // Ghi lại tên sale đã xóa để InitDataConfig không tự tạo lại tài khoản này
+        // ở lần khởi động backend kế tiếp (nó seed account từ tên Sale còn trong data_dulieukhach).
+        String name = normalizeUnicode(user.getFullName());
+        if (!name.isBlank() && !removedSaleNameRepository.existsByFullName(name)) {
+            removedSaleNameRepository.save(RemovedSaleName.builder().fullName(name).build());
         }
         userRepository.delete(user);
     }
