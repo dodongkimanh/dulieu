@@ -69,6 +69,15 @@ public class KhachHang implements Serializable {
     @Column(name = "from_kho_noi")
     private Boolean fromKhoNoi;
 
+    @Column(name = "gioi_tinh")
+    private String gioiTinh;
+
+    @Column(name = "dia_chi")
+    private String diaChi;
+
+    @Column(name = "nam_sinh")
+    private Integer namSinh;
+
     private static final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     @PrePersist

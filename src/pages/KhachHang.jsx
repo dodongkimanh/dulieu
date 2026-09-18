@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
-import { Table, Button, Input, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox, Badge, Spin, Avatar, Progress } from 'antd';
+import { Table, Button, Input, InputNumber, Select, Tag, Modal, Form, Space, Popconfirm, message, Row, Col, Tooltip, Divider, Tabs, DatePicker, Checkbox, Badge, Spin, Avatar, Progress } from 'antd';
 
 const AnimatedDiv = motion.div;
 import {
@@ -1307,6 +1307,9 @@ export default function KhachHang() {
             <div className="expand-item"><span className="expand-label">UID</span><span className="expand-value">{record.uid || '—'}</span></div>
             <div className="expand-item"><span className="expand-label">Ad ID</span><span className="expand-value">{record.adId || '—'}</span></div>
             <div className="expand-item"><span className="expand-label">ID Trang</span><span className="expand-value">{record.idTrang || '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">Giới tính</span><span className="expand-value">{record.gioiTinh || '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">Năm sinh</span><span className="expand-value">{record.namSinh || '—'}</span></div>
+            <div className="expand-item"><span className="expand-label">Địa chỉ</span><span className="expand-value">{record.diaChi || '—'}</span></div>
           </div>
         </div>
         <div className="expand-section">
@@ -1793,6 +1796,18 @@ export default function KhachHang() {
                 </Select>
               )}
             </Form.Item></Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="gioiTinh" label="Giới tính">
+              <Select allowClear placeholder="Chọn giới tính">
+                <Option value="Nam">Nam</Option>
+                <Option value="Nữ">Nữ</Option>
+              </Select>
+            </Form.Item></Col>
+            <Col span={12}><Form.Item name="diaChi" label="Địa chỉ khách hàng"><Input placeholder="Nhập địa chỉ..." /></Form.Item></Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="namSinh" label="Năm sinh"><InputNumber style={{ width: '100%' }} min={1900} max={2100} placeholder="VD: 1990" /></Form.Item></Col>
           </Row>
           <Row gutter={16}>
             <Col span={12}><Form.Item name="loaiMess" label="Loại Mess">

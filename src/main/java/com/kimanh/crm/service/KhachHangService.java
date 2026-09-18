@@ -113,6 +113,9 @@ public class KhachHangService {
         existing.setPage(data.getPage());
         existing.setLoaiMess(data.getLoaiMess());
         existing.setStatus(data.getStatus());
+        existing.setGioiTinh(data.getGioiTinh());
+        existing.setDiaChi(data.getDiaChi());
+        existing.setNamSinh(data.getNamSinh());
         return repository.save(existing);
     }
 
